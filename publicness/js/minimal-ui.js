@@ -61,12 +61,11 @@
   var render=PB.App.render;PB.App.render=function(){var r=render.apply(this,arguments);refresh();return r;};
   $('#btn-view-toggle').addEventListener('click',function(){if(root.MINIMAL_UI)text(this.textContent.indexOf('3D')>=0);});
   document.addEventListener('click',function(e){if(e.target.closest('#plan-text-toggle')&&root.MINIMAL_UI)text($('#plan-text-toggle').getAttribute('aria-expanded')==='true');});
-  var storyText=el('button','btn','원문 보기');storyText.type='button';storyText.onclick=function(){full=!full;document.body.classList.toggle('minimal-text',full);storyText.setAttribute('aria-pressed',String(full));};$('.story-tools').append(storyText);
   document.addEventListener('pointerover',function(e){if(e.target.closest('#btn-lease'))tip('lease');});document.addEventListener('pointerdown',function(e){var b=e.target.closest('.depot-bus,#btn-lease');if(!b)return;var hold=setTimeout(function(){if(root.MINIMAL_UI)toast(b.title);},550);document.addEventListener('pointerup',function(){clearTimeout(hold);},{once:true});document.addEventListener('pointercancel',function(){clearTimeout(hold);},{once:true});});
   new MutationObserver(function(){var m=$('#map-plan-message');if(m&&m.textContent!==lastMessage){lastMessage=m.textContent;if(root.MINIMAL_UI&&!full)toast(lastMessage);}var r=$('#run-status');if(r&&r.textContent!==lastRunStatus){lastRunStatus=r.textContent;if(root.MINIMAL_UI&&!full)toast(lastRunStatus);}}).observe($('#panel'),{childList:true,subtree:true,characterData:true});
   new ResizeObserver(signals).observe(stage);setInterval(function(){if(PB.App.s&&PB.App.s.stage==='run'){signals();emergency();if($('#emergency-dialog'))tip('emergency');}},500);
   refresh();
  }
- PB.Minimal={set:set,text:text,refresh:refresh,tip:tip,shortDialogue:function(cut){var lines={'하늘':'대학교에 가려면 얼마나 기다릴까요?','나래':'병원에 다녀올 돌아오는 버스도 있겠죠?','준':'기차에서 내려 일터까지 한 번 더 가요.','솔잎마을의 AI':'모두 볼일을 마치도록 노선을 이어요.','솔':'새 집에서도 기차역에 다녀올 수 있나요?','유나 · 치어리더':'경기 뒤 친구 집까지 버스로 갈 거예요.','다은 · 야구 팬':'운동장에 들렀다 터미널로 돌아가요.','진호 · 인플루언서':'몰 방송이 끝나면 신도시 집으로 가요.'};return lines[cut.name]||cut.text.split(/(?<=[.!?])\s+/)[0];}};
+ PB.Minimal={set:set,text:text,refresh:refresh,tip:tip};
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })(window);

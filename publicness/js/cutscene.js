@@ -33,12 +33,12 @@
     $('goal-intro').dataset.scene=a.kind;$('goal-intro').dataset.cut=String(a.index);
     $('goal-intro').dataset.reduced=String(PB.App.reducedMotion());
     $('goal-intro-h').textContent=cut.name;$('story-count').textContent=(a.index+1)+' / '+a.cuts.length;
-    $('story-full').textContent=cut.text;a.text=root.MINIMAL_UI&&PB.Minimal?PB.Minimal.shortDialogue(cut):cut.text;a.typed=0;$('story-typed').textContent='';
+    $('story-full').textContent=cut.text;a.text=cut.text;a.typed=0;$('story-typed').textContent='';
     img.alt=cut.name==='솔잎마을의 AI'?'솔잎마을 전경':cut.name+'의 하루';img.dataset.fallback=cut.fallback||'';img.src='assets/art/'+cut.image;
     img.classList.remove('story-fade');void img.offsetWidth;img.classList.add('story-fade');
     $('story-next').textContent=a.index===a.cuts.length-1?(a.kind==='ending'?'운행 기록 살펴보기':a.kind==='intro'?'솔잎마을의 첫 노선 만들기':a.kind==='baseball'?'터미널과 운동장 연결하기':a.kind==='mall'?'솔잎몰 연결하기':'신도시 연결하기'):'다음';
     $('btn-goal-start').textContent=a.kind==='ending'?'결과로 건너뛰기':a.kind==='intro'?'건너뛰고 시작':'건너뛰기';
-    if(root.MINIMAL_UI||PB.App.reducedMotion())reveal();
+    if(PB.App.reducedMotion())reveal();
     else timer=setInterval(function(){if(active!==a)return; a.typed++;$('story-typed').textContent=a.text.slice(0,a.typed);if(a.typed>=a.text.length)clear();},28);
   }
   function next(){
