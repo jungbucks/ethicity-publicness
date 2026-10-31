@@ -1,0 +1,21 @@
+/* 두 점수(재정 건전성·이동 수요 충족) — 결과·엔딩 화면. 같은 크기 두 칸, 움직임 없음, 합산 없음 */
+.scores { margin: 12px 0 16px; }
+.scores h3 { margin: 0 0 8px; font-size: 1rem; }
+.score-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.score-box { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; background: var(--bg); min-width: 0; }
+.score-name { margin: 0; font-size: 0.875rem; color: var(--text-mute); }
+.score-value { margin: 2px 0 4px; font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+.score-value b { font-size: 1.6rem; font-weight: 700; margin-right: 2px; }
+.score-value.hold { font-size: 0.95rem; font-weight: 600; color: var(--warn); }
+.score-basis { margin: 0; font-size: 0.875rem; color: var(--text); font-variant-numeric: tabular-nums; word-break: keep-all; }
+.score-state { margin: 4px 0 0; font-size: 0.8125rem; color: var(--text-mute); word-break: keep-all; }
+.score-line { margin: 10px 0 4px; word-break: keep-all; }
+.score-sub { margin: 4px 0 0; padding-left: 18px; font-size: 0.9rem; }
+.score-sub li { margin: 2px 0; word-break: keep-all; }
+.score-sub .low { color: var(--warn); }
+.score-tips { margin: 8px 0 0; padding-left: 18px; font-size: 0.9rem; }
+.score-tips li { margin: 3px 0; word-break: keep-all; }
+.score-method { margin-top: 8px; }
+.score-method summary { cursor: pointer; color: var(--accent-ink); font-size: 0.9rem; }
+.score-method .kv { margin: 8px 0; }
+@media (max-width: 420px) { .score-pair { grid-template-columns: 1fr; } }

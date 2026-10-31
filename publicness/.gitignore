@@ -1,0 +1,16 @@
+docs/
+CLAUDE.md
+tests/_shot-*.png
+# 원본 PNG·컨셉·납품 메모는 로컬에만 둔다 — 게임은 tools/to-webp.mjs가 만든 .webp만 쓴다
+assets/art/*
+!assets/art/*.webp
+# 검토 도구 실행 결과물
+tests/_*.json
+tests/_*.txt
+
+# fal.ai API 키 — 로컬에만 둔다(커밋 금지)
+.env
+
+# 3D 모델 원본(fal.ai 생성 GLB·입력 그림·텍스처 중간물)은 로컬에만 — 게임은 tools/bus-model.mjs가 만든 assets/models/*.js만 쓴다
+assets/models/*
+!assets/models/*.js

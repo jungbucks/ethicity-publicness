@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>좁은 화면 점검</title>
+<style>body{margin:0;display:flex;gap:12px;padding:12px;background:#ddd;font:13px sans-serif}figure{margin:0}iframe{width:375px;height:780px;border:0;background:#fff;display:block}</style>
+</head><body>
+<figure><figcaption>시작</figcaption><iframe data-name="시작" src="../index.html"></iframe></figure>
+<figure><figcaption>계획</figcaption><iframe data-name="계획" src="../index.html?probe=shot-plan"></iframe></figure>
+<figure><figcaption>결과</figcaption><iframe data-name="결과" src="../index.html?probe=shot-result"></iframe></figure>
+<figure><figcaption>결말</figcaption><iframe data-name="결말" src="../index.html?probe=shot-ending"></iframe></figure>
+<script>
+// 375px 안에서 가로로 넘치는지(페이지 가로 스크롤) 확인해 결과 블록(probe-out)에 남긴다
+(function () {
+  var pass = [], fail = [], errors = [];
+  function done() {
+    var pre = document.createElement('pre'); pre.id = 'probe-out';
+    pre.textContent = JSON.stringify({ scenario: 'mobile', pass: pass, fail: fail, errors: errors });
+    document.body.appendChild(pre);
+  }
+  var frames = Array.prototype.slice.call(document.querySelectorAll('iframe')), t = 0;
+  (function check() {
+    var ready = frames.every(function (f) {
+      var d = f.contentDocument; if (!d || d.readyState !== 'complete') return false;
+      return !/probe/.test(f.src) || d.getElementById('probe-out');
+    });
+    if (!ready && t < 200) { t++; return setTimeout(check, 100); }
+    frames.forEach(function (f) {
+      var d = f.contentDocument, n = f.getAttribute('data-name');
+      var probeOut = d.getElementById('probe-out');
+      if (probeOut) probeOut.style.display = 'none'; // 프로브 결과 블록은 앱이 아니므로 빼고 잰다
+      var sw = d.documentElement.scrollWidth;
+      (sw <= 376 ? pass : fail).push(n + ': 가로 넘침 없음 (' + sw + 'px)');
+      if (sw > 376) {
+        var wide = Array.prototype.filter.call(d.querySelectorAll('body *'), function (e) { var r = e.getBoundingClientRect(); return r.right > 377 && r.width > 0 && !e.closest('.table-wrap'); })
+          .filter(function (e) { return !Array.prototype.some.call(e.children, function (c) { return c.getBoundingClientRect().right > 377; }); })
+          .slice(0, 6).map(function (e) { return e.tagName + '.' + e.className + '#' + e.id + ' w' + Math.round(e.getBoundingClientRect().width); });
+        fail.push(n + ' 넘치는 요소: ' + wide.join(' | '));
+      }
+      var po = d.getElementById('probe-out');
+      if (po) { var r = JSON.parse(po.textContent); (r.fail.length || r.errors.length ? fail : pass).push(n + ': 화면 조작 정상'); }
+    });
+    done();
+  })();
+})();
+</script>
+</body></html>

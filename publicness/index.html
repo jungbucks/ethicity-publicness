@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>이번 정류장은… — AI 마을버스 운영단</title>
+<meta name="description" content="AI 자율주행 마을버스를 위탁 운영하며 누구의 이동을 책임질지 고르는 공공성 시뮬레이션 게임">
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/scores.css">
+<link rel="stylesheet" href="css/minimal.css">
+</head>
+<body data-screen="title">
+<a class="skip-link" href="#panel">오른쪽 안내로 건너뛰기</a>
+
+<!-- 시작 화면 -->
+<section id="screen-title" class="title-screen" aria-labelledby="title-h1">
+  <div class="title-copy">
+    <p class="eyebrow" id="title-sub">AI 마을버스 운영단</p>
+    <h1 id="title-h1">이번 정류장은…</h1>
+    <p class="title-en" id="title-en">This stop is…</p>
+    <p class="hook" id="hook-1"></p>
+    <p class="hook hook-strong" id="hook-2"></p>
+    <fieldset class="setting">
+      <legend>마을 세팅</legend>
+      <label class="radio"><input type="radio" name="setting" value="default" checked> <span><b>기본 · 교육용 5단계</b> — 같은 지도와 사건으로 시작해요. 재정은 학기 말 잔액으로 평가해요</span></label>
+      <label class="radio"><input type="radio" name="setting" value="random"> <span><b>랜덤 · 도전용 8단계</b> — 위치·사건 변화, 직행과 광역 노선까지. 단계를 마칠 때 누적 잔액이 2번 연속 0원 미만이면 운영 계약이 끝나요</span></label>
+      <p class="note" id="seed-note" aria-live="polite"></p>
+    </fieldset>
+    <button type="button" class="btn btn-primary btn-lg" id="btn-continue" hidden>이어하기</button>
+    <p class="note" id="continue-note"></p>
+    <button type="button" class="btn btn-primary btn-lg" id="btn-start">첫 운행 계획하기</button>
+    <p class="note">진행은 이 브라우저에 자동으로 저장돼요. 새로고침하거나 창을 닫았다가 열어도 ‘이어하기’로 계속할 수 있어요.</p>
+  </div>
+  <figure class="title-art" aria-hidden="true">
+    <img id="title-img" src="assets/art/title-two-stops.webp" alt="" onerror="this.parentNode.classList.add('placeholder'); this.remove();">
+    <div class="art-fallback">
+      <span class="initial">하늘</span><span class="initial">준</span><span class="initial far">나래</span>
+    </div>
+  </figure>
+</section>
+
+<!-- 게임 화면 -->
+<header id="topbar" class="topbar">
+  <span class="brand">이번 정류장은…</span>
+  <ol id="top-phase" class="phase-steps" aria-label="단계"></ol>
+  <span id="top-balance" class="balance"></span>
+  <span id="top-deficit" class="deficit-count" hidden></span>
+  <span class="top-actions">
+    <button type="button" class="btn btn-ghost" id="btn-panel-toggle" hidden onclick="PB.App.setPanelCollapsed(!document.body.classList.contains('panel-collapsed'))">패널 접기</button>
+    <button type="button" class="btn btn-ghost" id="btn-view-toggle" hidden>지도·텍스트 보기</button>
+    <button type="button" class="btn btn-ghost" id="btn-settings" aria-haspopup="dialog">설정</button>
+    <button type="button" class="btn btn-ghost" id="btn-help" aria-haspopup="dialog">도움말</button>
+  </span>
+</header>
+
+<main id="screen-game" class="game">
+  <div class="stage-col">
+    <div class="map-toolbar" aria-label="지도 시간과 운행 조작">
+      <div id="run-controls" role="group" aria-label="운행 시간 조작"></div>
+      <div id="map-clock" class="map-clock" aria-label="마을의 시간">
+        <div><span id="top-clock" class="clock">05:00</span><span id="clock-period">계획 중</span></div>
+        <svg class="day-track" viewBox="0 0 144 40" aria-hidden="true">
+          <path d="M12 32 Q72 -14 132 32" fill="none" stroke="currentColor" stroke-opacity=".3" stroke-width="1.5"/>
+          <g id="clock-orb" transform="translate(12 32)">
+            <g id="clock-sun" hidden><circle r="5" fill="#d69b28"/><path d="M0 -11V-8 M0 8V11 M-11 0H-8 M8 0H11 M-8 -8L-6 -6 M6 6L8 8 M-8 8L-6 6 M6 -6L8 -8" stroke="#b77b0c" stroke-width="1.5"/></g>
+            <path id="clock-moon" d="M3 -8 A8 8 0 1 0 7 6 A7 7 0 0 1 3 -8" fill="#667eac"/>
+          </g>
+        </svg>
+        <div class="day-endpoints"><span>05:00</span><span>23:00</span></div>
+      </div>
+    </div>
+    <div id="stage" class="stage" aria-label="마을 지도">
+      <svg id="stage-svg" class="stage-svg" role="img" aria-label="마을 도로와 버스 노선 지도"></svg>
+      <div id="stage-3d" class="stage-3d" hidden></div>
+      <div id="stage-overlay" class="stage-overlay" aria-hidden="true"></div>
+    </div>
+    <p id="no3d-note" class="note" hidden></p>
+    <details id="text-routes" class="text-routes">
+      <summary id="text-routes-h">노선·버스 목록 (글로 보기)</summary>
+      <div id="text-routes-body"></div>
+    </details>
+  </div>
+  <aside id="panel" class="panel" tabindex="-1" aria-live="off"></aside>
+</main>
+
+<dialog id="goal-intro" class="story-dialog" aria-labelledby="goal-intro-h" aria-describedby="story-full" tabindex="-1">
+  <div id="story-stage" class="story-stage"><p id="story-stage-title" class="stage-title"></p><p id="story-stage-sub" class="stage-sub"></p></div>
+  <img id="story-image" class="story-image" alt="">
+  <div class="story-tools"><span id="story-count"></span><button type="button" class="btn" id="btn-goal-start">건너뛰고 시작</button></div>
+  <div class="story-dialogue">
+    <h2 id="goal-intro-h"></h2>
+    <p id="goal-intro-text"><span id="story-typed" aria-hidden="true"></span><span id="story-full" class="story-sr"></span></p>
+    <div class="story-controls"><span>클릭·터치로 문장 완성 / 다음 장면</span><button type="button" class="btn btn-primary" id="story-next">다음</button></div>
+  </div>
+</dialog>
+
+<dialog id="help" class="dialog" aria-labelledby="help-h">
+  <h2 id="help-h">도움말</h2>
+  <h3>어떻게 하나요?</h3>
+  <ul>
+    <li>정류장 두 곳 이상을 이어 노선을 만들면 대기 버스 1대가 바로 운행해요. 지도 아래 대기 버스를 노선으로 끌어 놓으면 증차, 노선 위 ‘버스 ×N’을 대기로 끌면 회수, 다른 노선에 놓으면 이동이에요(누르고 고르기·키보드로도 돼요). 같은 노선의 버스는 자동으로 간격을 두고 출발해요. AI 제안은 지도에서 미리 보고 적용할 수 있어요.</li>
+    <li>지도에서 정류장을 누르거나 드래그해서 자유롭게 연결해요. 선 중간을 정류장으로 당기면 경유지가 추가되고, 선을 두 번 누르면(더블클릭·두 번 탭) 그 구간(두 정류장 사이 길)만 없어져요(↶ 되돌리기로 복구). 시작점으로 연결하면 순환하고, 열린 노선은 왕복해요.</li>
+    <li>두 노선이 <b>모두 정차하는</b> 정류장에서만 한 번 갈아탈 수 있어요. 지도에서 선이 겹치기만 하는 곳은 환승 정류장이 아니에요.</li>
+    <li>출발하면 운행이 끝날 때까지 계획을 바꿀 수 없어요. 결과를 보고 다음 단계에서 고쳐요.</li>
+  </ul>
+  <h3>모의 AI는 무엇을 하나요?</h3>
+  <p>외부 인공지능이 아니라, 알려진 기본 수요로 후보 계획을 비교하는 규칙 기반 추천이에요. 후보 노선은 최대 30개이고, 버스 한 대씩 바꿔 보며 가장 좋아지는 계획을 최대 3번 고릅니다. 가장 좋은 답을 보장하지 않아요.</p>
+  <p>AI의 예상은 <b>추가 사건 없는 기본 수요 기준</b>이에요. 실제 운행에는 갑자기 늘어난 수요나 청원 같은 사건이 생길 수 있어 결과가 달라질 수 있어요.</p>
+  <h3>숫자에 대해</h3>
+  <p>운임·비용·불만·신뢰 수치는 게임을 위해 정한 값이에요. 실제 교통이나 재정, 주민 마음을 잰 값이 아니에요.</p>
+  <form method="dialog" class="row-actions"><button class="btn" type="button" id="btn-tutorial-replay">첫 노선 안내 다시 보기</button><button class="btn btn-primary" type="submit">닫기</button></form>
+</dialog>
+
+<dialog id="settings" class="dialog" aria-labelledby="settings-h">
+  <h2 id="settings-h">설정</h2>
+  <label class="check"><input type="checkbox" id="opt-sound" checked> 효과음(승객 등장·정류장 안내 차임)</label>
+  <label class="check"><input type="checkbox" id="opt-motion"> 움직임 줄이기</label>
+  <form method="dialog"><button class="btn btn-primary" type="submit">닫기</button></form>
+</dialog>
+
+<dialog id="confirm-depart" class="dialog" aria-labelledby="confirm-depart-h">
+  <h2 id="confirm-depart-h">이대로 출발할까요?</h2>
+  <div id="confirm-depart-body"></div>
+  <div class="row-actions">
+    <button type="button" class="btn" id="confirm-no">노선 고치기</button>
+    <button type="button" class="btn btn-primary" id="confirm-yes">이대로 출발</button>
+  </div>
+</dialog>
+
+<dialog id="confirm-skip" class="dialog" aria-labelledby="confirm-skip-h">
+  <h2 id="confirm-skip-h">남은 긴급 조정 기회를 쓰지 않고 넘어갈까요?</h2>
+  <p>건너뛴 기회는 ‘변경 없이 계속’으로 기록되고, 이번 운행은 끝까지 그대로 진행돼요.</p>
+  <div class="row-actions">
+    <button type="button" class="btn" id="skip-no">아니요, 계속 볼게요</button>
+    <button type="button" class="btn btn-primary" id="skip-yes">끝까지 건너뛰기</button>
+  </div>
+</dialog>
+
+<dialog id="confirm-restart" class="dialog" aria-labelledby="confirm-restart-h">
+  <h2 id="confirm-restart-h">처음부터 다시 할까요?</h2>
+  <p>저장된 진행과 지금까지의 운행 기록이 사라져요.</p>
+  <div class="row-actions">
+    <button type="button" class="btn" id="restart-no">아니요</button>
+    <button type="button" class="btn btn-primary" id="restart-yes">처음부터</button>
+  </div>
+</dialog>
+
+<script src="js/config.js"></script>
+<script src="js/rng.js"></script>
+<script src="js/graph.js"></script>
+<script src="js/demand.js"></script>
+<script src="js/schedule.js"></script>
+<script src="js/bus-motion.js"></script>
+<script src="js/sim.js"></script>
+<script src="js/metrics.js"></script>
+<script src="js/resident-evaluation.js"></script>
+<script src="js/advisor.js"></script>
+<script src="js/layout.js"></script>
+<script src="js/scores.js"></script>
+<script src="js/session.js"></script>
+<script src="js/stories.js"></script>
+<script src="js/narrative.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/route-pointer.js"></script>
+<script src="js/map2d.js"></script>
+<script src="vendor/three.min.js"></script>
+<script src="js/model-data.js"></script>
+<script src="assets/models/bus.js"></script>
+<script src="assets/models/zones.js"></script>
+<script src="assets/models/env.js"></script>
+<script src="js/view3d.js"></script>
+<script src="js/route-edit.js"></script>
+<script src="js/ui-plan.js"></script>
+<script src="js/ui-map-plan.js"></script>
+<script src="js/run-pace.js"></script>
+<script src="js/ui-run.js"></script>
+<script src="js/ui-result.js"></script>
+<script src="js/ui-scores.js"></script>
+<script src="js/ui-economy.js"></script>
+<script src="js/ui-transition.js"></script>
+<script src="js/ui-ending.js"></script>
+<script src="js/cutscene.js"></script>
+<script src="js/map-network.js"></script>
+<script src="js/app.js"></script>
+<script src="js/route-drag.js"></script>
+<script src="js/minimal-ui.js"></script>
+</body>
+</html>

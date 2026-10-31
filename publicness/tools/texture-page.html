@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><title>텍스처 변환(도구용)</title></head>
+<body>
+<!-- tools/glb-pack.mjs가 헤드리스 Edge로 연다: ?f=assets/models/_tex.png&bright=1.3&size=1024&q=0.8
+     bright>1이면 밝게(1−(1−v)^bright) + 그림자에 낀 푸른 기를 덜어 내고, 긴 변을 size 이하로 줄여 webp로 내보낸다.
+     bright=auto면 텍스처 평균 밝기가 target(기본 0.64 — 사용자가 고른 밀집 주거지 시험판 밝기)이 되는 값을 1~1.6 사이에서 고른다(이미 밝은 텍스처는 그대로) -->
+<script>
+(async function () {
+  var p = new URLSearchParams(location.search), out;
+  var bright = p.get('bright') || '1', target = Number(p.get('target') || 0.64), size = Number(p.get('size') || 1024), q = Number(p.get('q') || 0.85);
+  try {
+    var im = await new Promise(function (ok, no) { var i = new Image(); i.onload = function () { ok(i); }; i.onerror = function () { no(new Error('불러오기 실패')); }; i.src = '../' + p.get('f'); });
+    var k = Math.min(1, size / Math.max(im.naturalWidth, im.naturalHeight));
+    var c = document.createElement('canvas'); c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k);
+    var x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(im, 0, 0, c.width, c.height);
+    var id = x.getImageData(0, 0, c.width, c.height), d = id.data;
+    function meanAfter(b) { var sum = 0, n = 0; for (var j = 0; j < d.length; j += 16) { if (d[j + 3] < 8) continue; var v = (d[j] + d[j + 1] + d[j + 2]) / 765; sum += 1 - Math.pow(1 - v, b); n++; } return n ? sum / n : 1; }
+    var before = meanAfter(1);
+    if (bright === 'auto') { bright = 1; while (bright < 1.6 && meanAfter(bright) < target) bright = Math.round((bright + 0.05) * 100) / 100; } else bright = Number(bright);
+    if (bright !== 1) {
+      for (var i = 0; i < d.length; i += 4) {
+        for (var ch = 0; ch < 3; ch++) d[i + ch] = (1 - Math.pow(1 - d[i + ch] / 255, bright)) * 255;
+        if (d[i + 2] > d[i] + 12) d[i + 2] = d[i + 2] * 0.75 + (d[i] + d[i + 1] + d[i + 2]) / 3 * 0.25;
+      }
+      x.putImageData(id, 0, 0);
+    }
+    var url = c.toDataURL('image/webp', q);
+    if (url.indexOf('data:image/webp') !== 0) throw new Error('webp 인코딩 안 됨');
+    out = { w: c.width, h: c.height, bright: bright, mean: [Math.round(before * 100) / 100, Math.round(meanAfter(1) * 100) / 100], data: url.split(',')[1] };
+  } catch (e) { out = { error: String(e && e.message || e) }; }
+  var pre = document.createElement('pre'); pre.id = 'tex-out'; pre.textContent = JSON.stringify(out); document.body.appendChild(pre);
+})();
+</script>
+</body></html>

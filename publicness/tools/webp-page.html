@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><title>webp 변환(도구용)</title></head>
+<body>
+<!-- tools/to-webp.mjs가 헤드리스 Edge로 연다: ?q=0.82&f=assets/art/a.png
+     그림을 원래 크기 그대로(&size=N이면 긴 변 N px로 줄여) 캔버스에 그려 webp로 내보내고, 결과를 <pre>에 남긴다 -->
+<script>
+(async function () {
+  var p = new URLSearchParams(location.search), q = Number(p.get('q') || 0.82), size = Number(p.get('size') || 0), out = [];
+  for (var f of p.getAll('f')) {
+    try {
+      var im = await new Promise(function (ok, no) { var i = new Image(); i.onload = function () { ok(i); }; i.onerror = function () { no(new Error('불러오기 실패')); }; i.src = '../' + f; });
+      var k = size ? Math.min(1, size / Math.max(im.naturalWidth, im.naturalHeight)) : 1;
+      var c = document.createElement('canvas'); c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k);
+      var x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(im, 0, 0, c.width, c.height);
+      var url = c.toDataURL('image/webp', q);
+      if (url.indexOf('data:image/webp') !== 0) throw new Error('webp 인코딩 안 됨');
+      out.push({ f: f, w: c.width, h: c.height, data: url.split(',')[1] });
+    } catch (e) { out.push({ f: f, error: String(e && e.message || e) }); }
+  }
+  var pre = document.createElement('pre'); pre.id = 'webp-out'; pre.textContent = JSON.stringify(out); document.body.appendChild(pre);
+})();
+</script>
+</body></html>

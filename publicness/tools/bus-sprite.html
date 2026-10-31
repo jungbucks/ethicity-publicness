@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><title>버스 그림 만들기(도구용)</title></head>
+<body>
+<!-- tools/bus-sprite.mjs가 헤드리스 Edge로 연다: ?size=320&q=0.9
+     fal.ai 버스 모델(assets/models/bus.js)을 게임 3D와 같은 조명·재질로 비스듬히 위에서 한 번 그리고,
+     투명 여백을 잘라(불투명 픽셀 경계 + 2px) 긴 변을 size 이하로 줄여 webp로 내보낸다. 노선 색은 칠하지 않는다(원본 텍스처 그대로) -->
+<script src="../vendor/three.min.js"></script>
+<script src="../js/model-data.js"></script>
+<script src="../assets/models/bus.js"></script>
+<script>
+(async function () {
+  var p = new URLSearchParams(location.search), out, T = THREE;
+  var size = Number(p.get('size') || 320), q = Number(p.get('q') || 0.9), W = 1200, H = 900;
+  try {
+    var d = PB.busModelData, m = PB.ModelData.decode(d), geo = new T.BufferGeometry();
+    geo.setAttribute('position', new T.BufferAttribute(m.position, 3));
+    geo.setAttribute('uv', new T.BufferAttribute(m.uv, 2));
+    geo.setIndex(new T.BufferAttribute(m.index, 1));
+    var img = await new Promise(function (ok, no) { var i = new Image(); i.onload = function () { ok(i); }; i.onerror = function () { no(new Error('텍스처 불러오기 실패')); }; i.src = d.texture; });
+    // 생성 잡티인 청록 얼룩만 회색으로(게임 recolor와 같은 기준). 파란 띠는 원본 그대로 둔다
+    var tc = document.createElement('canvas'); tc.width = img.naturalWidth; tc.height = img.naturalHeight;
+    var tx = tc.getContext('2d'); tx.drawImage(img, 0, 0);
+    var td = tx.getImageData(0, 0, tc.width, tc.height), tp = td.data;
+    for (var i = 0; i < tp.length; i += 4) {
+      var r = tp[i], g = tp[i + 1], b = tp[i + 2], mx = Math.max(r, g, b), mn = Math.min(r, g, b), ch = mx - mn, h = 0;
+      if (ch) h = mx === r ? ((g - b) / ch) % 6 : mx === g ? (b - r) / ch + 2 : (r - g) / ch + 4;
+      h = (h * 60 + 360) % 360;
+      if (h >= 170 && h < 200 && mx && ch / mx >= 0.35) { var y = Math.min(255, (0.299 * r + 0.587 * g + 0.114 * b) * 1.15); tp[i] = tp[i + 1] = tp[i + 2] = y; }
+    }
+    tx.putImageData(td, 0, 0);
+    var tex = new T.CanvasTexture(tc); tex.flipY = false;
+    var renderer = new T.WebGLRenderer({ alpha: true, antialias: true, preserveDrawingBuffer: true });
+    renderer.setSize(W, H, false); renderer.setClearColor(0x000000, 0);
+    var scene = new T.Scene();
+    scene.add(new T.HemisphereLight(0xffffff, 0xb3aa9e, 0.85));
+    var sun = new T.DirectionalLight(0xffffff, 0.55); sun.position.set(-40, 80, 50); scene.add(sun);
+    scene.add(new T.Mesh(geo, new T.MeshLambertMaterial({ map: tex, flatShading: true })));
+    // 앞=+x. 오른쪽 앞에서 내려다보는 시점(게임 3D 카메라 55°보다 낮게 — 옆면 창과 앞유리가 함께 보이게)
+    var cam = new T.OrthographicCamera(-2.4, 2.4, 1.8, -1.8, 0.1, 100);
+    cam.position.set(5.5, 4.2, 8); cam.lookAt(0, 0.9, 0);
+    renderer.render(scene, cam);
+    var c = document.createElement('canvas'); c.width = W; c.height = H;
+    var x = c.getContext('2d'); x.drawImage(renderer.domElement, 0, 0);
+    var px = x.getImageData(0, 0, W, H).data, minX = W, minY = H, maxX = -1, maxY = -1;
+    for (var yy = 0; yy < H; yy++) for (var xx = 0; xx < W; xx++) if (px[(yy * W + xx) * 4 + 3] > 8) { if (xx < minX) minX = xx; if (xx > maxX) maxX = xx; if (yy < minY) minY = yy; if (yy > maxY) maxY = yy; }
+    if (maxX < 0) throw new Error('그려진 픽셀 없음');
+    minX = Math.max(0, minX - 2); minY = Math.max(0, minY - 2); maxX = Math.min(W - 1, maxX + 2); maxY = Math.min(H - 1, maxY + 2);
+    var bw = maxX - minX + 1, bh = maxY - minY + 1, k = Math.min(1, size / Math.max(bw, bh));
+    var o = document.createElement('canvas'); o.width = Math.round(bw * k); o.height = Math.round(bh * k);
+    var ox = o.getContext('2d'); ox.imageSmoothingQuality = 'high'; ox.drawImage(c, minX, minY, bw, bh, 0, 0, o.width, o.height);
+    var url = o.toDataURL('image/webp', q);
+    if (url.indexOf('data:image/webp') !== 0) throw new Error('webp 인코딩 안 됨');
+    out = { w: o.width, h: o.height, crop: [minX, minY, bw, bh], data: url.split(',')[1] };
+  } catch (e) { out = { error: String(e && e.message || e) }; }
+  var pre = document.createElement('pre'); pre.id = 'sprite-out'; pre.textContent = JSON.stringify(out); document.body.appendChild(pre);
+})();
+</script>
+</body></html>

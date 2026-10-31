@@ -1,0 +1,51 @@
+import {plannedTown,beginPlan} from './browser-fixture.mjs';
+import {createRequire} from 'node:module';
+import assert from 'node:assert/strict';
+import {startServer} from './serve.mjs';
+const require=createRequire(import.meta.url),{chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
+const server=await startServer(0);let browser;
+try{
+ browser=await chromium.launch({channel:'msedge',headless:true,args:['--use-angle=swiftshader','--enable-unsafe-swiftshader']});
+ for(const mode of (process.env.TOUCH_ONLY?[]:['2d','3d'])){
+  const page=await browser.newPage({viewport:{width:1366,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto(`http://127.0.0.1:${server.address().port}/publicness/${mode==='2d'?'?no3d=1':''}`);
+  await page.locator('#btn-start').click();
+  assert.equal(await page.locator('#goal-intro').evaluate(d=>d.open),true);
+  assert.ok((await page.locator('#goal-intro').innerText()).includes('저는 하늘이에요.'));
+  assert.equal(await page.locator('body').getAttribute('data-screen'),'title');
+  await page.screenshot({path:`publicness/tests/_shot-goal-${mode}.png`});
+  await page.locator('#btn-goal-start').click();if(await page.locator('#learning-dialog:modal').count())await page.locator('#btn-learning-continue').click();await beginPlan(page);await plannedTown(page);
+  const draft=()=>page.evaluate(()=>JSON.stringify(PB.App.s.draft));
+  const original=await draft();
+  assert.equal(await page.locator('.stop-drag-handle').count(),4,'reorder handles');
+  const a=await page.locator('#drag-stop-0').boundingBox(),b=await page.locator('#drag-stop-2').boundingBox();
+  await page.mouse.move(a.x+a.width/2,a.y+a.height/2);await page.mouse.down();await page.mouse.move(b.x+b.width/2,b.y+b.height/2,{steps:12});await page.mouse.up();
+  assert.deepEqual(await page.evaluate(()=>PB.App.s.draft.routes[0].nodes),['A','G','B','E']);
+  await page.locator('#btn-undo').click();assert.equal(await draft(),original,'undo restores all assignments and routes');
+  await page.locator('#drag-stop-0').press('ArrowDown');
+  assert.deepEqual(await page.evaluate(()=>PB.App.s.draft.routes[0].nodes),['A','B','G','E']);
+  await page.locator('#btn-undo').click();
+  await page.locator('#btn-close-loop').click();await page.locator('#drag-stop-0').press('ArrowDown');
+  assert.deepEqual(await page.evaluate(()=>PB.App.s.draft.routes[0].nodes),['A','B','G','E','A']);
+  await page.locator('#btn-undo').click();await page.locator('#btn-undo').click();assert.equal(await draft(),original);
+  await page.locator('#btn-delete-route').click();await page.locator('#btn-undo').click();assert.equal(await draft(),original);
+  await page.locator('#btn-new-route').click();await page.locator('#btn-undo').click();assert.equal(await draft(),original);
+  await page.evaluate(()=>PB.App.onLink({node:'E'},{node:'G'}));assert.deepEqual(await page.evaluate(()=>PB.App.s.draft.routes[0].nodes),['B','A','E','G']);
+  await page.locator('#btn-undo').click();assert.equal(await draft(),original,'map end-stop reorder can be undone');
+  const cancelBox=await page.locator('#drag-stop-0').boundingBox();await page.mouse.move(cancelBox.x+20,cancelBox.y+20);await page.mouse.down();await page.mouse.move(cancelBox.x+20,cancelBox.y+85,{steps:5});
+  await page.locator('#drag-stop-0').dispatchEvent('pointercancel',{pointerId:1});await page.mouse.up();assert.equal(await draft(),original,'cancelled drag keeps draft');
+  await page.screenshot({path:`publicness/tests/_shot-reorder-${mode}.png`});
+  assert.deepEqual(errors,[]);console.log('PASS '+mode+': drag reorder, keyboard, closed loop, undo deletion/creation and bus assignments');await page.close();
+ }
+ const context=await browser.newContext({viewport:{width:800,height:1000},hasTouch:true}),page=await context.newPage();
+ await page.goto(`http://127.0.0.1:${server.address().port}/publicness/?no3d=1`);await page.locator('#btn-start').tap();await page.locator('#btn-goal-start').tap();if(await page.locator('#learning-dialog:modal').count())await page.locator('#btn-learning-continue').tap();await beginPlan(page,'tap');await plannedTown(page);
+ await page.locator('.stop-order').evaluate(n=>n.scrollIntoView({block:'center'}));const a=await page.locator('#drag-stop-0').boundingBox(),b=await page.locator('#drag-stop-2').boundingBox();
+ const cdp=await context.newCDPSession(page);await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:a.x+20,y:a.y+20}]});
+ for(let step=1;step<=6;step++)await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:a.x+20+(b.x-a.x)*step/6,y:a.y+20+(b.y-a.y)*step/6}]});await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+ assert.deepEqual(await page.evaluate(()=>PB.App.s.draft.routes[0].nodes),['A','G','B','E']);
+ await page.locator('#btn-undo').evaluate(n=>n.scrollIntoView({block:'center'}));const u=await page.locator('#btn-undo').boundingBox();
+ await page.waitForTimeout(350);
+ await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:u.x+u.width/2,y:u.y+u.height/2,force:1,radiusX:1,radiusY:1,id:0}]});await page.waitForTimeout(80);await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+ await page.waitForFunction(()=>PB.App.s.draft.routes[0].nodes.join('-')==='B-A-G-E',null,{timeout:5000});
+ console.log('PASS touch drag and undo');await context.close();
+}finally{if(browser)await browser.close();server.close();}
