@@ -34,10 +34,10 @@
  function think(App,s,h,last){
   var sec=el('section',{id:'result-think','class':'result-think','aria-labelledby':'result-think-h','data-phase':h.phase});
   sec.appendChild(el('h3',{id:'result-think-h'},'생각해 보기'));
-  var bridge=PB.Narrative.bridgeLine(s.config,h.phase,s.current.result.passengers);if(bridge)sec.appendChild(el('p',{'class':'think-bridge',id:'think-bridge'},bridge));
+  var focus=PB.Narrative.thinkFocus(s.config,h.phase,s.current.result.passengers);if(focus.bridge)sec.appendChild(el('p',{'class':'think-bridge',id:'think-bridge'},focus.bridge));/* P0-4: 이번 결과로 고른 연결 문장 */
   PB.App.renderLearning(sec,h.phase);
   var ethics=PB.stories.phaseEthics[h.phase-1];
-  if(ethics){var pr=el('p',{'class':'reflection-prompt',id:'think-prompt'});pr.appendChild(el('b',null,ethics.title+'. '));pr.appendChild(document.createTextNode(ethics.text));sec.appendChild(pr);}
+  if(ethics&&focus.ethics){var pr=el('p',{'class':'reflection-prompt',id:'think-prompt'});pr.appendChild(el('b',null,ethics.title+'. '));pr.appendChild(document.createTextNode(ethics.text));sec.appendChild(pr);}
   // 두 가지 선택형 답 — 자유 서술(reflections)과 따로 저장(고르면 글이 지워지던 문제 고침)
   var box=el('fieldset',{id:'think-choice','class':'think-choice'});box.appendChild(el('legend',null,last?'다음 학기라면 누구의 이동을 먼저 살필까요?':'다음에는 누구의 이동을 살필까요?'));
   var row=el('div',{'class':'think-options'});

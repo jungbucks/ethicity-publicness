@@ -4,6 +4,14 @@
   var NODE=typeof require==='function'&&typeof module!=='undefined';
   var Graph=NODE?require('./graph.js'):root.PB.Graph;
   var Demand=NODE?require('./demand.js'):root.PB.Demand;
+  /* 대기 판정 한 곳(P0-3, 2026-11-02): 인물의 ‘가장 긴 대기’ = 한 번 이동(첫 이동·다음 이동 각각)에서 버스를 기다린 시간(첫 승차 + 환승 대기 = p.waitTotal) 중 가장 긴 값.
+   * 기준(config.service.maxWait, 4시간 3분)과 같으면 통과, 넘으면(>) 실패. 인물 카드·자주 보는 주민·만족 판정·학기 누적이 모두 이 값과 이 비교를 쓴다 */
+  function legWaits(passengers, id) {
+    var legs = (passengers || []).filter(function (p) { return p.residentId === id; });
+    var out = legs.filter(function (p) { return p.leg === 'outbound'; })[0], back = legs.filter(function (p) { return p.leg === 'return'; })[0];
+    return { out: out ? out.waitTotal : null, back: back ? back.waitTotal : null, longest: Math.max(out ? out.waitTotal : 0, back ? back.waitTotal : 0) };
+  }
+  function overWait(config, w) { var sv = config.service; return !!sv && sv.maxWait != null && w > sv.maxWait; }
   function residentVerdict(config, rd, rec, passengers) {
     if (!rec) return { ok: false, reasons: [] };
     var reasons = [], legs = passengers.filter(function (p) { return p.residentId === rd.id; });
@@ -26,7 +34,7 @@
     var sv = config.service;
     if (sv && rec.dayStatus === 'complete') [[out, '첫 이동'], [back, '다음 이동']].forEach(function (x) {
       var p = x[0]; if (!p) return;
-      if (sv.maxWait != null && p.waitTotal > sv.maxWait) reasons.push({ code: 'longWait', text: x[1] + '에서 버스를 ' + Demand.duration(config, p.waitTotal) + ' 기다렸어요(기준 ' + Demand.duration(config, sv.maxWait) + ' 이하).' });
+      if (overWait(config, p.waitTotal)) reasons.push({ code: 'longWait', text: x[1] + '에서 버스를 ' + Demand.duration(config, p.waitTotal) + ' 기다렸어요(기준 ' + Demand.duration(config, sv.maxWait) + ' 이하).' });
       if (sv.maxTripFactor != null) {
         var limit = tripLimit(config, p.o, p.d);
         if (p.arriveT - p.t > limit) reasons.push({ code: 'slowTrip', text: x[1] + '에 ' + Demand.duration(config, p.arriveT - p.t) + ' 걸렸어요(기준 ' + Demand.duration(config, limit) + ' 이하).' });
@@ -49,7 +57,7 @@
       if(s.config.day){
         var back=result.passengers.filter(function(x){return x.residentId===rd.id&&x.leg==='return';})[0];
         out[rd.id]=p?{o:p.o,d:p.d,finalDestination:p.returnTrip&&p.returnTrip.destination||p.o,multiStop:!!rd.itineraries,t:p.t,status:p.status,waitTotal:p.waitTotal+(back?back.waitTotal:0),arriveT:p.arriveT,firstBoardT:p.firstBoardT,transfer:p.boardings>1||(back&&back.boardings>1),
-          returnT:back?back.t:p.returnReadyT,homeT:back?back.arriveT:null,returnStatus:back?back.status:null,dayStatus:p.status!=='arrived'?'outboundIncomplete':back&&back.status==='arrived'?'complete':'returnIncomplete'}:null;
+          longestWait:legWaits(result.passengers,rd.id).longest,returnT:back?back.t:p.returnReadyT,homeT:back?back.arriveT:null,returnStatus:back?back.status:null,dayStatus:p.status!=='arrived'?'outboundIncomplete':back&&back.status==='arrived'?'complete':'returnIncomplete'}:null;
         if(out[rd.id]){var v=residentVerdict(s.config,rd,out[rd.id],result.passengers);out[rd.id].satisfied=v.ok;out[rd.id].reasons=v.reasons;}
         return;
       }
@@ -60,7 +68,7 @@
   }
 
   function count(records){var rows=Object.keys(records||{}).map(function(k){return records[k];}).filter(Boolean);return {completed:rows.filter(function(r){return r.dayStatus==='complete';}).length,satisfied:rows.filter(function(r){return r.satisfied===true;}).length,total:rows.length};}
-  var api={records:records,verdict:residentVerdict,tripLimit:tripLimit,count:count};
+  var api={records:records,verdict:residentVerdict,tripLimit:tripLimit,count:count,legWaits:legWaits,overWait:overWait};
   root.PB=root.PB||{};root.PB.ResidentEvaluation=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);

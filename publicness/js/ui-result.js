@@ -222,7 +222,10 @@
       var r = h.residents[rd.id];
       if (!r) return;
       var state = r.status === 'arrived' ? App.nodeName(rd.d) + '에 도착' : r.status === 'riding' ? '아직 버스 안' : r.status === 'transfer' ? '갈아타는 중' : (r.fail === 'NO_LINK' ? '탈 수 있는 노선 없음' : '아직 타지 못함');
-      ul.appendChild(el('li', null, rd.role + ' ' + rd.name + '(' + rd.o + '→' + rd.d + '): ' + state + ' · 기다린 시간 ' + App.duration(r.waitTotal) + (r.transfer ? ' · 한 번 갈아탐' : '')));
+      /* P0-3: 판정 값(가장 긴 대기 = 한 번 이동에서 기다린 가장 긴 시간)과 하루 합은 이름을 나눠 보인다. 예전 저장본(longestWait 없음)은 이번 결과 승객 기록에서 같은 함수로 */
+      var cur = App.s.current && App.s.current.result, lw = r.longestWait != null ? r.longestWait : r.dayStatus && cur && h.phase === s.phase ? PB.ResidentEvaluation.legWaits(cur.passengers, rd.id).longest : null, sv = s.config.service || {};
+      var waitText = (lw != null ? ' · 가장 긴 대기 ' + App.duration(lw) + (sv.maxWait != null ? ' / 기준 ' + App.duration(sv.maxWait) : '') + ' · 하루 동안 기다린 시간 합 ' : ' · 하루 동안 기다린 시간 합 ') + App.duration(r.waitTotal);
+      ul.appendChild(el('li', null, rd.role + ' ' + rd.name + '(' + rd.o + '→' + rd.d + '): ' + state + waitText + (r.transfer ? ' · 한 번 갈아탐' : '')));
     });
     rs.appendChild(ul);
     details.appendChild(rs);

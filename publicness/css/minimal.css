@@ -33,3 +33,14 @@ body:not(.minimal-ui) #minimal-signals,.minimal-text #minimal-signals{display:no
 #minimal-profit .minimal-profit-expected{display:inline;margin-left:8px;font-size:12px;color:var(--text-mute);font-variant-numeric:tabular-nums}
 .emergency-preview{margin:10px 0 4px;padding:8px 10px;border-radius:var(--radius-in);background:var(--accent-soft);color:var(--accent-ink);font-size:14px;font-weight:600}
 .emergency-preview:empty{display:none}
+
+/* P0-1(2026-11-02) 운행 상황 서랍: 헤더 ‘운행 상황 보기’ → 지도 위에 겹쳐 연다(지도 칸 크기는 그대로). 긴급 조정 중에는 원래대로 옆 칸 */
+.minimal-ui:not(.minimal-text):not(.minimal-emergency).run-drawer[data-screen=run] #panel:not(:has(#emergency-dialog)){display:block;position:fixed;z-index:60;top:var(--drawer-top,72px);right:12px;bottom:auto;left:auto;width:min(380px,calc(100vw - 24px));max-height:calc(100dvh - var(--drawer-top,72px) - 12px);height:auto;overflow:auto;padding:16px 18px;background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:0 10px 30px rgba(23,35,53,.22)}
+@media(max-width:700px){.minimal-ui:not(.minimal-text):not(.minimal-emergency).run-drawer[data-screen=run] #panel:not(:has(#emergency-dialog)){top:auto;right:0;left:0;bottom:0;width:auto;max-height:62dvh;border-radius:16px 16px 0 0;border-bottom:0}}
+/* 운행 중 인물 칩은 가로 스크롤 대신 줄바꿈, 긴급 조정 창이 뜨면 시각·구간 글자를 줄여 모두 보이게 */
+body[data-screen=run] .people-hud-row{flex-wrap:wrap;overflow-x:visible}
+body.minimal-emergency[data-screen=run] .person-chip-time,body.minimal-emergency[data-screen=run] .person-chip-trip{display:none}
+.minimal-ui:not(.minimal-text):not(.minimal-emergency).run-drawer[data-screen=run] #panel>#run-live,.minimal-ui:not(.minimal-text):not(.minimal-emergency).run-drawer[data-screen=run] #panel>#run-live~h3,.minimal-ui:not(.minimal-text):not(.minimal-emergency).run-drawer[data-screen=run] #panel>#run-feed{display:block!important}
+.minimal-ui:not(.minimal-text):not(.minimal-emergency).run-drawer[data-screen=run] #panel>#run-live{margin-top:0}
+/* P0-2: 유일한 버스 경고·영향 예상·권고는 미니멀 화면에서도 보인다 */
+.minimal-ui:not(.minimal-text) #emergency-dialog>p.emergency-warn:not([hidden]),.minimal-ui:not(.minimal-text) #emergency-dialog>p.emergency-impact:not([hidden]),.minimal-ui:not(.minimal-text) #emergency-dialog>p.emergency-advice:not([hidden]){display:block}

@@ -387,6 +387,19 @@
     return { starts: a ? a.t : null, leaves: a ? a.depart : null, resting: busRouteAt(s, busId, at) == null };
   }
 
+  // 긴급 조정으로 버스 한 대를 옮기면 하루가 어떻게 달라지나(P0-2, 2026-11-02) — 옮기기 전(지금까지의 결정만)과 옮긴 뒤를 같은 엔진으로 끝까지 돌려
+  // 하루 도착 건수와 주요 인물 ‘해낸 하루’ 수를 비교한다. 결과는 바뀌지 않는다(미리 보기). base를 넘기면 옮기기 전 계산을 다시 하지 않는다
+  function emergencyImpact(s, at, busId, routeNum, base) {
+    var route = routeByNum(s, routeNum); if (!route || !s.current || busId == null) return null;
+    var ev = s.events[s.phase - 1], prev = (s.emergencyLog || []).filter(function (a) { return a.phase === s.phase && a.busId != null; });
+    function sum(adj) {
+      var res = Sim.run({ g: graph(s), config: s.config, phase: s.phase, plan: s.current.plan, requests: runRequests(s, ev), event: ev, adjustments: adj });
+      var c = Evaluation.count(Evaluation.records(s.config, s.phase, res));
+      return { arrived: res.passengers.filter(function (p) { return p.status === 'arrived'; }).length, ok: c.satisfied, total: c.total };
+    }
+    return { before: base || sum(prev), after: sum(prev.concat([{ phase: s.phase, at: at, busId: busId, routeNum: routeNum, route: clone(route) }])) };
+  }
+
   // 주요 인물의 ‘해낸 하루’ 판정 — 출발 전 경고(예상), 결과 화면, 학기 말 누적이 모두 이 함수 하나를 쓴다.
   // 기준: 첫 이동과 다음 이동을 운행 시간 안에 모두 마칠 것 + 서비스 기준(config.service, 없으면 생략).
   // reasons는 학생에게 보여 줄 구체적 이유(목적지 미연결·다음 이동 경로 없음·대기 기준 초과 등)
@@ -542,7 +555,7 @@
   }
 
   var api = {
-    emergencyDecision:emergencyDecision,EMERGENCY_AT:EMERGENCY_AT,busRouteAt:busRouteAt,emergencyPreview:emergencyPreview,routeNumOf:routeNumOf,
+    emergencyDecision:emergencyDecision,EMERGENCY_AT:EMERGENCY_AT,busRouteAt:busRouteAt,emergencyPreview:emergencyPreview,emergencyImpact:emergencyImpact,routeNumOf:routeNumOf,
     serialize: serialize, restore: restore, migrateTransition: migrateTransition, CHOICES: CHOICES, choiceKey: choiceKey, scoresOverall: scoresOverall, rescore: rescore, financeRule: financeRule, financeStatus: financeStatus, balance: balance, DEFICIT_LIMIT: DEFICIT_LIMIT, NEGATIVE_LIMIT: NEGATIVE_LIMIT, residentVerdict: residentVerdict, tripLimit: tripLimit, expectedRun: expectedRun,
     parseSeedParam: parseSeedParam, create: create, graph: graph, visibleNodeIds: visibleNodeIds, routeByNum: routeByNum,
     toPlan: toPlan, validate: validate, routeLimit: routeLimit, routesInOrder: routesInOrder, stopLimit:stopLimit, routeFits:routeFits, routeRule:routeRule, canAssign:canAssign, addRoute: addRoute, updateRoute: updateRoute, deleteRoute: deleteRoute,

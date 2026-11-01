@@ -37,7 +37,7 @@
     var rows = story.evidence.map(function (e) {
       return [e.phase + '단계', e.dayStatus?(e.multiStop?{complete:'일정 완료',returnIncomplete:'마지막 이동 미완료',outboundIncomplete:'첫 목적지 미도착'}:{complete:'왕복 완료',returnIncomplete:'귀가 미완료',outboundIncomplete:'외출 미완료'})[e.dayStatus]:STATUS[e.status], App.duration(e.waitTotal), e.arriveT != null ? App.clock(e.arriveT)+(e.homeT!=null?' / 최종 '+App.clock(e.homeT):'') : '-', e.transfer ? '한 번' : '-'];
     });
-    d.appendChild(UI.table(['단계', '상태', '기다린 시간', '도착 시각', '환승'], rows));
+    d.appendChild(UI.table(['단계', '상태', '하루 동안 기다린 시간 합', '도착 시각', '환승'], rows)); /* P0-3: 판정 값(가장 긴 대기)과 다른 지표라 이름을 나눔 */
     if (story.drop != null) d.appendChild(el('p', { 'class': 'note' }, '처음 ' + story.evidence[0].waitTotal + '초 → 마지막 ' + story.evidence[story.evidence.length - 1].waitTotal + '초, ' + story.drop + '초 줄었어요.'));
     c.appendChild(d);
     return c;

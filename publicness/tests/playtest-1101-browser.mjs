@@ -111,9 +111,11 @@ try {
     await toPlan(page, 4, [{ num: 1, nodes: ['F', 'D', 'A'], buses: [1, 2] }, { num: 2, nodes: ['B', 'C', 'A'], buses: [3, 4] }]);
     // 정류장 기준 상대 자리(지도 틀 크기가 바뀌어도 비교되게)
     const pos = () => page.evaluate(() => Object.fromEntries([...document.querySelectorAll('.net-label')].map(l => { const n = PB.App.nodeXY(l.dataset.node), p = PB.App.view.project(n.x, n.y); return [l.dataset.node, l.dataset.dir + ':' + Math.round(parseFloat(l.style.left) - p.left) + ',' + Math.round(parseFloat(l.style.top) - p.top)]; })));
-    await page.waitForTimeout(600); const a = await pos();
+    await page.waitForTimeout(1500); const a = await pos(); // 3D(swiftshader)는 첫 배치가 늦게 자리 잡는다
     await page.evaluate(() => { const s = PB.App.s; s.draft.routes.push({ num: 3, nodes: ['E', 'J'], stops: [true, true], autoPlaced: true }); PB.App.render(); }); await page.waitForTimeout(600); const b = await pos();
-    const moved = Object.keys(a).filter(k => a[k] !== b[k]);
+    // 같은 방향이고 정류장 기준 자리가 2px 안이면 그대로(지도 틀이 소수점만큼 바뀌어 반올림이 1px 달라지는 것은 움직임이 아님)
+    const same = (x, y) => { const [dx, px] = x.split(':'), [dy, py] = y.split(':'), p = px.split(',').map(Number), q = py.split(',').map(Number); return dx === dy && Math.abs(p[0] - q[0]) <= 2 && Math.abs(p[1] - q[1]) <= 2; };
+    const moved = Object.keys(a).filter(k => !b[k] || !same(a[k], b[k]));
     assert.ok(moved.every(k => ['E', 'J'].includes(k)), '새 노선이 닿은 정류장 말고는 이름표가 그대로: ' + moved.join(','));
     ok('P2-18 노선을 더해도 다른 정류장 이름표는 제자리(움직인 것: ' + (moved.join(',') || '없음') + ')');
     await page.close();

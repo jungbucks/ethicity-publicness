@@ -55,13 +55,21 @@ test('반복 합치기: 연속으로 같은 문장만 ×N, 떨어져 있으면 �
   assert.deepEqual(N.mergeRepeats([], x => x), []);
 });
 
-test('결과와 질문을 잇는 한 줄: 단계 주제 정류장 이동 중 남은 건수', () => {
+test('결과와 질문을 잇는 한 줄(P0-4): 출발 기준 건수, 주제 지역 90% 미만이면 그 지역 + 고정 질문, 이상이면 인정하고 가장 낮은 곳', () => {
   const ps = [{ o: 'F', d: 'A', status: 'arrived' }, { o: 'B', d: 'F', status: 'waiting' }, { o: 'F', d: 'D', status: 'riding' }, { o: 'A', d: 'B', status: 'waiting' }];
-  assert.equal(N.bridgeLine(cfg, 1, ps), '이번에 외곽 마을 이동 2건이 남았어요.');
-  assert.equal(N.bridgeLine(cfg, 1, ps.slice(0, 1)), '이번에 외곽 마을 이동 1건은 모두 도착했어요.');
-  assert.match(N.bridgeLine(cfg, 2, ps), /^이번에 대학교·병원/);
+  // 외곽 마을 출발 2건 중 1건 도착(50%) → 그 지역 숫자(출발 기준)와 단계 고정 질문
+  assert.deepEqual([N.bridgeLine(cfg, 1, ps), N.thinkFocus(cfg, 1, ps).ethics], ['이번에 외곽 마을에서 출발한 이동 2건 중 1건이 남았어요.', true]);
+  // 외곽 마을이 모두 도착 → 먼저 인정, 남은 곳이 없으면 거기서 끝
+  assert.deepEqual([N.bridgeLine(cfg, 1, ps.slice(0, 1)), N.thinkFocus(cfg, 1, ps.slice(0, 1)).ethics], ['외곽 마을은 이번에 출발한 이동 1건이 모두 도착했어요.', false]);
+  // 외곽 마을 100%, 밀집 주거지 0/1 → 밀집 주거지를 짚는다
+  const ok = [{ o: 'F', d: 'A', status: 'arrived' }, { o: 'B', d: 'F', status: 'waiting' }, { o: 'A', d: 'B', status: 'arrived' }];
+  assert.equal(N.bridgeLine(cfg, 1, ok), '외곽 마을은 이번에 출발한 이동 1건이 모두 도착했어요. 대신 밀집 주거지 출발 1건 중 1건이 남았어요. 다음에는 누구의 이동을 살필까요?');
+  // 9건 중 1건 남음(89%)은 아직 짚고, 10건 중 1건(90%)은 인정
+  const many = (n, left) => Array.from({ length: n }, (_, i) => ({ o: 'F', d: 'A', status: i < left ? 'waiting' : 'arrived' }));
+  assert.equal(N.thinkFocus(cfg, 1, many(9, 1)).ethics, true); assert.equal(N.thinkFocus(cfg, 1, many(10, 1)).ethics, false);
+  assert.equal(N.bridgeLine(cfg, 2, ps), '이번에는 대학교·병원·공공서비스에서 출발한 이동이 없었어요.');
   // 아직 없는 정류장(복지관은 5단계부터)은 빼고, 남는 게 없으면 빈 문장
-  assert.equal(N.bridgeLine(cfg, 5, []), '이번에는 어린이·노인복지관에 오가는 이동이 없었어요.');
+  assert.equal(N.bridgeLine(cfg, 5, []), '이번에는 어린이·노인복지관에서 출발한 이동이 없었어요.');
   assert.equal(N.bridgeLine(cfg, 9, ps), '');
 });
 

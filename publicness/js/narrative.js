@@ -10,6 +10,7 @@
   var Demand = NODE ? require('./demand.js') : root.PB.Demand;
   var Session = NODE ? require('./session.js') : root.PB.Session;
   var Metrics = NODE ? require('./metrics.js') : root.PB.Metrics;
+  var Evaluation = NODE ? require('./resident-evaluation.js') : root.PB.ResidentEvaluation; // 인물 대기 판정 한 곳(P0-3)
 
   var MAX_BUBBLES = 12;
 
@@ -287,15 +288,24 @@
   }
   // 결과와 ‘생각해 보기’ 질문을 잇는 한 줄: 그 단계 질문이 다루는 곳(출발 또는 도착)의 이동 중 도착하지 못한 건수
   var THEME = { 1: ['F'], 2: ['C', 'D'], 3: ['I'], 4: ['H', 'J'], 5: ['K'], 6: ['L'], 7: ['D', 'K', 'F'], 8: ['N'] };
-  function bridgeLine(config, phase, passengers) {
+  /* P0-4(2026-11-02): 연결 문장은 이번 결과로 고른다. 건수는 결과 ‘출발 생활권별 결과’ 표와 같은 출발 기준(p.o)
+   *  · 단계 주제 지역(THEME) 출발 도착률이 90% 미만(또는 출발 이동이 없음) → 지금처럼 그 지역을 짚고 단계 고정 질문(phaseEthics)을 보인다(ethics: true)
+   *  · 90% 이상 → 먼저 인정하고, 도착률이 가장 낮은 출발 생활권(남은 건수가 있는 곳)을 짚는다. 단계 고정 질문은 보이지 않는다(ethics: false) */
+  var FOCUS_RATE = 0.9;
+  function thinkFocus(config, phase, passengers) {
     var ids = (THEME[phase] || []).filter(function (id) { return config.nodes.some(function (n) { return n.id === id && (n.fromPhase || 1) <= phase; }); });
-    if (!ids.length) return '';
-    var names = ids.map(function (id) { return nodeName(config, id); }).join('·');
-    var mine = (passengers || []).filter(function (p) { return ids.indexOf(p.o) >= 0 || ids.indexOf(p.d) >= 0; });
-    var left = mine.filter(function (p) { return p.status !== 'arrived'; }).length;
-    if (!mine.length) return '이번에는 ' + names + '에 오가는 이동이 없었어요.';
-    return left ? '이번에 ' + names + ' 이동 ' + left + '건이 남았어요.' : '이번에 ' + names + ' 이동 ' + mine.length + '건은 모두 도착했어요.';
+    if (!ids.length) return { bridge: '', ethics: true };
+    var ps = passengers || [], names = ids.map(function (id) { return nodeName(config, id); }).join('·');
+    function stat(list) { var mine = ps.filter(function (p) { return list.indexOf(p.o) >= 0; }), arrived = mine.filter(function (p) { return p.status === 'arrived'; }).length; return { N: mine.length, arrived: arrived, left: mine.length - arrived, rate: mine.length ? arrived / mine.length : null }; }
+    var t = stat(ids);
+    if (!t.N) return { bridge: '이번에는 ' + names + '에서 출발한 이동이 없었어요.', ethics: true, theme: t };
+    if (t.rate < FOCUS_RATE) return { bridge: '이번에 ' + names + '에서 출발한 이동 ' + t.N + '건 중 ' + t.left + '건이 남았어요.', ethics: true, theme: t };
+    var worst = null;
+    config.nodes.forEach(function (n) { if (ids.indexOf(n.id) >= 0) return; var z = stat([n.id]); if (!z.N || !z.left) return; z.id = n.id; if (!worst || z.rate < worst.rate || (z.rate === worst.rate && z.left > worst.left)) worst = z; });
+    var first = josa(names, '은는') + ' 이번에 ' + (t.left ? '출발한 이동 ' + t.N + '건 중 ' + t.arrived + '건이 도착했어요.' : '출발한 이동 ' + t.N + '건이 모두 도착했어요.');
+    return { bridge: first + (worst ? ' 대신 ' + nodeName(config, worst.id) + ' 출발 ' + worst.N + '건 중 ' + worst.left + '건이 남았어요. 다음에는 누구의 이동을 살필까요?' : ''), ethics: false, theme: t, worst: worst };
   }
+  function bridgeLine(config, phase, passengers) { return thinkFocus(config, phase, passengers).bridge; }
   // 인물 결과 한 줄: 어느 이동인지, 어디서 얼마나 기다렸는지, 만차·노선 없음, 그 노선의 버스 수·간격
   // routeInfo(routeId) → {num, buses, headway} | null (화면이 운행 계획에서 찾아 넘긴다. 없으면 노선 정보 생략)
   function residentLine(config, rd, rec, passengers, routeInfo) {
@@ -321,8 +331,8 @@
     var head = rd.name + ' · ';
     if (!rec) return head + '이번 단계에는 이동이 없었어요.';
     if (rec.satisfied) {
-      var longest = Math.max(out ? out.waitTotal : 0, back ? back.waitTotal : 0);
-      return head + outLabel + (back ? ', 돌아오는 길까지' : '') + ' 마쳤어요 (가장 긴 대기 ' + dur(longest) + ')';
+      var longest = rec.longestWait != null ? rec.longestWait : Evaluation.legWaits(passengers, rd.id).longest, svc = config.service || {};
+      return head + outLabel + (back ? ', 돌아오는 길까지' : '') + ' 마쳤어요 (가장 긴 대기 ' + dur(longest) + (svc.maxWait != null ? ' / 기준 ' + dur(svc.maxWait) : '') + ')';
     }
     if (rec.dayStatus === 'outboundIncomplete' && out) return head + legText(out, outLabel);
     if (rec.dayStatus === 'returnIncomplete') {
@@ -331,10 +341,10 @@
     }
     // 이동은 마쳤지만 대기·소요 기준을 넘긴 경우: 기준을 넘긴 이동을 고른다
     var sv = config.service || {}, worst = [out, back].filter(Boolean).sort(function (a, b) { return b.waitTotal - a.waitTotal; })[0];
-    if (worst) return head + legText(worst, worst === back ? backLabel : outLabel) + (sv.maxWait != null && worst.waitTotal > sv.maxWait ? ', 기준 ' + dur(sv.maxWait) + ' 넘김' : '');
+    if (worst) return head + legText(worst, worst === back ? backLabel : outLabel) + (Evaluation.overWait(config, worst.waitTotal) ? ', 기준 ' + dur(sv.maxWait) + ' 넘김' : '');
     return head + ((rec.reasons || [])[0] ? rec.reasons[0].text : '이동을 마치지 못했어요.');
   }
-  var api = { criterionState: criterionState, mergeRepeats: mergeRepeats, bridgeLine: bridgeLine, residentLine: residentLine, THEME: THEME, won:won, financeReview:financeReview, josa:josa, residentResult:residentResult,satisfactionTargets:satisfactionTargets,satisfactionText:satisfactionText,residentTally:residentTally,endingReactions:endingReactions,endingConclusion:endingConclusion, fill: fill, bubbles: bubbles, residentStory: residentStory, zoneSubtitleText: zoneSubtitleText, hookLines: hookLines, nodeName: nodeName };
+  var api = { criterionState: criterionState, mergeRepeats: mergeRepeats, bridgeLine: bridgeLine, thinkFocus: thinkFocus, residentLine: residentLine, THEME: THEME, won:won, financeReview:financeReview, josa:josa, residentResult:residentResult,satisfactionTargets:satisfactionTargets,satisfactionText:satisfactionText,residentTally:residentTally,endingReactions:endingReactions,endingConclusion:endingConclusion, fill: fill, bubbles: bubbles, residentStory: residentStory, zoneSubtitleText: zoneSubtitleText, hookLines: hookLines, nodeName: nodeName };
   root.PB = root.PB || {};
   root.PB.Narrative = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
