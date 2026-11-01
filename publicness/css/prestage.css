@@ -117,3 +117,10 @@
   .net-stop .new-ring, .depot-bus.is-new, .map-person.is-new, .coach-finger svg, .coach-finger .coach-tap, #person-path .pp-line, #person-path .pp-missing, .mini-map .mm-focus, .mini-map .mm-missing { animation: none; }
   .coach-finger .coach-tap { opacity: 1; transform: none; }
 }
+
+/* P1-3 운행 중 인물 칩: 시각·구간 대신 지금 상태(전체 정보는 aria-label·title) */
+body[data-screen=run] .person-chip-time, body[data-screen=run] .person-chip-trip { display: none; }
+.person-chip-live { font-size: 12px; color: var(--text-mute); font-weight: 600; }
+.person-chip-live[hidden] { display: none; }
+.person-chip-live.bad { color: var(--sem-caution-ink); }
+.person-chip-live.good { color: var(--ok); }

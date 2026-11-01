@@ -44,3 +44,13 @@ body.minimal-emergency[data-screen=run] .person-chip-time,body.minimal-emergency
 .minimal-ui:not(.minimal-text):not(.minimal-emergency).run-drawer[data-screen=run] #panel>#run-live{margin-top:0}
 /* P0-2: 유일한 버스 경고·영향 예상·권고는 미니멀 화면에서도 보인다 */
 .minimal-ui:not(.minimal-text) #emergency-dialog>p.emergency-warn:not([hidden]),.minimal-ui:not(.minimal-text) #emergency-dialog>p.emergency-impact:not([hidden]),.minimal-ui:not(.minimal-text) #emergency-dialog>p.emergency-advice:not([hidden]){display:block}
+/* P1-1(2026-11-02): 예상 수지 자리는 처음부터 같은 높이로 잡아 둔다(노선이 생기며 숫자가 커질 때 인물 칩·지도가 밀려 내려가던 것) */
+#minimal-profit{min-height:56px;box-sizing:border-box}#minimal-profit.empty{display:flex;align-items:center;align-self:auto}
+
+/* P1-4 공공서비스 정류장 이름표 옆 정차 횟수(채우면 초록) */
+.net-label .net-service{padding:0 6px;border-radius:8px;background:#eef1ee;color:#41504a;font-size:11px;font-weight:700;white-space:nowrap}.net-label .net-service.done{background:#3b8267;color:#fff}
+
+/* P1-4 예상 수지 내역(누르거나 올리면) */
+#minimal-profit{position:relative;cursor:pointer}#minimal-profit:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:8px}
+.minimal-profit-detail{position:absolute;right:0;top:100%;z-index:70;min-width:220px;margin:4px 0 0;padding:8px 12px;list-style:none;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(23,35,53,.18);font-size:13px;color:var(--text)}
+.minimal-profit-detail[hidden]{display:none}.minimal-profit-detail li{display:flex;justify-content:space-between;gap:16px;padding:2px 0}.minimal-profit-detail b{font-variant-numeric:tabular-nums}

@@ -84,7 +84,8 @@
     R = { phase: s.phase, s: s, tf: s.runCursor || 0, speed: App.speed || 1, mode: 'normal', hold: false, pendingEmergency: null, last: null, minute: -1, done: false, shown: 0, lastBubbleAt: {}, alerts: [], alertKey: '' };
     R.res = s.current.result;
     R.wait = P.waitingTable(R.res, cfg);
-    R.notables = P.notables(R.res, R.wait, cfg);
+    R.notables = P.notables(R.res, R.wait, cfg); // 일반 사건(만차·대기 10명) — 멈추지 않고 지도 표시·소식에만(P1-2)
+    R.stops = P.residentStops(R.res, cfg); // ‘⏭ 다음 멈춤까지’가 서는 곳: 주요 인물 왕복 완료·기준 초과(+ 긴급 조정 창)
     R.slow = P.slowSpan(cfg);
     R.causeAt = {};
     R.items = runFeed(s);
@@ -137,7 +138,7 @@
     // 확인창(건너뛰기·도움말·설정 등 모달)이 열려 있는 동안은 시계를 멈춘다 — 닫히면 R.last가 이미 지금이라 원래 배속으로 이어 간다(2026-11-01)
     if (document.hidden || R.paused || modalOpen()) return;
     var App = app(), cp = nextCheckpoint();
-    var stopAt = P.nextStop(R.tf, { mode: R.mode, notables: R.notables, checkpoint: cp });
+    var stopAt = P.nextStop(R.tf, { mode: R.mode, notables: R.stops, checkpoint: cp });
     var tf = Math.min(W, P.advance(R.tf, Math.min(dt, 250), R.mode === 'next' ? P.NEXT : R.speed, App.msPerMinute(), cp, R.slow));
     var reached = stopAt && tf >= stopAt.t;
     if (reached) tf = stopAt.t;
@@ -153,7 +154,7 @@
       else if (people && now - R.lastPop > 450) { R.lastPop = now; App.sfx('person'); }
       R.minute = m;
       R.s.runCursor=m;App.save();
-      onMinute(App, m);
+      onMinute(App, m); syncNext(); if (PB.Hud && PB.Hud.live) PB.Hud.live(R.res, tf);
     }
     if (reached) holdAt(App, stopAt);
     else updatePreview(App, tf, cp);
@@ -161,7 +162,7 @@
       R.finishing = true;
       clearAlerts();
       var st = $('#run-status');
-      if (st) st.textContent = '운행이 끝났습니다.';
+      if (st) st.textContent = '운행이 끝났어요.';
       root.setTimeout(function () {
         stop();
         if (App.s === R.s && App.s.stage === 'run') { PB.Session.finishRun(App.s); App.go('result'); }
@@ -174,7 +175,9 @@
   }
   // 긴급 조정이 있는 단계(3단계부터)인가 — ‘다음 결정까지’/‘다음 사건까지’ 이름과 안내 문구가 이걸 따른다
   function hasEmergency(s) { return !!s && s.phase >= 3; }
-  function nextLabel(s) { return hasEmergency(s) ? '다음 결정까지' : '다음 사건까지'; }
+  function nextLabel() { return '다음 멈춤까지'; } // P1-2: 모든 단계 같은 이름
+  var NEXT_TITLE = '다음 멈춤까지 빨리 가기 — 긴급 조정 창, 주요 인물 판정이 바뀌는 순간(왕복 완료·오늘 기준 초과)에서 멈춰요';
+  function stopsLeft() { return !!R && !R.done && (nextCheckpoint() != null || (R.stops || []).some(function (n) { return n.t > R.tf; })); }
 
   // 아직 결정하지 않은 긴급 조정 시점(3단계부터 오전·오후 한 번씩)
   function remainingCheckpoints() {
@@ -200,12 +203,12 @@
       R.s.runCursor = stopAt.t; App.save();
       showEmergency(stopAt.t);
     } else {
-      setAlerts(stopAt.items.map(function (n) {
-        var name = App.nodeName(n.node);
-        return n.kind === 'full' ? { node: n.node, kind: 'full', text: name + ' 만차 · ' + n.bus + '호차에 ' + n.n + '명 못 탐' } : { node: n.node, kind: 'wait', text: name + ' 대기 ' + n.n + '명' };
-      }));
-      // 멈춘 이유를 맨 앞에(예: ‘대기 10명 이상 · 밀집 주거지 12명’)
-      var why = stopAt.items.map(function (n) { return n.kind === 'full' ? '만차 · ' + App.nodeName(n.node) + ' ' + n.bus + '호차에 ' + n.n + '명 못 탐' : '대기 ' + P.ALERT_WAIT + '명 이상 · ' + App.nodeName(n.node) + ' ' + n.n + '명'; }).join(', ');
+      var who = function (n) { var r = R.s.config.residents.filter(function (x) { return x.id === n.resident; })[0]; return r ? r.name : n.resident; };
+      var said = function (n) { return n.what === 'done' ? who(n) + ' 왕복 완료' : who(n) + ' 오늘 기준 초과(한 번 이동 대기 ' + App.duration(R.s.config.service.maxWait) + ' 넘음)'; };
+      setAlerts(stopAt.items.filter(function (n) { return n.node; }).map(function (n) { return { node: n.node, kind: n.what === 'done' ? 'wait' : 'full', text: said(n) }; }));
+      // 멈춘 이유를 맨 앞에(예: ‘하늘 왕복 완료’)
+      var why = stopAt.items.map(said).join(', ');
+      if (PB.Hud && PB.Hud.render) PB.Hud.render(App);
       setStatus(why + ' · ' + App.clock(stopAt.t) + ' 멈춤. ▶ 재개하면 ' + App.speed + '배속, ⏭ 누르면 ' + nextLabel(R.s) + ' 빨리 가요.');
     }
     syncControls();
@@ -216,7 +219,12 @@
     var slowNow = P.inSlowZone(tf, cp, R.slow);
     if (slowNow !== !!R.slowed) { R.slowed = slowNow; syncControls(); }
     if (R.hold) return;
-    if (!slowNow) { if (R.alerts.length) setAlerts([]); return; }
+    if (!slowNow) {
+      // 일반 사건(만차·대기 10명)은 멈추지 않고 지난 약 30분 동안 지도에 표시만(P1-2)
+      var recent = (R.notables || []).filter(function (n) { return n.t <= tf && tf - n.t < 4; });
+      setAlerts(recent.map(function (n) { var name = App.nodeName(n.node); return n.kind === 'full' ? { node: n.node, kind: 'full', text: name + ' 만차 · ' + n.bus + '호차에 ' + n.n + '명 못 탐' } : { node: n.node, kind: 'wait', text: name + ' 대기 ' + n.n + '명' }; }));
+      return;
+    }
     var cause = causeAt(cp), m = Math.floor(tf);
     if (cause) setAlerts([{ node: cause.node, kind: 'emergency', text: '긴급 조정 예고 · ' + App.nodeName(cause.node) + ' 대기 ' + waitNow(cause.node, m) + '명' }]);
     else setAlerts([]);
@@ -543,9 +551,13 @@
   function syncControls() {
     var shown = shownSpeed();
     SPEEDS.forEach(function (n) { var b = $('#speed-' + n); if (b) b.setAttribute('aria-pressed', String(n === shown)); });
-    var nx = $('#run-next'); if (nx) nx.setAttribute('aria-pressed', String(shown === 'next'));
+    syncNext();
     var pb = $('#run-pause'), paused = !!(R && !R.done && R.paused);
     if (pb) { iconLabel(pb, paused ? '▶' : '⏸', paused ? '재개' : '일시정지'); pb.setAttribute('aria-pressed', String(paused)); }
+    var rc = $('#run-controls'); if (rc) rc.classList.toggle('is-paused', paused); // 멈춘 동안은 ▶만 강조, 배속은 고른 값만 옅게(P1-2)
+  }
+  function syncNext() {
+    var shown = shownSpeed(), nx = $('#run-next'), left = stopsLeft(); if (nx) { nx.setAttribute('aria-pressed', String(shown === 'next')); nx.disabled = !left; nx.title = left ? NEXT_TITLE : '남은 멈춤 없음'; nx.setAttribute('aria-label', left ? '다음 멈춤까지' : '다음 멈춤까지 · 남은 멈춤 없음'); }
   }
   // 사건 멈춤에서 다시 달릴 때 — 플레이어가 마지막으로 고른 배속으로
   function release() {
@@ -612,11 +624,12 @@
     } }), paused ? '▶' : '⏸', paused ? '재개' : '일시정지'));
     var dayMs = W * cfg.playback.msPerMinute;
     SPEEDS.forEach(function (speed) {
-      speeds.appendChild(el('button', { type: 'button', id: 'speed-' + speed, 'class': 'btn', 'aria-pressed': String((App.speed || 1) === speed), title: '하루를 ' + Math.round(dayMs / speed / 1000) + '초에 보기', onclick: function () { tick(); setSpeed(speed); } }, speed + '×'));
+      var sb = iconLabel(el('button', { type: 'button', id: 'speed-' + speed, 'class': 'btn', 'aria-pressed': String((App.speed || 1) === speed), title: speed + '배속 · 하루를 ' + Math.round(dayMs / speed / 1000) + '초에 보기', onclick: function () { tick(); setSpeed(speed); } }), speed + '×', speed + '배');
+      sb.firstChild.className = 'speed-icon'; sb.setAttribute('aria-label', speed + '배속'); speeds.appendChild(sb);
     });
     // 긴급 조정이 없는 1·2단계는 결정할 게 없으니 ‘다음 사건까지’(만차·대기 사건에서만 멈춤)
-    speeds.appendChild(iconLabel(el('button', { type: 'button', id: 'run-next', 'class': 'btn', 'aria-pressed': 'false', title: hasEmergency(s) ? '다음 긴급 조정이나 만차·대기 ' + P.ALERT_WAIT + '명 이상 같은 사건까지 빨리 가기' : '만차·대기 ' + P.ALERT_WAIT + '명 이상 같은 다음 사건까지 빨리 가기', onclick: nextDecision }), '⏭', nextLabel(s)));
-    speeds.appendChild(iconLabel(el('button',{type:'button',id:'run-skip','class':'btn',title:'끝까지 건너뛰기',onclick:skipToEnd}),'⏩','끝까지 건너뛰기'));
+    speeds.appendChild(iconLabel(el('button', { type: 'button', id: 'run-next', 'class': 'btn', 'aria-pressed': 'false', title: NEXT_TITLE, onclick: nextDecision }), '⏭', '다음 멈춤'));
+    speeds.appendChild(iconLabel(el('button',{type:'button',id:'run-skip','class':'btn',title:'끝까지 건너뛰기',onclick:skipToEnd}),'⏩','끝까지'));
     speeds.appendChild(iconLabel(el('button', { type: 'button', id: 'run-sound', 'class': 'btn', 'aria-pressed': String(App.sound), title: '효과음 켜기/끄기', onclick: function () { App.setSound(!App.sound); if (App.sound) App.sfx('person'); } }), App.sound ? '🔊' : '🔇', '소리'));
     panel.appendChild(el('p', { id: 'run-status', 'class': 'h-small', role: 'status' }, '운행 시작'));
     var live = el('section', { id: 'run-live', 'aria-labelledby': 'run-live-h' });

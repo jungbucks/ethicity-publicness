@@ -58,6 +58,31 @@
     return out.sort(function (a, b) { return a.t - b.t || (a.kind < b.kind ? -1 : a.kind > b.kind ? 1 : 0) || (a.node < b.node ? -1 : 1); });
   }
 
+  /* P1-2(2026-11-02) ‘⏭ 다음 멈춤까지’가 멈추는 곳 = 학생이 할 일이 있는 순간만: 긴급 조정 창(checkpoint) + 주요 인물 판정이 바뀌는 순간.
+   *  · 왕복 완료: 다음 이동(return)이 도착한 시각
+   *  · 오늘 기준 초과: 한 번 이동에서 버스를 기다린 시간이 기준(service.maxWait)을 넘는 순간(첫 승차 대기 + 환승 대기를 이어 셈 — ResidentEvaluation과 같은 값)
+   * 만차·대기 10명 같은 일반 사건(notables)은 멈추지 않고 지도 표시·운행 소식에만 남는다 */
+  function residentStops(result, config) {
+    var W = config.bus.window, max = config.service ? config.service.maxWait : null, tr = config.bus.transferMin || 0, boards = {}, alights = {}, out = [];
+    result.log.forEach(function (e) {
+      if (e.type === 'board') (boards[e.pid] = boards[e.pid] || []).push(e.t);
+      if (e.type === 'alight') (alights[e.pid] = alights[e.pid] || []).push(e.t);
+    });
+    result.passengers.forEach(function (p) {
+      if (!p.residentId) return;
+      if (p.leg === 'return' && p.status === 'arrived' && p.arriveT != null && p.arriveT < W) out.push({ t: Math.ceil(p.arriveT), kind: 'resident', what: 'done', resident: p.residentId, node: p.d });
+      if (max == null || !(p.waitTotal > max)) return;
+      var b = boards[p.id] || [], a = alights[p.id] || [], waited = 0, start = p.t, node = p.o;
+      for (var i = 0; i <= b.length; i++) {
+        var end = i < b.length ? b[i] : W;
+        if (start + (max - waited) < end) { var t = Math.floor(start + (max - waited)) + 1; if (t < W) out.push({ t: t, kind: 'resident', what: 'over', resident: p.residentId, node: node }); break; }
+        waited += Math.max(0, end - start);
+        if (i < a.length) { start = a[i] + tr; node = null; } else break;
+      }
+    });
+    return out.sort(function (x, y) { return x.t - y.t || (x.resident < y.resident ? -1 : 1); });
+  }
+
   // 아직 결정하지 않은 긴급 조정 시점(시간순)
   function pendingCheckpoints(checkpoints, decided) {
     return (checkpoints || []).filter(function (t) { return (decided || []).indexOf(t) < 0; }).sort(function (a, b) { return a - b; });
@@ -94,7 +119,7 @@
   }
 
   var api = { NEXT: NEXT, ALERT_WAIT: ALERT_WAIT, SLOW_GAME_MINUTES: SLOW_GAME_MINUTES, slowSpan: slowSpan, waitingTable: waitingTable,
-    notables: notables, pendingCheckpoints: pendingCheckpoints, nextStop: nextStop, inSlowZone: inSlowZone, advance: advance };
+    notables: notables, residentStops: residentStops, pendingCheckpoints: pendingCheckpoints, nextStop: nextStop, inSlowZone: inSlowZone, advance: advance };
   root.PB = root.PB || {};
   root.PB.RunPace = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

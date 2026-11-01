@@ -44,7 +44,7 @@
     ],
     // 시작 화면 두 문장. line2는 기본 노선이 외곽 마을을 지나지 않을 때만 쓴다
     hook: {
-      line1: { text: '버스 {buses}대, 첫 운행의 이동 요청 {requests}건.', draft: true },
+      line1: { text: '버스 {buses}대, 첫 운행 예정 이동 {requests}건.', draft: true },
       line2: { text: '그런데 지금 노선도에는 외곽 마을을 지나는 버스가 한 대도 없습니다.', draft: true },
       line2Served: { text: '이 버스로 누구의 이동부터 책임질까요?', draft: true }
     },

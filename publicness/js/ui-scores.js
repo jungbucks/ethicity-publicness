@@ -13,7 +13,7 @@
   function names(App, ids) { return ids.map(function (id) { return App.nodeName(id); }).join('·'); }
   function rate(t) { return t.N ? t.done / t.N : null; }
 
-  function financeBox(App, f, extra) {
+  function financeBox(App, f, extra, pending) {
     var box = el('div', { 'class': 'score-box', id: 'score-finance' });
     box.appendChild(el('p', { 'class': 'score-name' }, '재정 건전성'));
     if (!f) { box.appendChild(el('p', { 'class': 'score-value hold' }, '평가 자료 없음')); return box; }
@@ -21,6 +21,13 @@
       box.appendChild(el('p', { 'class': 'score-value hold', 'data-score': '' }, '서비스 미운영 — 재정 건전성 평가 보류'));
       box.appendChild(el('p', { 'class': 'score-basis' }, '누적 잔액 ' + App.won(f.balance) + (extra ? ' · ' + extra : '')));
       box.appendChild(el('p', { 'class': 'score-state' }, '운행한 버스가 없어 재정 여력을 평가하지 않아요. 돈이 남아도 운영을 잘했다는 뜻은 아니에요.'));
+      return box;
+    }
+    /* P1-4(2026-11-02): 기본 모드는 재정을 학기 말에 평가 — 마지막 전 단계 결과는 점수가 아니라 진행 표시(계산식은 그대로) */
+    if (pending) {
+      var pv = el('p', { 'class': 'score-value pending', 'data-score': String(f.score), 'data-pending': 'true' }); pv.appendChild(document.createTextNode('기준 예비비의 ')); pv.appendChild(el('b', null, f.score + '%')); box.appendChild(pv);
+      box.appendChild(el('p', { 'class': 'score-basis' }, '누적 잔액 ' + App.won(f.balance) + ' / 기준 예비비 ' + App.won(f.reserve.amount) + (extra ? ' · ' + extra : '')));
+      box.appendChild(el('p', { 'class': 'score-state' }, '학기 말 기준 예비비의 ' + f.score + '% · 아직 평가 전' + (f.status === 'negative' ? '(지금 잔액이 0원 미만)' : '')));
       return box;
     }
     var v = el('p', { 'class': 'score-value', 'data-score': String(f.score) }); v.appendChild(el('b', null, String(f.score))); v.appendChild(document.createTextNode('점'));
@@ -100,7 +107,8 @@
     var sc = h.scores;
     if (!sc) { sec.appendChild(el('p', { 'class': 'note' }, '이 단계는 이전 저장본이라 평가 자료가 없어요(다시 계산한 운행이 기록과 달라 채우지 않았어요).')); return sec; }
     var k = PB.Metrics.costParts(h.metrics.costs), pair = el('div', { 'class': 'score-pair' });
-    pair.appendChild(financeBox(App, sc.finance, '이번 회차 수지 ' + App.won(k.total)));
+    var pending = App.s && PB.Session.financeRule(App.s) === 'final-balance' && h.phase < App.s.config.phases.length;
+    pair.appendChild(financeBox(App, sc.finance, '이번 회차 수지 ' + App.won(k.total), pending));
     pair.appendChild(mobilityBox(App, sc.mobility));
     sec.appendChild(pair);
     sec.appendChild(el('p', { 'class': 'score-line', id: 'score-line' }, missedLine(App, sc.mobility)));

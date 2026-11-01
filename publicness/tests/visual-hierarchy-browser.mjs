@@ -27,8 +27,9 @@ const inspect=page=>page.evaluate(()=>{
   const stage=document.querySelector('#stage').getBoundingClientRect(),vis=e=>{const r=e.getBoundingClientRect(),cs=getComputedStyle(e);return r.width>0&&r.height>0&&cs.visibility!=='hidden'&&cs.display!=='none'&&!e.closest('[hidden]')&&r.right>stage.left&&r.left<stage.right&&r.bottom>stage.top&&r.top<stage.bottom;};
   const items=[...document.querySelectorAll('#net-layer .net-label, #route-buses .route-bus, #map-people .map-person')].filter(vis).map(e=>{const r=e.getBoundingClientRect();return {k:e.className.split(' ')[0]+':'+(e.dataset.node||e.dataset.num||e.id),x:r.left,y:r.top,w:r.width,h:r.height};});
   const overlaps=[];for(let i=0;i<items.length;i++)for(let j=i+1;j<items.length;j++){const a=items[i],b=items[j],ox=Math.min(a.x+a.w,b.x+b.w)-Math.max(a.x,b.x),oy=Math.min(a.y+a.h,b.y+b.h)-Math.max(a.y,b.y);if(ox>1&&oy>1)overlaps.push(a.k+' × '+b.k);}
-  // 숫자가 보이는 지도 요소 종류(시계·운행 조작·노선 번호 원·알림 토스트(‘10:06 긴급 조정 …’ 시각 문장)는 ‘개수’가 아니라 제외)
-  const allowed='.net-wait, .route-count, .cap-count, .net-cap text:not(.cap-count), .route-num, #map-clock, #map-clock *, #run-controls, #run-controls *, .run-alert, .run-alert *, #plan-ai-popover, #plan-ai-popover *, #minimal-toast, #minimal-toast *';
+  // 숫자가 보이는 지도 요소 종류(시계·운행 조작·노선 번호 원·알림 토스트(‘10:06 긴급 조정 …’ 시각 문장)는 ‘개수’가 아니라 제외,
+  // 공공서비스 정류장 이름표 옆 ‘4/6회 · 6회면 +20,000원’(.net-service)은 2026-11-02 사용자 지시 P1-4로 추가한 정차 조건 표시라 제외)
+  const allowed='.net-wait, .route-count, .cap-count, .net-cap text:not(.cap-count), .route-num, #map-clock, #map-clock *, #run-controls, #run-controls *, .run-alert, .run-alert *, #plan-ai-popover, #plan-ai-popover *, #minimal-toast, #minimal-toast *, .net-service';
   const numeric=new Set();document.querySelectorAll('#stage *').forEach(e=>{if(e.children.length&&!(e instanceof SVGTextElement))return;const t=(e.textContent||'').trim();if(!/\d/.test(t)||!vis(e)||e.matches(allowed)||e.closest('#map-clock,#run-controls,.run-alert,#plan-ai-popover,#minimal-toast'))return;numeric.add((e.className.baseVal!=null?e.className.baseVal:e.className)||e.tagName);});
   const kinds=new Set([...document.querySelectorAll('#stage .net-wait, #stage .route-count, #stage .cap-count')].filter(vis).map(e=>e.classList.contains('net-wait')?'wait':'buses'));
   // 빨강: 보이는 이름표·대기 pill·노선 손잡이·노선 선 색 중 .danger가 아닌 것

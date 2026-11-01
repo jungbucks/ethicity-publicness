@@ -168,6 +168,8 @@
   UI.planSetPreview=function(on){P.preview=!!on&&!!P.rec;};
   // AI 목표별로 무엇을 기준으로 고르는지(advisor.js score와 같은 뜻, 2026-11-01). 알고리즘은 그대로이고 설명만 보탠다
   var GOAL_DESC={time:'모든 이동의 도착까지 걸린 시간 합이 가장 짧은 계획을 골라요.',reach:'지난 운행에서 도착률이 가장 낮았던 출발 지역 두 곳의 도착률을 높여요.',profit:'이번 단계 수지(지원금 + 운임 − 비용)가 가장 큰 계획을 골라요.'};
+  // P2-4(2026-11-02): 지난 운행이 없는 1단계의 ‘소외 지역 연결’은 처음 정해 둔 출발 지역(config.reachInitial)
+  function goalDesc(id){var s=st();if(id==='reach'&&(s.phase===1||!s.history.length))return '처음 정해 둔 출발 지역('+(s.config.reachInitial||[]).map(function(n){return app().nodeName(n);}).join('·')+')의 도착률을 높여요.';return GOAL_DESC[id];}
   function goalCriterion(rec){var names=(rec.targets||[]).map(function(id){return app().nodeName(id);}).join('·');
     return rec.goal==='reach'?'이 제안의 ‘소외 지역’은 '+(st().phase===1||!st().history.length?'처음 정해 둔':'지난 운행에서 도착률이 가장 낮았던')+' 출발 지역'+(names?'('+names+')':'')+'이에요. 노선이 아예 없는 정류장이나 주요 인물을 따로 챙기지는 않아요.'
       :rec.goal==='time'?'이 제안의 ‘빠른 이동’은 모든 이동의 도착 시간 합이에요. 주요 인물을 따로 챙기지는 않아요.'
@@ -176,10 +178,10 @@
     var d=el('details',{id:'ai-tools'});if(P.rec||P.busy)d.open=true;d.appendChild(el('summary',null,'AI에게 노선 제안받기'));
     var row=el('div',{'class':'goal-row'});[{id:'time',name:'빠른 이동'},{id:'reach',name:'소외 지역 연결'},{id:'profit',name:'수익'}].forEach(function(g){
       var cell=el('div',{'class':'goal-cell'}),b=btn(g.name,'goal-'+g.id,function(){choose(g.id);},'goal-btn');b.dataset.goal=g.id;b.disabled=P.busy;b.setAttribute('aria-pressed',String(!!P.rec&&st().goal===g.id));b.setAttribute('aria-describedby','goal-desc-'+g.id);
-      cell.appendChild(b);cell.appendChild(el('p',{id:'goal-desc-'+g.id,'class':'goal-desc note'},GOAL_DESC[g.id]));row.appendChild(cell);});d.appendChild(row);
+      cell.appendChild(b);cell.appendChild(el('p',{id:'goal-desc-'+g.id,'class':'goal-desc note'},goalDesc(g.id)));row.appendChild(cell);});d.appendChild(row);
     if(P.busy)d.appendChild(el('p',{id:'rec-progress',role:'status'},'노선을 비교하고 있어요…'));
     if(P.rec){var rec=P.rec,c=el('section',{id:'rec-card',tabindex:'-1','aria-labelledby':'rec-card-h'});c.appendChild(el('h3',{id:'rec-card-h'},'‘'+(GOALS[rec.goal]||'')+'’ 제안'));
-      c.appendChild(el('p',null,'도착 예상 '+rec.baseline.arrived+'명 → '+rec.expected.arrived+'명'));
+      c.appendChild(el('p',null,'도착 예상 '+rec.baseline.arrived+'건 → '+rec.expected.arrived+'건'));
       c.appendChild(el('p',{'class':'note'},'버스를 탄 사람의 최장 대기 '+app().duration(rec.baseline.maxWait)+' → '+app().duration(rec.expected.maxWait)+' · 노선 없음 '+rec.baseline.noLink+' → '+rec.expected.noLink+'건'));
       c.appendChild(el('p',{id:'rec-criterion','class':'rec-criterion'},goalCriterion(rec)));
       var v=recView(rec);
@@ -235,7 +237,7 @@
         var origin=r.nodes[P.anchor==null?0:P.anchor],needs={};
         PB.Demand.base(st().config,st().phase,st().seed).forEach(function(q){if(q.o===origin)needs[q.d]=(needs[q.d]||0)+1;});
         var demand=el('p',{id:'stop-demand','class':'note'});
-        demand.textContent=app().nodeName(origin)+'에서 가려는 곳: '+(Object.keys(needs).map(function(id){return app().nodeName(id)+' '+needs[id]+'명';}).join(' · ')||'현재 요청 없음');c.appendChild(demand);
+        demand.textContent=app().nodeName(origin)+'에서 가려는 곳: '+(Object.keys(needs).map(function(id){return app().nodeName(id)+' '+needs[id]+'건';}).join(' · ')||'현재 요청 없음');c.appendChild(demand);
       }
       var acts=el('div',{'class':'row-actions'});acts.appendChild(btn('방향 뒤집기','btn-reverse',function(){changed();r.nodes.reverse();r.stops.reverse();P.anchor=null;render();}));
       var close=btn(G.isLoop(r)?'순환 풀기':'순환으로 잇기','btn-close-loop',function(){if(G.isLoop(r)){changed();r.nodes.pop();r.stops.pop();P.anchor=null;render();}else if(r.nodes.length>=3){P.anchor=null;insert(r.nodes[0]);}});
@@ -368,6 +370,12 @@
     S.routesInOrder(s).forEach(function(r){var ids=assigned(r.num).map(function(b){return b.id+'호차';});
       comp.appendChild(el('li',{'data-num':r.num},r.num+'번 · '+(r.nodes.length?routeText(r):'정류장 없음')+' · '+(ids.length?ids.join(', '):'버스 없음 — 운행하지 않아요')));});
     if(resting.length)comp.appendChild(el('li',null,'쉬는 버스: '+resting.map(function(b){return b.id+'호차';}).join(', ')));
+    /* P1-5 ①(2026-11-02): 접지 않은 요약 2~3줄 — 주요 인물 기준 충족 예상·노선이 없어 못 떠나는 요청·예상 수지(계획 화면과 같은 기본 수요 기준 예상) */
+    var ex=S.expectedRun(s),cnt=PB.ResidentEvaluation.count(ex.metrics.residents),k=ex.metrics.costs,sum=el('ul',{'class':'plain depart-summary',id:'depart-summary'});
+    sum.appendChild(el('li',{'data-key':'residents','class':cnt.satisfied<cnt.total?'warn':''},'주요 인물 기준 충족 예상 '+cnt.satisfied+'/'+cnt.total+'명'));
+    sum.appendChild(el('li',{'data-key':'nolink','class':ex.metrics.noLink?'warn':''},'노선이 없어 못 떠나는 요청 '+ex.metrics.noLink+'건'));
+    sum.appendChild(el('li',{'data-key':'profit'},'예상 수지 '+app().won(k.total)));
+    body.appendChild(sum);
     body.appendChild(el('h3',null,'운행 구성'));body.appendChild(comp);
     if(!used.length)body.appendChild(el('p',{'class':'callout warn',id:'depart-no-bus'},'운행하는 버스가 없어요. 이대로 출발하면 아무도 버스를 탈 수 없어요.'));
     // 출발 뒤 바꿀 수 있는 것(도움말·운행 안내와 같은 규칙, 2026-11-01)

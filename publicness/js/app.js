@@ -138,8 +138,13 @@
   };
   // 지도 틀 크기(2026-10-27 후반 지도 정리): 네트워크(세팅 전체 정류장)가 틀의 가로·세로 모두 75% 이상 차지하도록
   // 틀 비율을 네트워크에 맞춘다 — 여유가 있으면 높이 = 너비 ÷ 비율, 높이가 모자라면 틀 너비를 줄여 가운데. 설계·운행 화면만(다른 화면은 CSS 그대로)
+  /* P1-1(2026-11-02): 계획 중에는 지도 틀 크기를 고정 — 금액·토스트·안내·배너·AI 패널 때문에 지도가 손 밑에서 움직이지 않게.
+   * 단계·창 크기·텍스트 편집 열기·화면 모드가 같으면 처음 맞춘 크기를 그대로 쓴다(처음 0.8초는 위쪽 줄이 자리 잡도록 다시 맞춤) */
+  var frameLock = null;
   App.fitFrame = function () {
     var st = $('#stage'), screen = document.body.dataset.screen; if (!st) return;
+    var bc = document.body.classList, lockKey = screen === 'plan' && App.s ? [App.s.phase, root.innerWidth, root.innerHeight, bc.contains('plan-text-open'), bc.contains('minimal-text'), App.view && App.view === App.view3d ? 1 : 0].join('|') : null;
+    if (lockKey && frameLock && frameLock.key === lockKey && Date.now() - frameLock.at > 800) { st.style.height = frameLock.h; st.style.maxWidth = frameLock.w; return; }
     st.style.height = ''; st.style.maxWidth = '';
     var a = App.view && App.view.contentAspect && App.view.contentAspect();
     if (!a || (screen !== 'plan' && screen !== 'run')) return;
@@ -155,6 +160,7 @@
     if (need <= availH) H = Math.max(200, need);
     else { H = availH; Wst = Math.min(W, (H - 2 * P - 24) * a + 2 * P + 40); }
     st.style.height = Math.round(H) + 'px'; st.style.maxWidth = Math.round(Wst) + 'px';
+    if (lockKey) frameLock = { key: lockKey, h: st.style.height, w: st.style.maxWidth, at: frameLock && frameLock.key === lockKey ? frameLock.at : Date.now() }; else frameLock = null;
   };
   // 오른쪽 패널 접기(운행·결과 지도 화면): 접으면 지도가 전체 폭. 기억은 이 브라우저에만(실패해도 그냥 펼침)
   var PANEL_KEY = 'ethicity.publicness.panelCollapsed';
@@ -338,12 +344,13 @@
     return out;
   };
   // 지도 배너 한 줄: ‘3단계 · 변화기 · 신도시가 생겼어요 · 버스 +1’
+  function cfg0(s) { return s.config; }
   App.changeLine = function (s) {
     var c = App.phaseChanges(s), parts = [c.phase + '단계 · ' + c.name];
     if (c.phase === 1) parts.push('버스 ' + c.owned + '대 · 노선 최대 ' + c.limit + '개');
     c.places.forEach(function (n) { parts.push(PB.Narrative.josa(n.name, '이가') + ' 생겼어요'); });
     if (c.people.length) parts.push(c.people.map(function (r) { return r.name; }).join('·') + ' 등장');
-    if (c.buses) parts.push('버스 ' + signed(c.buses));
+    if (c.buses) parts.push('버스 ' + signed(c.buses) + ' (보유비 ' + (c.buses > 1 ? '1대당 ' : '') + '단계당 ' + PB.Narrative.won(cfg0(s).finance.holding) + ')'); /* P1-4: 새 버스는 선물이 아니라 보유비가 든다 */
     if (c.routes) parts.push('노선 ' + signed(c.routes));
     if (c.express) parts.push(c.express.split(' · ')[0]);
     return parts.join(' · ');

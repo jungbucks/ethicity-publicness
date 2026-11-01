@@ -69,6 +69,33 @@
   }
   function key() { var s = app().s; return s ? s.phase + ':' + s.seed : null; }
 
+  /* P1-3(2026-11-02) 운행 중 칩을 실시간으로: 학기 누적 = 지난 단계 판정(residentTally) + 오늘 다음 이동이 도착한 순간 오늘 판정(ResidentEvaluation.records의
+   * satisfied — 결과 화면·학기 누적과 같은 함수)이 통과면 +1. 칩 끝에 짧은 상태(가는 길 ✓ · 돌아오는 길 대기 중 / 오늘 기준 초과 / 왕복 완료) */
+  var liveCache = null;
+  function live(res, tf) {
+    var A = app(), s = A.s; if (!s || !res || document.body.dataset.screen !== 'run') return;
+    if (!liveCache || liveCache.res !== res) {
+      var over = {}; (PB.RunPace ? PB.RunPace.residentStops(res, s.config) : []).forEach(function (n) { if (n.what === 'over' && over[n.resident] == null) over[n.resident] = n.t; });
+      liveCache = { res: res, recs: PB.ResidentEvaluation.records(s.config, s.phase, res), over: over, t: tally() };
+    }
+    var c = liveCache;
+    residentsNow().forEach(function (rd) {
+      var b = document.querySelector('#person-chip-' + rd.id); if (!b) return;
+      var mine = res.passengers.filter(function (p) { return p.residentId === rd.id; }), out = mine.filter(function (p) { return p.leg === 'outbound'; })[0], back = mine.filter(function (p) { return p.leg === 'return'; })[0];
+      var rec = c.recs[rd.id], t = c.t[rd.id], done = !!(back && back.status === 'arrived' && back.arriveT <= tf), outDone = !!(out && out.status === 'arrived' && out.arriveT <= tf);
+      var gained = done && rec && rec.satisfied ? 1 : 0, text = '';
+      var onBus = function (p) { return p && p.firstBoardT != null && p.firstBoardT <= tf; };
+      if ((c.over[rd.id] != null && tf >= c.over[rd.id]) || (done && rec && !rec.satisfied)) text = '오늘 기준 초과';
+      else if (done) text = '왕복 완료 ✓';
+      else if (outDone) text = '가는 길 ✓ · ' + (!back || tf < back.t ? '볼일 중' : '돌아오는 길 ' + (onBus(back) ? '버스 안' : '대기 중'));
+      else if (out && tf >= out.t) text = '가는 길 ' + (onBus(out) ? '버스 안' : '대기 중');
+      var cnt = b.querySelector('.person-chip-count'); if (cnt && t) { var v = (t.completed + gained) + '/' + t.threshold; if (cnt.textContent !== v) cnt.textContent = v; }
+      var lv = b.querySelector('.person-chip-live'); if (!lv) { lv = el('span', { 'class': 'person-chip-live' }); b.appendChild(lv); }
+      if (lv.textContent !== text) lv.textContent = text; lv.hidden = !text; lv.classList.toggle('bad', text === '오늘 기준 초과'); lv.classList.toggle('good', text === '왕복 완료 ✓');
+      b.dataset.live = text; b.title = b.getAttribute('aria-label') + (text ? ' · 지금: ' + text : '');
+    });
+  }
+
   function render(A) {
     var s = A.s, screen = document.body.dataset.screen, hud = document.querySelector('#people-hud');
     if (!s || (screen !== 'plan' && screen !== 'run')) { if (hud) hud.hidden = true; clearPath(); return; }
@@ -84,6 +111,7 @@
     var mp = document.querySelector('#map-people');
     if (screen === 'run' && PB.UI.mapPeople && (!mp || mp.dataset.phase !== String(s.phase))) PB.UI.mapPeople(A);
     if (picked.id) drawPath();
+    if (screen === 'run' && PB.UI.runState) { var rs = PB.UI.runState(); if (rs && s.current) live(s.current.result, rs.tf); }
   }
 
   function toggle(id) {
@@ -133,5 +161,5 @@
 
   root.addEventListener('resize', function () { if (picked.id) drawPath(false); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && picked.id && !document.querySelector('dialog[open]')) { picked = { key: null, id: null }; clearPath(); syncPressed(); } });
-  PB.Hud = { layout: function () { if (picked.id && document.querySelector('#person-path')) drawPath(false); }, render: render, toggle: toggle, pathFor: pathFor, along: along, routesNow: routesNow, miniMap: miniMap, shortName: shortName, selected: function () { return picked.id; } };
+  PB.Hud = { layout: function () { if (picked.id && document.querySelector('#person-path')) drawPath(false); }, render: render, live: live, toggle: toggle, pathFor: pathFor, along: along, routesNow: routesNow, miniMap: miniMap, shortName: shortName, selected: function () { return picked.id; } };
 })(window);

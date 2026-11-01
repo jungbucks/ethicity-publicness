@@ -143,9 +143,9 @@
     var reasons=PB.Sim.unfinishedReasons(s.current.result);
     Object.keys(reasons).forEach(function(id){
       var g=reasons[id],li=el('li'),parts=[];
-      if(g.noLink)parts.push('탈 수 있는 노선 없음 '+g.noLink+'명');
-      if(g.full)parts.push('만차로 못 탄 경험이 있는 미도착 '+g.full+'명');
-      if(g.time)parts.push('운행 종료까지 대기·이동 중 '+g.time+'명');
+      if(g.noLink)parts.push('탈 수 있는 노선 없음 '+g.noLink+'건');
+      if(g.full)parts.push('만차로 못 탄 경험이 있는 미도착 '+g.full+'건');
+      if(g.time)parts.push('운행 종료까지 대기·이동 중 '+g.time+'건');
       var b=el('button',{type:'button','class':'btn reason-location','data-origin':id,onclick:function(){
         App.view.setSelected([id]);App.view.flash(id);
         document.querySelector('#reason-focus').textContent=App.nodeName(id)+' 출발 정류장을 지도에 표시했어요. '+parts.join(' · ');
@@ -176,7 +176,7 @@
     var row = function (name, f) { return [name, f(e), f(m)]; };
     cmp.appendChild(table(['', '예상', '실제'], [
       row('이동 요청', function (x) { return x.N + '건 (' + requestParts(x.requests) + ')'; }),
-      row('도착', function (x) { return x.arrived + '명 (' + M.fmtRate(x.arrivalRate) + ')'; }),
+      row('도착', function (x) { return x.arrived + '건 (' + M.fmtRate(x.arrivalRate) + ')'; }),
       row('탄 사람 최장 대기', function (x) { return App.duration(x.maxWait); }),
       row('노선 없음 / 종료까지 못 탐', function (x) { return x.noLink + '건 / ' + x.notBoarded.count + '건'; }),
       row('이번 단계 회차 수지', function (x) { return App.won(x.costs.total); }),
@@ -206,7 +206,7 @@
     var extra = el('dl', { 'class': 'kv' });
     [['이용자(한 번 이상 탄 사람)', m.users + '명 / ' + m.N],
       ['승차 횟수(환승 포함)', m.boardings + '회'],
-      ['요금 낸 미완료', m.costs.paidUnfinished + '명'],
+      ['요금 낸 미완료', m.costs.paidUnfinished + '건'],
       ['완료한 이동의 평균 소요', m.travel.doneAvg == null ? '-' : App.duration(m.travel.doneAvg)],
       ['미완료 이동의 관측 경과(운행 종료까지)', m.travel.openAvg == null ? '-' : App.duration(m.travel.openAvg)],
       ['대학교·병원 연결률 / 도착률', M.fmtRate(m.essential.linkRate) + ' / ' + M.fmtRate(m.essential.arriveRate)]

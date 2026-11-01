@@ -14,6 +14,7 @@
   finance:function(){var s=PB.App&&PB.App.s;return s&&PB.Session.financeRule(s)==='balance-streak'?'누적 잔액이 '+PB.Session.NEGATIVE_LIMIT+'번 연속 0원 미만이면 운영 계약이 끝나요.':'마지막 단계가 끝난 뒤 누적 잔액이 0원 미만이면 파산이에요.';},
   wait:function(){var c=cfgNow();return c.service&&c.service.maxWait!=null?'한 번 이동에 '+PB.Demand.duration(c,c.service.maxWait)+' 넘게 기다리면 그날은 세지 않아요.':'';},
   river:function(){var R=cfgNow().river;return R?'강을 건너는 구간은 다리로 돌아가서, 지도에서 보는 것보다 '+R.factor+'배 오래 걸려요.':'';},
+  phaseCost:function(){var s=PB.App&&PB.App.s,F=cfgNow().finance,n=s&&PB.App.phaseChanges?PB.App.phaseChanges(s).buses:0;return n>0?'예상 수지가 달라졌어요: 새 버스 '+n+'대 보유비 −'+won(F.holding*n)+' · 기본 지원 +'+won(F.basePerBus*n)+'.':'';},
   emergency:'버스를 골라 필요한 노선으로 옮기세요.',express:'직행은 7호차로 최대 세 곳을 이어요.',regional:'광역은 9호차로 마을과 대도시를 이어요.'};
  function crossesRiver(s,r){var g=PB.Session.graph(s);return !!g.river&&r.nodes.some(function(id,i){return i>0&&g.river(r.nodes[i-1],id);});}
  function tipText(k){var v=tips[k];return typeof v==='function'?v():v;}
@@ -30,9 +31,12 @@
   A.render();var b=$('#minimal-text-toggle');if(b)b.setAttribute('aria-pressed',String(full));if(full){var routes=$('#text-routes');if(routes)routes.open=true;}refresh();}
  function set(on){root.MINIMAL_UI=!!on;PB.App.render();}
  function project(id){var n=PB.App.nodeXY(id);return PB.App.view.project(n.x,n.y);}
+ var lastSvc='{}';
+ function setService(map){var k=JSON.stringify(map);if(k===lastSvc||!PB.App||!PB.App.net)return;lastSvc=k;PB.App.net.setOptions({service:map});}
+ var profitOpen=false;
  function signals(){
   var layer=$('#minimal-signals'),s=PB.App.s;if(!layer)return;layer.replaceChildren();var oldProfit=$('#minimal-profit');if(oldProfit)oldProfit.remove();
-  if(!root.MINIMAL_UI||full||!s||!['plan','run'].includes(document.body.dataset.screen))return;
+  if(!root.MINIMAL_UI||full||!s||!['plan','run'].includes(document.body.dataset.screen)){setService({});return;}
   var E=PB.UI.Econ,expected=E.plan(s),k=expected.k,profit=el('div','minimal-profit');profit.dataset.profit=k.total;profit.id='minimal-profit';
   /* 금액 표시(2026-11-01): 노선이 없으면 숫자 대신 흐린 안내 / 운행 중에는 ‘지금까지’(운임·비용이 들어오는 대로, UI.Econ.live) + 옆에 작게 ‘예상’ */
   var sign=function(n){n=Math.round(n);return (n>0?'+':'')+n.toLocaleString('ko-KR');},run=s.stage==='run'&&s.current&&s.current.result&&PB.UI.runState&&PB.UI.runState(),live=run&&E.live?E.live(s,PB.UI.runState().tf):null;
@@ -42,12 +46,23 @@
    profit.append(el('small',null,'지금까지'),el('strong',null,sign(live.total)),el('small','minimal-profit-expected','예상 '+sign(k.total)));}
   else{profit.classList.toggle('negative',k.total<0);profit.title='이번 단계 예상 수지 · 기본 수요 기준 · '+PB.App.won(k.total);profit.setAttribute('aria-label',profit.title);
    profit.append(el('small',null,'예상'),el('strong',null,sign(k.total)));}
+  /* P1-4(2026-11-02): 예상 수지를 누르거나 마우스를 올리면 짧은 내역(지원금·운임·보유비·운영·연료비·임차료) */
+  if(!profit.classList.contains('empty')){var cp=PB.Metrics.costParts(k),row=function(t,v){var li=el('li');li.append(el('span',null,t),el('b',null,(v>0?'+':v<0?'−':'')+Math.abs(Math.round(v)).toLocaleString('ko-KR')+'원'));return li;},ul=el('ul','minimal-profit-detail');ul.id='minimal-profit-detail';
+   ul.append(row('기본 지원',cp.subsidyBase),row('공공서비스 지원금',cp.subsidyService||0),row('운임',cp.fare),row('버스 보유비',-cp.holding));if(cp.lease)ul.append(row('임차료',-cp.lease));ul.append(row('운영·연료비',-(cp.op+cp.fuel)));
+   ul.hidden=!profitOpen;profit.append(ul);profit.tabIndex=0;profit.setAttribute('role','button');profit.setAttribute('aria-expanded',String(profitOpen));profit.setAttribute('aria-controls','minimal-profit-detail');
+   profit.addEventListener('click',function(){profitOpen=!profitOpen;ul.hidden=!profitOpen;profit.setAttribute('aria-expanded',String(profitOpen));});
+   profit.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();profit.click();}});
+   profit.addEventListener('mouseenter',function(){ul.hidden=false;});profit.addEventListener('mouseleave',function(){ul.hidden=!profitOpen;});}
   $('.map-toolbar').append(profit);
+  if(s.stage==='plan'&&s.phase>1&&PB.App.phaseChanges&&PB.App.phaseChanges(s).buses>0)tip('phaseCost');
+  var svc={},F=s.config.finance.service;
   (k.service||[]).forEach(function(c){var p=project(c.id),count=c.stops;
    if(s.stage==='run'&&s.current&&s.current.result){var time=PB.UI.runState().tf;count=s.current.result.timelines.reduce(function(n,tl){return n+(tl.visits||[]).filter(function(v){return v.kind==='stop'&&v.node===c.id&&v.t<=time;}).length;},0);}
    var ring=el('div','minimal-service');ring.style.left=p.left+'px';ring.style.top=p.top+'px';ring.setAttribute('role','img');ring.setAttribute('aria-label',c.label+' 공공서비스 '+count+'/'+c.need+'회 정차');ring.title=ring.getAttribute('aria-label');
+   svc[c.id]={text:Math.min(count,c.need)+'/'+c.need+'회'+(count>=c.need?' · +'+won(F.amount)+' ✓':' · '+c.need+'회면 +'+won(F.amount)),done:count>=c.need,title:c.label+' 공공서비스 '+count+'/'+c.need+'회 정차'+(s.stage==='plan'?'(예상)':'')+' · 하루 '+c.need+'회 이상 서면 '+won(F.amount)};
    for(var i=0;i<c.need;i++){var bar=el('i',i<count?'filled':'');bar.style.transform='rotate('+(i*360/c.need)+'deg) translateY(-27px)';ring.append(bar);}if(count>=c.need)ring.append(el('b',null,'✓'));layer.append(ring);
   });
+  setService(svc);
   /* 노선 위 배차 간격 표시(◷ N시간마다 / 2.4h)는 2026-11-01 사용자 지시로 뺐다 — 간격은 노선 편집 수지(#route-econ)·끌기 라벨에 남음 */
  }
  function legacyResult(){
@@ -83,7 +98,7 @@
   var controls=el('div','minimal-switches'),b=el('button','btn','지도·텍스트 보기');b.id='minimal-text-toggle';b.type='button';b.setAttribute('aria-pressed','false');b.onclick=function(){text(!full,{view:true});};controls.append(b);var flag=el('button','btn','기본 화면');flag.id='minimal-ui-toggle';flag.type='button';flag.onclick=function(){set(!root.MINIMAL_UI);};$('#help').append(flag);$('#topbar').append(controls);
   var help=el('details');help.id='minimal-tip-help';help.append(el('summary',null,'처음 안내 다시 보기'));help.addEventListener('toggle',function(){help.querySelectorAll('p.tip-line').forEach(function(n){n.remove();});Object.keys(tips).forEach(function(k){var x=tipText(k);if(x)help.insertBefore(el('p','tip-line',x),replay);});});var replay=el('button','btn','안내 다시 시작');replay.type='button';replay.onclick=function(){seen={};try{localStorage.removeItem(KEY);}catch(e){}$('#help').close();refresh();};help.append(replay);$('#help').append(help);
   var titleText=el('button','btn','설명 보기');titleText.type='button';titleText.onclick=function(){text(!full);titleText.setAttribute('aria-pressed',String(full));};$('.title-copy').append(titleText);document.querySelectorAll('#screen-title label').forEach(function(n){n.title=n.textContent.trim();});
-  new MutationObserver(function(){var body=$('#confirm-depart-body');if(!root.MINIMAL_UI||full||body.querySelector('details'))return;var more=el('details');more.append(el('summary',null,'자세히'));Array.from(body.children).forEach(function(n){more.append(n);});body.append(more);}).observe($('#confirm-depart-body'),{childList:true});
+  new MutationObserver(function(){var body=$('#confirm-depart-body');if(!root.MINIMAL_UI||full||body.querySelector('details'))return;var more=el('details');more.append(el('summary',null,'자세히'));Array.from(body.children).forEach(function(n){if(n.id!=='depart-summary')more.append(n);});body.append(more);}).observe($('#confirm-depart-body'),{childList:true}); /* 요약(#depart-summary)은 접지 않는다(P1-5 ①) */
   var render=PB.App.render;PB.App.render=function(){var r=render.apply(this,arguments);refresh();return r;};
   $('#btn-view-toggle').addEventListener('click',function(){if(root.MINIMAL_UI)text(this.textContent.indexOf('3D')>=0);});
   document.addEventListener('click',function(e){if(e.target.closest('#plan-text-toggle')&&root.MINIMAL_UI)text($('#plan-text-toggle').getAttribute('aria-expanded')==='true');});

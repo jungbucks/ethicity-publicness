@@ -265,6 +265,7 @@
     document.querySelector('#screen-game').appendChild(pop);document.body.classList.toggle('ai-open',!!state.ai);
     // 좁은 화면 시트는 지도 아래 빈 곳만큼만 올라온다(제안 노선이 시트에 덜 가리게). 자리가 260px보다 적으면 CSS 기본(화면 46%)
     if(state.ai&&root.innerWidth<=850)root.requestAnimationFrame(function(){var sb=document.querySelector('#stage').getBoundingClientRect().bottom,room=Math.floor(root.innerHeight-sb-8);pop.style.maxHeight=room>=260?room+'px':'';});
+    if(state.ai)root.requestAnimationFrame(placeAi);
     mapPeople(App,stage);var svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.id='resident-destination';svg.setAttribute('aria-hidden','true');stage.appendChild(svg);
     if(App.net)App.net.setFaces(PB.Demand.residents(App.s.config,App.s.phase).map(function(rd){return {id:rd.id,node:rd.o,size:40};}));
     badges(App,stage);
@@ -281,6 +282,11 @@
       face.appendChild(App.el('img',{src:'assets/art/portrait-'+rd.id+'-calm.webp',alt:''}));face.title=face.getAttribute('aria-label');/* 지도엔 얼굴만 — 이름은 툴팁·aria-label(배지 체계 정리) */people.appendChild(face);
     });stage.appendChild(people);people.dataset.phase=App.s.phase;
   }
+  /* P1-1(2026-11-02): 넓은 화면의 AI 제안 패널은 지도를 줄이지 않고 지도 오른쪽 가장자리에 겹쳐 띄운다(지도 틀 안, 위·오른쪽 8px) */
+  function placeAi(){var pop=document.querySelector('#plan-ai-popover'),st=document.querySelector('#stage');if(!pop||pop.hidden||!st)return;
+    if(root.innerWidth<=850){pop.style.top=pop.style.right=pop.style.width='';return;}
+    var r=st.getBoundingClientRect(),w=Math.min(360,Math.max(280,Math.round(r.width*0.42)));pop.style.top=Math.max(8,Math.round(r.top)+8)+'px';pop.style.right=Math.max(8,Math.round(root.innerWidth-r.right)+8)+'px';pop.style.width=w+'px';pop.style.maxHeight=Math.max(300,Math.round(Math.min(r.bottom,root.innerHeight)-Math.max(8,r.top+8)-8))+'px';}
+  root.addEventListener('resize',function(){root.requestAnimationFrame(placeAi);});
   PB.UI.mapLayout=positionPeople;
   PB.UI.mapPeople=function(App){mapPeople(App,document.querySelector('#stage'));requestAnimationFrame(positionPeople);};
   // AI 패널 닫기: 미리 보기 중이었으면 지도도 내 노선으로(제안은 남아 있어 다시 열면 그대로). 닫은 뒤 초점은 ‘AI 제안’ 버튼으로

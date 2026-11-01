@@ -1,6 +1,6 @@
 // 운행 속도 재설계(2-4) 브라우저 검증(헤드리스 Edge, 실제 시계):
 //  ① 저장된 배속 4 → 2로 바뀌고 4× 버튼이 없다
-//  ② 기본 세팅 1단계를 ‘⏭ 다음 결정까지’로만 진행 — 멈출 때마다 원인 정류장 고리·문구가 지도 안에 보이고, 단계가 20초 안에 끝난다
+//  ② 기본 세팅 1단계를 ‘⏭ 다음 멈춤까지’(11-02 P1-2: 주요 인물 판정에서만 멈춤)로만 진행 — 멈출 때마다 원인 정류장 고리·문구가 지도 안에 보이고, 단계가 20초 안에 끝난다
 //  ③ 3단계 2×: 긴급 조정 30분 전 1×로 감속·예고 고리 → 조정 창이 지도를 가리지 않고 원인·버스 위치를 보여 줌 → 결정 뒤 2×로 복귀
 //  ④ ‘끝까지 건너뛰기’는 남은 조정 기회가 있으면 확인창(아니요 = 계속, 예 = 남은 기회 ‘변경 없이 계속’으로 기록)
 // 스크린샷: SHOT_DIR(없으면 tests/_shot-speed-*.png). 3D 확인은 SHOT3D=1
@@ -51,13 +51,14 @@ try{
       assert.match(await page.locator('#run-status').innerText(),/멈춤/);
       stops.push({clock:await page.locator('#top-clock').innerText(),tf:st.tf,alerts:al.map(a=>a.text)});
       if(stops.length===1)await page.screenshot({path:shot('phase1-stop')});
-      runStart=Date.now();await page.locator('#run-next').click();
+      /* 2026-11-02 P1-2: 멈춤은 주요 인물 판정(왕복 완료·기준 초과)에서만, 남은 멈춤이 없으면 ⏭가 꺼져 ‘끝까지’로 마무리 */
+      runStart=Date.now();if(await page.locator('#run-next').isDisabled())await page.locator('#run-skip').click();else await page.locator('#run-next').click();
     }
     await page.locator('#resident-day-results').waitFor({timeout:30000});
     const total=(Date.now()-t0)/1000;
     console.log('stops',JSON.stringify(stops));
     console.log(`phase1 next-decision: ${stops.length} stops, wall ${total.toFixed(1)}s (probe pauses included), playback-only (click→stop/result) ${(running/1000).toFixed(1)}s`);
-    assert.ok(stops.length>=1,'기본 1단계 대표 계획에서 주목할 사건으로 한 번 이상 멈춤');
+    assert.ok(stops.length>=1,'기본 1단계 대표 계획에서 주요 인물 판정으로 한 번 이상 멈춤(11-02 P1-2)');
     assert.ok(total<20,'결정 없는 단계는 20초 안에 끝남: '+total.toFixed(1)+'s');
     assert.deepEqual(errors,[]);await page.close();
     console.log('PASS ② phase 1 via ⏭: cause visible at every stop, finished in '+total.toFixed(1)+'s');

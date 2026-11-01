@@ -97,7 +97,7 @@ test('hook lines come from the real default draft', () => {
   const s = S.create(cfg, { mode: 'default' });
   // 앞선 테스트가 cfg를 바꿀 수 있어 값은 세션에서 다시 계산해 비교한다
   const lines = N.hookLines(s), reqs = require('../js/demand.js').base(s.config, 1, s.seed).length;
-  assert.equal(lines[0], '버스 ' + s.owned + '대, 첫 운행의 이동 요청 ' + reqs + '건.');
+  assert.equal(lines[0], '버스 ' + s.owned + '대, 첫 운행 예정 이동 ' + reqs + '건.');
   assert.ok(lines[1].length > 0);
 });
 

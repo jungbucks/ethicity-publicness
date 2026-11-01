@@ -167,10 +167,10 @@ try {
     await page.evaluate(() => PB.Minimal.text(true)); await page.locator('#btn-depart').click(); await page.locator('#confirm-depart[open]').waitFor();
     assert.match(await page.locator('#depart-rule').innerText(), /^이번 단계는 출발하면 운행이 끝날 때까지 그대로 달려요\. 3단계부터는 오전·오후 한 번씩 버스 한 대만 옮길 수 있어요/);
     await page.locator('#confirm-yes').click(); await page.waitForTimeout(300);
-    // P1-12 1단계 = ‘다음 사건까지’
-    assert.equal(await page.locator('#run-next').getAttribute('aria-label'), '다음 사건까지');
+    // P1-12 → 2026-11-02 P1-2: 모든 단계 ‘다음 멈춤까지’
+    assert.equal(await page.locator('#run-next').getAttribute('aria-label'), '다음 멈춤까지');
     assert.match(await page.locator('#panel .note').filter({ hasText: '이번 단계는 출발하면' }).innerText(), /3단계부터는 오전·오후 한 번씩 버스 한 대만/);
-    ok('P0-4 도움말·출발 확인·운행 안내 문구(텍스트 모드) / P1-12 1단계 버튼 이름 ‘다음 사건까지’');
+    ok('P0-4 도움말·출발 확인·운행 안내 문구(텍스트 모드) / P1-12 1단계 버튼 이름 ‘다음 멈춤까지’(11-02 P1-2)');
     assert.deepEqual(page.errors, []); await page.close();
   }
 
@@ -209,19 +209,22 @@ try {
     const page = await fresh('no3d=1&minimal=0', { width: 1366, height: 900 });
     await toPlan(page, 1, [{ num: 1, nodes: ['B', 'A'], buses: [1] }]);
     await page.evaluate(() => { const s = PB.App.s; s.config.bus.capacity = 1; PB.Session.startRun(s); PB.App.go('run'); });
-    // P1-12 1단계 ‘다음 사건까지’ — 사건에서 멈추면 이유가 맨 앞
-    assert.equal(await page.locator('#run-next').getAttribute('aria-label'), '다음 사건까지'); assert.equal(await page.locator('#run-next .btn-text').textContent(), '다음 사건까지');
+    // P1-12 → 2026-11-02 P1-2 ‘다음 멈춤까지’ — 만차·대기 같은 일반 사건에서는 멈추지 않고 주요 인물 판정(왕복 완료·오늘 기준 초과)에서 멈춤, 이유가 맨 앞
+    assert.equal(await page.locator('#run-next .btn-text').textContent(), '다음 멈춤'); const none = await page.locator('#run-next').isDisabled();
+    // 주요 인물이 이 노선(B–A)으로 못 다니면 멈출 곳이 없어 ⏭가 꺼지고 ‘남은 멈춤 없음’
+    if (none) { assert.equal(await page.locator('#run-next').getAttribute('title'), '남은 멈춤 없음'); assert.equal(await page.locator('#run-next').getAttribute('aria-label'), '다음 멈춤까지 · 남은 멈춤 없음'); ok('P1-12(11-02 P1-2) 만차 사건(정원 1)에서도 안 멈춤 — 남은 멈춤 없음'); } else {
+    assert.equal(await page.locator('#run-next').getAttribute('aria-label'), '다음 멈춤까지');
     await page.locator('#run-next').click(); await page.waitForFunction(() => PB.UI.runState().hold, null, { timeout: 20000 });
     const why = await page.locator('#run-status').textContent();
-    assert.match(why, /^(대기 10명 이상 · .+ \d+명|만차 · .+호차에 \d+명 못 탐).* \d\d:\d\d 멈춤\. ▶ 재개하면 \d배속, ⏭ 누르면 다음 사건까지 빨리 가요\.$/, why);
-    ok('P1-12 멈춘 이유 먼저: ' + why);
+    assert.match(why, /^.+(왕복 완료|오늘 기준 초과).* \d\d:\d\d 멈춤\. ▶ 재개하면 \d배속, ⏭ 누르면 다음 멈춤까지 빨리 가요\.$/, why); assert.doesNotMatch(why, /만차|대기 10명/);
+    ok('P1-12 멈춘 이유 먼저: ' + why); }
     await page.evaluate(() => { PB.UI.stopRun(); PB.App.s.runCursor = 110; PB.App.go('run'); }); await page.waitForTimeout(1500);
     const row = await page.evaluate(() => { const dts = [...document.querySelectorAll('#run-live dt')]; const i = dts.findIndex(d => d.textContent === '만차로 남겨짐'); return document.querySelectorAll('#run-live dd')[i].textContent; });
     assert.match(row, /^(\d+회 · \d+명|없음)$/, row); ok('P1-13 ‘만차로 남겨짐 ' + row + '’');
     await page.close();
   }
 
-  // ── P1-10·11 AI 제안 패널(1440 사이드바, 390 아래 시트) ──
+  // ── P1-10·11 AI 제안 패널(1440 지도 위 오른쪽 — 11-02 P1-1, 390 아래 시트) ──
   for (const [w, h, dpr] of [[1440, 900, 1], [390, 844, 2]]) {
     const page = await fresh(w < 500 ? 'no3d=1' : '', { width: w, height: h }, dpr);
     await toPlan(page, 2, [{ num: 1, nodes: ['A', 'B'], buses: [1, 2] }]);
@@ -240,7 +243,8 @@ try {
     if (geo.peopleText) { const m = geo.peopleText.match(/(\d+)\/\d+명 → (\d+)\/\d+명/); if (m && Number(m[2]) <= Number(m[1])) assert.match(geo.people, /rec-people-warn/, '인물 기준 그대로·나빠지면 주황'); }
     if (w > 850) {
       const overlapX = Math.min(geo.pop.r, geo.st.r) - Math.max(geo.pop.x, geo.st.x), overlapY = Math.min(geo.pop.b, geo.st.b) - Math.max(geo.pop.y, geo.st.y);
-      assert.ok(overlapX <= 0 || overlapY <= 0, 'AI 패널이 지도와 겹치지 않음(지도 밖 사이드바)'); assert.ok(geo.dashed > 0 && geo.dashedIn, '제안 노선(점선)이 지도 안에 다 보임');
+      // 2026-11-02 P1-1: 넓은 화면도 지도를 줄이지 않고 지도 오른쪽 가장자리 위에 겹쳐 뜸(지도 틀 안)
+      assert.equal(geo.pos, 'fixed'); assert.ok(geo.pop.x >= geo.st.x && geo.pop.r <= geo.st.r + 1 && geo.st.r - geo.pop.r <= 12, 'AI 패널은 지도 오른쪽 가장자리 위 ' + JSON.stringify(geo.pop)); assert.ok(overlapX > 0 && overlapY > 0); assert.ok(geo.dashed > 0 && geo.dashedIn, '제안 노선(점선)이 지도 안');
     } else { assert.equal(geo.pos, 'fixed'); assert.ok(geo.pop.b >= geo.H - 1 && geo.pop.h <= geo.H * 0.5, '아래 시트 ' + JSON.stringify(geo.pop)); }
     await page.screenshot({ path: `${SHOT}/_shot-playtest-ai-${w}.png` });
     await page.locator('#rec-accept').click(); await page.waitForTimeout(300);

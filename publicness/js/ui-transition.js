@@ -90,6 +90,13 @@
   ['#route-report','#run-log'].forEach(function(id){put(q(panel,id));});
   if(news){var sec=news.querySelector('section'),old=sec.querySelector('#bubble-replay');sec.replaceChild(bubbles(App,s),old);details.appendChild(news);}
   var finance=details.querySelector('#finance');if(finance)details.appendChild(finance);
+  /* P2-6(2026-11-02): ‘자세히’ 안의 항목을 소제목별로 접는다(내용은 그대로). 기본으로 ‘두 점수’(가장 많이 남은 곳 포함)만 펼침 */
+  [].slice.call(details.children).forEach(function(n){
+   if(n===sm||n.tagName==='DETAILS'||n.tagName==='SUMMARY')return;
+   var h=n.querySelector&&n.querySelector('h2,h3,h4'),sub=el('details',{'class':'detail-sub','data-for':n.id||''}),s2=el('summary',{'class':'detail-sub-h'});
+   if(h&&(h.parentNode===n||h.parentNode.parentNode===n)){s2.appendChild(h);}else s2.textContent=n.getAttribute&&n.getAttribute('aria-label')||'더 보기';
+   if(n.id==='scores')sub.open=true;details.insertBefore(sub,n);sub.appendChild(s2);sub.appendChild(n);
+  });
   var mapButton=el('button',{type:'button','class':'btn',id:'result-map-toggle',onclick:function(){document.body.classList.toggle('result-map-open');mapButton.setAttribute('aria-expanded',String(document.body.classList.contains('result-map-open')));App.syncStage({});}},'결과 지도 보기');details.insertBefore(mapButton,sm.nextSibling);
   // 다음 단계 버튼은 아래 고정 바(자세히를 펼쳐도 밀려나지 않게)
   var bar=el('div',{id:'result-next-bar','class':'result-next-bar'});bar.appendChild(next);

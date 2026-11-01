@@ -20,12 +20,24 @@
     if (!a.perf) a.perf = performance.now();
     if (!old) {
       old = el('p', { id: 'map-banner', 'class': 'map-banner', role: 'status', 'aria-live': 'polite' }, a.line);
-      $('#stage').appendChild(old);
+      $('#stage').appendChild(old); placeBanner(A);
       var left = Math.max(400, 3000 - (performance.now() - a.perf));
       bannerTimer = setTimeout(dismissBanner, left);
       // 배너를 띄운 바로 그 클릭(다음 단계 버튼·컷 버튼)에 닫히지 않게 한 박자 뒤부터 첫 클릭을 기다린다
       setTimeout(function () { if (!a.done) { document.addEventListener('pointerdown', onFirst, true); document.addEventListener('keydown', onFirst, true); } }, 250);
     }
+  }
+  /* P1-5 ④(2026-11-02): 단계 시작 배너가 위쪽 기차역 정류장을 가렸다 → 정류장·이름표·얼굴·번호 원이 없는 자리(위 가운데에 가까운 곳부터) */
+  function placeBanner(A) {
+    var b = $('#map-banner'), stage = $('#stage'); if (!b || !stage) return;
+    var W = stage.clientWidth, H = stage.clientHeight, bw = b.offsetWidth, bh = b.offsetHeight, cands = [], rects = A.net && A.net.rects ? A.net.rects().filter(function (r) { return r.kind !== 'hud'; }) : [];
+    for (var gy = 8; gy <= H - bh - 8; gy += 12) for (var gx = 8; gx <= W - bw - 8; gx += 16) cands.push({ x: gx, y: gy });
+    if (!cands.length) return;
+    var best = cands.reduce(function (acc, c) {
+      var a = rects.reduce(function (sum, r) { return sum + Math.max(0, Math.min(c.x + bw, r.x + r.w) - Math.max(c.x, r.x)) * Math.max(0, Math.min(c.y + bh, r.y + r.h) - Math.max(c.y, r.y)); }, 0);
+      var k = a * 1000 + Math.abs(c.x + bw / 2 - W / 2) * 0.5 + c.y; return !acc || k < acc.k ? { c: c, k: k } : acc;
+    }, null).c;
+    b.style.left = best.x + 'px'; b.style.top = best.y + 'px'; b.style.right = 'auto'; b.style.margin = '0';
   }
   function newMarks(A) {
     var a = arrivalNow(A);
@@ -33,7 +45,7 @@
     if (!a) return;
     var fresh = performance.now() - (a.perf || 0) < 4000;
     if (fresh && !a.unmark) a.unmark = setTimeout(function () { document.querySelectorAll('.depot-bus.is-new, .map-person.is-new').forEach(function (n) { n.classList.remove('is-new'); }); }, Math.max(0, 4000 - (performance.now() - (a.perf || 0))));
-    a.changes.newBusIds.forEach(function (id) { var t = $('#bus-token-' + id); if (t) { t.classList.toggle('is-new', fresh); if (fresh) t.setAttribute('data-new', '새 버스'); } });
+    a.changes.newBusIds.forEach(function (id) { var t = $('#bus-token-' + id); if (t) { t.classList.toggle('is-new', fresh); if (fresh) t.setAttribute('data-new', '새 버스 · 보유비 단계당 ' + PB.Narrative.won(A.s.config.finance.holding)); } });
     // 새 인물: 출발 정류장 옆 얼굴에 잠깐 고리(얼굴 자체는 지도 얼굴층이 늘 그린다)
     a.changes.people.forEach(function (r) { var f = $('#resident-map-' + r.id); if (f) f.classList.toggle('is-new', fresh); });
   }
@@ -82,9 +94,15 @@
     var clamp = function (c) { return { x: Math.max(8, Math.min(W - bw - 8, c.x)), y: Math.max(8, Math.min(H - bh - 8, c.y)) }; };
     // 가리킬 정류장이 없으면(첫 노선 완성 축하) 지도 위·아래 가장자리 중 덜 가리는 곳
     var cands = (st.target ? [{ x: x - bw / 2, y: y - bh - 34 }, { x: x - bw / 2, y: y + 44 }, { x: x + 34, y: y - bh / 2 }, { x: x - bw - 34, y: y - bh / 2 }, { x: x + 30, y: y - bh - 24 }, { x: x - bw - 30, y: y - bh - 24 }] : [{ x: (W - bw) / 2, y: 8 }, { x: (W - bw) / 2, y: H - bh - 8 }, { x: 8, y: 8 }, { x: W - bw - 8, y: 8 }, { x: 8, y: H - bh - 8 }, { x: W - bw - 8, y: H - bh - 8 }]).map(clamp);
-    var rects = A.net && A.net.rects ? A.net.rects().filter(function (r) { return r.kind === 'label' || r.kind === 'stop' || r.kind === 'face'; }) : [];
+    /* P1-1(2026-11-02): 안내 상자가 정류장(대학교 = 하늘의 목적지)·인물 얼굴을 가렸다 → 가리키는 정류장 둘레 자리에 지도 전체를 20px 간격으로 훑은 자리를 더하고,
+     * 정류장·얼굴·이름표·손가락과 겹치면 사실상 고르지 않는다(×1000). 안 겹치는 자리 중에서는 가리키는 정류장(없으면 좌상단)에 가까운 곳 */
+    for (var gy = 8; gy <= H - bh - 8; gy += 20) for (var gx = 8; gx <= W - bw - 8; gx += 20) cands.push({ x: gx, y: gy });
+    var rects = A.net && A.net.rects ? A.net.rects().filter(function (r) { return r.kind === 'label' || r.kind === 'stop' || r.kind === 'face' || r.kind === 'cap'; }) : [];
+    // 노선 손잡이(‘버스 ×N’)도 가리지 않는다 — 덮으면 끌 수 없다
+    var sr = stage.getBoundingClientRect(); [].forEach.call(document.querySelectorAll('#route-buses .route-bus'), function (h) { var r = h.getBoundingClientRect(); if (r.width) rects.push({ x: r.left - sr.left - 6, y: r.top - sr.top - 6, w: r.width + 12, h: r.height + 12 }); });
     var cost = function (c) { var a = rects.reduce(function (sum, r) { return sum + Math.max(0, Math.min(c.x + bw, r.x + r.w) - Math.max(c.x, r.x)) * Math.max(0, Math.min(c.y + bh, r.y + r.h) - Math.max(c.y, r.y)); }, 0);
-      var fx = !st.target ? 0 : Math.max(0, Math.min(c.x + bw, x + 24) - Math.max(c.x, x - 24)) * Math.max(0, Math.min(c.y + bh, y + 40) - Math.max(c.y, y - 24)); return a + fx * 4; };
+      var fx = !st.target ? 0 : Math.max(0, Math.min(c.x + bw, x + 24) - Math.max(c.x, x - 24)) * Math.max(0, Math.min(c.y + bh, y + 40) - Math.max(c.y, y - 24));
+      var cx = c.x + bw / 2, cy = c.y + bh / 2, d = st.target ? Math.hypot(cx - x, cy - y) : Math.hypot(c.x, c.y); return (a + fx) * 1000 + d; };
     var best = cands.reduce(function (b, c) { var k = cost(c); return !b || k < b.k - 1 ? { c: c, k: k } : b; }, null).c;
     box.style.left = best.x + 'px'; box.style.top = best.y + 'px';
   }
@@ -98,7 +116,7 @@
     if (c.phase === 1) rows.push(['할 일', '정류장을 이어 첫 노선을 만들어 보세요. 지도에서 출발할 정류장을 누르고, 이어서 갈 정류장을 누르면 노선이 생겨요.']);
     var changed = [];
     c.places.forEach(function (n) { changed.push(PB.Narrative.josa(n.name, '이가') + ' 생겼어요' + (A.NEW_PLACE[n.id] ? '(' + A.NEW_PLACE[n.id] + ')' : '') + '.'); });
-    if (c.buses) changed.push('버스 ' + A.signed(c.buses) + '대, 새 버스는 대기 중이에요. 지도 아래 대기 버스를 노선으로 끌어 놓거나, 새 노선을 완성하면 1대가 바로 운행해요.');
+    if (c.buses) changed.push('버스 ' + A.signed(c.buses) + '대(보유비 1대 단계당 ' + PB.Narrative.won(cfg.finance.holding) + '), 새 버스는 대기 중이에요. 지도 아래 대기 버스를 노선으로 끌어 놓거나, 새 노선을 완성하면 1대가 바로 운행해요.');
     if (c.routes) changed.push('노선 칸 ' + A.signed(c.routes) + '개.');
     if (c.express) changed.push(c.express + '.');
     if (changed.length) rows.push(['바뀐 것', changed.join(' ')]);
@@ -137,6 +155,6 @@
     banner(A); newMarks(A); coach(A); brief(A);
   }
   // 지도를 다시 그릴 때마다(틀 크기·카메라가 바뀐 뒤) 손가락·말풍선 자리를 다시 맞춘다
-  function layout() { var A = app(); if ($('#first-coach') && A.s) place(A, step(A)); }
+  function layout() { var A = app(); if ($('#first-coach') && A.s) place(A, step(A)); if ($('#map-banner') && A.s) placeBanner(A); }
   PB.Arrival = { render: render, layout: layout, fillHelp: fillHelp, dismissBanner: dismissBanner, closeCoach: closeCoach };
 })(window);

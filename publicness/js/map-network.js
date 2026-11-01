@@ -28,7 +28,7 @@
     var svg = svgEl('svg', { 'class': 'net-svg net-status-svg' }); layer.appendChild(svg);
     var labels = document.createElement('div'); labels.className = 'net-labels'; layer.appendChild(labels);
     stage.appendChild(layer);
-    var st = { nodes: {}, routes: [], waiting: {}, selected: [], selectable: [], show: true, faces: [], newNodes: [], newAt: 0 }, placed = [], flashT = {}, facePos = {};
+    var st = { nodes: {}, routes: [], waiting: {}, selected: [], selectable: [], show: true, faces: [], newNodes: [], newAt: 0, service: {} }, placed = [], flashT = {}, facePos = {}, keep = { key: null, lab: {}, face: {} };
 
     function project(x, y) { var v = getView(); return v.project(x, y); }
     function lanePoint(a, b, num, f) {
@@ -109,6 +109,10 @@
       /* 간판형(2026-11-01 사용자 선택 A, 좁은 지도 ≤ 520px): 이름표를 정류장(건물) 바로 옆에 붙인다 — 짧은 이름(config short), 연결선 없음,
        * 더 떨어진 자리(+12·+24px) 후보 없음. 안 겹치는 바로 옆 자리가 없으면 바로 옆 자리 중 가장 덜 겹치는 곳 */
       var ids = Object.keys(st.nodes), P = {}, L = {}, DIRS = ['S', 'E', 'W', 'N'];
+      /* P1-5 ②(2026-11-02): 노선을 그리거나 운행해도 이름표·얼굴이 움직이지 않게 — 같은 정류장 묶음·지도 틀 크기 동안은 지난번 자리(이름표 = 방향,
+       * 얼굴 = 정류장 기준 위치)를 먼저 쓴다. 그 자리가 다른 사각형(이름표·정류장·번호 원·시계)과 겹칠 때만 다시 고른다(노선 선이 지나가는 것은 괜찮음) */
+      var keepKey = ids.join(',') + '|' + Math.round(box.width) + 'x' + Math.round(box.height);
+      if (keep.key !== keepKey) keep = { key: keepKey, lab: {}, face: {} };
       function inBox(r) { return r.x >= 2 && r.y >= 2 && r.x + r.w <= box.width - 2 && r.y + r.h <= box.height - 2; }
       ids.forEach(function (id) {
         var n = st.nodes[id], el = document.createElement('div'), wait = st.waiting[id] || 0;
@@ -117,6 +121,8 @@
         el.appendChild(document.createElement('span')).textContent = narrow && n.short ? n.short : n.name;
         if (narrow && n.short) { el.title = n.name; el.setAttribute('aria-label', n.name); }
         if (st.newNodes.indexOf(id) >= 0) { var nb = document.createElement('span'); nb.className = 'net-new'; nb.textContent = '새 정류장'; el.appendChild(nb); el.classList.add('is-new'); }
+        // P1-4(2026-11-02): 공공서비스 정류장(외곽 마을·병원 등)은 계획 중에도 정차 횟수와 지원금 조건을 이름표 옆에(6회를 채우면 색이 바뀜)
+        if (st.service[id]) { var sv = document.createElement('span'); sv.className = 'net-service' + (st.service[id].done ? ' done' : ''); sv.textContent = st.service[id].text; sv.title = st.service[id].title || sv.textContent; el.appendChild(sv); }
         if (st.showWait && wait > 0) {
           var w = document.createElement('span'); w.className = 'net-wait' + (wait >= T.waitDanger ? ' danger' : wait >= T.waitCaution ? ' caution' : '');
           w.textContent = '👤 ' + wait; w.title = n.name + ' 대기 ' + wait + '명'; el.appendChild(w); el.dataset.wait = wait;
@@ -152,7 +158,10 @@
         function hits(r, hud) { return placed.some(function (q) { return others(q) && (hud || q.kind !== 'hud') && overlap(r, q); }); }
         var best = null;
         // 0) 기본 자리가 다른 것과 안 겹치면 그대로(노선 선이 지나가도 — 노선을 바꿀 때마다 튀지 않게) 1) 옮길 때는 노선 선까지 피함 2) 선은 허용 3) 시계·조작 묶음 가장자리도 허용
-        if (inside[0].dir === lab.dir && inBox(inside[0]) && !hits(inside[0], false)) best = inside[0];
+        var kept = keep.lab[id] && inside.filter(function (r) { return r.dir === keep.lab[id]; })[0];
+        // 번호 원과만 겹치면 이름표는 그대로 두고 번호 원이 비켜 간다(fixCaps)
+        if (kept && !placed.some(function (q) { return others(q) && q.kind !== 'hud' && q.kind !== 'cap' && overlap(kept, q); })) best = kept;
+        else if (inside[0].dir === lab.dir && inBox(inside[0]) && !hits(inside[0], false)) best = inside[0];
         else [[true, false], [false, false], [false, true]].some(function (pass) { return inside.some(function (r) { if (hits(r, pass[1]) || (pass[0] && lines(r))) return false; best = r; return true; }); });
         if (!best) best = inside.reduce(function (acc, r) {
           var sc = placed.reduce(function (sum, q) { if (!others(q)) return sum; return sum + area(r, q) * (WEIGHT[q.kind] || 1) + core(r, q); }, 0) + (lines(r) ? 40 : 0);
@@ -190,8 +199,10 @@
       } }
       /* 번호 원이 이름표에 덮이면(2026-11-01 — 이름표는 제 정류장 바로 옆을 지킨다) 번호 원을 같은 노선 끝 정류장 둘레로 조금씩 돌려
        * 이름표·다른 번호 원·정류장 마커와 안 겹치는 곳으로 옮긴다(가까운 각도부터). 없으면 그대로 */
+      // 지난번 얼굴 자리(이 정류장 묶음·틀 크기에서) — 노선을 더해도 얼굴이 그대로 있도록 번호 원이 그 자리도 비켜 간다(P1-5 ②)
+      var keptFaces = st.faces.map(function (f) { var n = st.nodes[f.node], w = keep.face[f.id]; if (!n || !w) return null; var p = project(n.x, n.y); return { x: p.left + w.dx, y: p.top + w.dy, w: f.size, h: f.size, kind: 'keptFace' }; }).filter(Boolean);
       function fixCaps() { caps.forEach(function (c) {
-        if (!placed.some(function (q) { return q.kind === 'label' && overlap(c.q, q); })) return;
+        if (!placed.some(function (q) { return q.kind === 'label' && overlap(c.q, q); }) && !keptFaces.some(function (q) { return overlap(c.q, q); })) return;
         var R = Math.hypot(c.x - c.px, c.y - c.py), a0 = Math.atan2(c.y - c.py, c.x - c.px), ox = c.q.x - c.x, oy = c.q.y - c.y;
         [0, 8].some(function (more) { return [25, -25, 50, -50, 75, -75, 100, -100, 130, -130, 180].some(function (deg) {
           var a = a0 + deg * Math.PI / 180, x = c.px + Math.cos(a) * (R + more), y = c.py + Math.sin(a) * (R + more), r = { x: x + ox, y: y + oy, w: c.q.w, h: c.q.h };
@@ -200,7 +211,7 @@
             /* 정류장은 마커 원끼리 거리로(사각형으로 재면 대각선 자리가 다 막힌다) */
             if (q.kind === 'stop') return Math.hypot(x - (q.x + q.w / 2), y - (q.y + q.h / 2)) < T.stop + T.cap + 4;
             return overlap(r, q);
-          })) return false;
+          }) || keptFaces.some(function (q) { return overlap(r, q); })) return false;
           var dx = x - c.x, dy = y - c.y;
           [].forEach.call(c.g.childNodes, function (n) { if (n.tagName === 'circle') { n.setAttribute('cx', x); n.setAttribute('cy', y); } else { n.setAttribute('x', +n.getAttribute('x') + dx); n.setAttribute('y', +n.getAttribute('y') + dy); } });
           c.x = x; c.y = y; c.q.x = r.x; c.q.y = r.y; return true;
@@ -210,7 +221,7 @@
       repairLabels(); fixCaps(); repairLabels(); fixCaps();
       ids.forEach(function (id) {
         var best = res[id].r, p = P[id], el = L[id].el;
-        el.style.left = best.x + 'px'; el.style.top = best.y + 'px'; el.dataset.dir = best.dir;
+        el.style.left = best.x + 'px'; el.style.top = best.y + 'px'; el.dataset.dir = best.dir; keep.lab[id] = best.dir;
         // 짧은 연결선: 마커 가장자리 → 이름표의 가장 가까운 점
         var bx = Math.max(best.x, Math.min(p.left, best.x + best.w)), by = Math.max(best.y, Math.min(p.top, best.y + best.h)), dd = Math.hypot(bx - p.left, by - p.top);
         if (!narrow && dd > T.stop + 1) svgEl('line', { 'class': 'leader', 'data-node': id, x1: p.left + (bx - p.left) / dd * T.stop, y1: p.top + (by - p.top) / dd * T.stop, x2: bx, y2: by }, gLead);
@@ -225,8 +236,10 @@
         var cand = [[-s / 2, -g2 - s], [-s - g2, -s - 2], [g2, -s - 2], [-s - g2 - 2, -s / 2], [g2 + 2, -s / 2], [-s / 2, g2]];
         /* 좁은 지도(≤ 520px)는 빈자리가 드물어 10px 간격으로 더 촘촘히 찾는다(2026-11-01). 끝내 없으면 FACE_W 순서로 가장 덜 나쁜 자리 */
         (narrow ? [10, 20, 30, 40, 50, 62] : [20, 40, 62]).forEach(function (d) { [[0, -1], [-1, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [1, 1], [0, 1]].forEach(function (u) { cand.push([u[0] * (g2 + d + s / 2) - s / 2, u[1] * (g2 + d + s / 2) - s / 2]); }); });
-        var least = null, leastA = Infinity;
-        [true, false].some(function (avoidLines) {
+        var least = null, leastA = Infinity, was = keep.face[f.id];
+        if (was) { var wr = { x: p.left + was.dx, y: p.top + was.dy, w: s, h: s };
+          if (wr.x >= 2 && wr.y >= 2 && wr.x + s <= box.width - 2 && wr.y + s <= box.height - 2 && !placed.some(function (q) { return q.kind !== 'cap' && area(wr, q) > 0; })) best = wr; }
+        if (!best) [true, false].some(function (avoidLines) {
           return cand.some(function (o) {
             var r = { x: p.left + o[0], y: p.top + o[1], w: s, h: s };
             if (r.x < 2 || r.y < 2 || r.x + r.w > box.width - 2 || r.y + r.h > box.height - 2) return false;
@@ -238,8 +251,11 @@
           });
         });
         if (!best) best = least || { x: p.left - s / 2, y: p.top - g2 - s, w: s, h: s }; // 빈 자리가 끝내 없으면 가장 덜 겹치는 곳
+        keep.face[f.id] = { dx: best.x - p.left, dy: best.y - p.top };
         facePos[f.id] = best; placed.push({ x: best.x, y: best.y, w: s, h: s, kind: 'face', id: f.id });
       });
+      // 얼굴이 제자리를 지켰으면 그 위의 번호 원을 한 번 더 비켜 놓는다
+      keptFaces = placed.filter(function (q) { return q.kind === 'face'; }); fixCaps();
       if (opts.onLayout) opts.onLayout();
     }
     var queued = false;
@@ -255,7 +271,7 @@
       setFaces: function (list) { st.faces = list || []; redraw(); },
       facePos: function (id) { return facePos[id] || null; },
       setOptions: function (o) {
-        if ('showWait' in o) st.showWait = !!o.showWait; if ('show' in o) st.show = !!o.show;
+        if ('showWait' in o) st.showWait = !!o.showWait; if ('show' in o) st.show = !!o.show; if ('service' in o) st.service = o.service || {};
         if ('newNodes' in o) { var was = st.newNodes.join(), at = o.newAt || 0; st.newNodes = o.newNodes || []; if (was !== st.newNodes.join() || at !== st.newAt) { st.newAt = at; var left = 2700 - (performance.now() - at); if (st.newNodes.length && left > 0) root.setTimeout(redraw, left); } }
         redraw();
       },

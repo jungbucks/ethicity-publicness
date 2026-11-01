@@ -159,7 +159,7 @@
     var throughF = plan.buses.some(function (b) { return b.route && b.route.nodes.indexOf('F') >= 0; });
     var H = stories.hook;
     var empty=!session.draft.routes.some(function(r){return r.nodes.length>=2;});
-    return [fill(H.line1.text, { buses: session.owned, requests: reqs }), empty?'아직 정해진 길은 없습니다. 우리 마을의 첫 노선을 직접 연결해 보세요.':fill(throughF ? H.line2Served.text : H.line2.text, {})];
+    return [fill(H.line1.text, { buses: session.owned, requests: reqs }), empty?'아직 정해진 길은 없어요. 우리 마을의 첫 노선을 직접 연결해 보세요.':fill(throughF ? H.line2Served.text : H.line2.text, {})];
   }
 
   // 학기 말 만족 기준(‘해낸 하루’ 횟수) = 등장 후 남은 운행 수 − 여유 횟수. 기본 5단계는 여유 1번(한 번 놓쳐도 만회 가능),
