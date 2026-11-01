@@ -532,7 +532,7 @@
       newGame();
     });
     App.newGame = newGame;
-    $('#btn-help').addEventListener('click', function () { $('#btn-tutorial-replay').hidden = !App.s; if (PB.Arrival) PB.Arrival.fillHelp(App); $('#help').showModal(); });
+    $('#btn-help').addEventListener('click', function () { $('#btn-tutorial-replay').hidden = !App.s; if (PB.Arrival) PB.Arrival.fillHelp(App); var more = $('#help-more'), bc = document.body.classList; if (more) more.open = !bc.contains('minimal-ui') || bc.contains('minimal-text'); /* 텍스트 모드·기본 화면은 자세히를 펼친 채(정보를 줄이지 않음) */ $('#help').showModal(); });
     $('#btn-tutorial-replay').addEventListener('click', function () { $('#help').close(); App.showTutorial(); });
     $('#btn-settings').addEventListener('click', function () { $('#settings').showModal(); });
     $('#restart-no').addEventListener('click', function () { $('#confirm-restart').close(); });

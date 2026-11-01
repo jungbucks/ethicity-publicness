@@ -20,13 +20,13 @@ assert.deepEqual(g, { fb: true, ba: false });
 const toast = await page.evaluate(() => { const t = document.querySelector('#minimal-toast, .toast, [role=status]'); return [...document.querySelectorAll('#minimal-toast,.app-toast,[data-toast]')].map(n => n.textContent).join(' | ') || (t && t.textContent) || ''; });
 assert.match(toast, /강을 건너는 구간은 다리로 돌아가서, 지도에서 보는 것보다 1\.5배 오래 걸려요/, toast);
 assert.equal(await page.locator('.minimal-headway').count(), 0, '노선 위 배차 간격 배지 없음');
-await page.evaluate(() => PB.Arrival ? null : null); await page.locator('#btn-help').click(); await page.waitForTimeout(300);
+await page.evaluate(() => PB.Arrival ? null : null); await page.locator('#btn-help').click(); await page.waitForTimeout(300); await page.locator('#help-more > summary').click(); // 11-02: 규칙표는 ‘자세히 보기’ 안
 assert.match(await page.locator('#help-rules').innerText(), /강 건너기[\s\S]*1\.5배/);
 assert.deepEqual(page.errors, []); await page.close();
 console.log('  ok 기본: F–B 강 건넘 팁·도움말 줄, 배차 간격 배지 없음');
 const rnd = await plan('seed=7', ['B', 'A']);
 assert.equal(await rnd.evaluate(() => PB.App.s.config.river), undefined);
-await rnd.locator('#btn-help').click(); await rnd.waitForTimeout(300);
+await rnd.locator('#btn-help').click(); await rnd.waitForTimeout(300); await rnd.locator('#help-more > summary').click();
 assert.doesNotMatch(await rnd.locator('#help-rules').innerText(), /강 건너기/);
 assert.deepEqual(rnd.errors, []); await rnd.close();
 console.log('  ok 랜덤: 강 규칙·도움말 줄 없음');

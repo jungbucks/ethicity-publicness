@@ -98,21 +98,32 @@
 
 <dialog id="help" class="dialog" aria-labelledby="help-h">
   <h2 id="help-h">도움말</h2>
-  <h3>어떻게 하나요?</h3>
-  <ul>
-    <li>정류장 두 곳 이상을 이어 노선을 만들면 대기 버스 1대가 바로 운행해요. 지도 아래 대기 버스를 노선으로 끌어 놓으면 증차, 노선 위 ‘버스 ×N’을 대기로 끌면 회수, 다른 노선에 놓으면 이동이에요(누르고 고르기·키보드로도 돼요). 같은 노선의 버스는 자동으로 간격을 두고 출발해요. AI 제안은 지도에서 미리 보고 적용할 수 있어요.</li>
-    <li>지도에서 정류장을 누르거나 드래그해서 자유롭게 연결해요. 선 중간을 정류장으로 당기면 경유지가 추가되고, 선을 두 번 누르면(더블클릭·두 번 탭) 그 구간(두 정류장 사이 길)만 없어져요(↶ 되돌리기로 복구). 시작점으로 연결하면 순환하고, 열린 노선은 왕복해요.</li>
-    <li>두 노선이 <b>모두 정차하는</b> 정류장에서만 한 번 갈아탈 수 있어요. 지도에서 선이 겹치기만 하는 곳은 환승 정류장이 아니에요.</li>
-    <li>출발한 뒤에는 3단계부터 오전·오후 한 번씩 버스 한 대만 옮길 수 있어요. 노선 모양은 다음 단계에서 고쳐요.</li>
+  <!-- 2026-11-02 도움말 단순화(사용자 “애들이 읽겠니?”): 기본은 안내 다시 보기 + 아이콘 4칸 한 줄씩. 긴 규칙·재정·AI 설명은 ‘자세히 보기’ 안(지우지 않음, 텍스트 모드는 펼쳐서) -->
+  <p class="help-top"><button class="btn btn-primary" type="button" id="btn-tutorial-replay">첫 노선 안내 다시 보기</button></p>
+  <ul class="help-quick">
+    <li><svg class="help-ico" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" focusable="false"><circle cx="5" cy="17" r="2.6"/><circle cx="19" cy="7" r="2.6"/><path d="M7.4 15.6 16.6 8.4"/></svg><b>노선 만들기</b><span>정류장 두 곳을 이어요</span></li>
+    <li><svg class="help-ico" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" focusable="false"><rect x="4" y="4" width="16" height="13" rx="3"/><path d="M4 11h16M8 4v7M16 4v7"/><circle cx="8" cy="19.5" r="1.6"/><circle cx="16" cy="19.5" r="1.6"/></svg><b>버스 옮기기</b><span>버스를 노선으로 끌어요</span></li>
+    <li><svg class="help-ico" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" focusable="false"><path d="M4 6v12l7-6zM12 6v12l7-6z"/></svg><b>출발·배속</b><span>출발하면 하루가 흘러요</span></li>
+    <li><svg class="help-ico" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8.5"/><path d="M8 9l2 6 2-5 2 5 2-6M7.5 12h9"/></svg><b>돈</b><span>버스마다 보유비가 들어요</span></li>
   </ul>
-  <h3>규칙과 재정</h3>
-  <div id="help-rules"></div>
-  <h3>모의 AI는 무엇을 하나요?</h3>
-  <p>외부 인공지능이 아니라, 알려진 기본 수요로 후보 계획을 비교하는 규칙 기반 추천이에요. 후보 노선은 최대 30개이고, 버스 한 대씩 바꿔 보며 가장 좋아지는 계획을 최대 3회 고릅니다. 가장 좋은 답을 보장하지 않아요.</p>
-  <p>AI의 예상은 <b>추가 사건 없는 기본 수요 기준</b>이에요. 실제 운행에는 갑자기 늘어난 수요나 청원 같은 사건이 생길 수 있어 결과가 달라질 수 있어요.</p>
-  <h3>숫자에 대해</h3>
-  <p>운임·비용·불만·신뢰 수치는 게임을 위해 정한 값이에요. 실제 교통이나 재정, 주민 마음을 잰 값이 아니에요.</p>
-  <form method="dialog" class="row-actions"><button class="btn" type="button" id="btn-tutorial-replay">첫 노선 안내 다시 보기</button><button class="btn btn-primary" type="submit">닫기</button></form>
+  <details id="help-more">
+    <summary>자세히 보기</summary>
+    <h3>어떻게 하나요?</h3>
+    <ul>
+      <li>정류장 두 곳 이상을 이어 노선을 만들면 대기 버스 1대가 바로 운행해요. 지도 아래 대기 버스를 노선으로 끌어 놓으면 증차, 노선 위 ‘버스 ×N’을 대기로 끌면 회수, 다른 노선에 놓으면 이동이에요(누르고 고르기·키보드로도 돼요). 같은 노선의 버스는 자동으로 간격을 두고 출발해요. AI 제안은 지도에서 미리 보고 적용할 수 있어요.</li>
+      <li>지도에서 정류장을 누르거나 드래그해서 자유롭게 연결해요. 선 중간을 정류장으로 당기면 경유지가 추가되고, 선을 두 번 누르면(더블클릭·두 번 탭) 그 구간(두 정류장 사이 길)만 없어져요(↶ 되돌리기로 복구). 시작점으로 연결하면 순환하고, 열린 노선은 왕복해요.</li>
+      <li>두 노선이 <b>모두 정차하는</b> 정류장에서만 한 번 갈아탈 수 있어요. 지도에서 선이 겹치기만 하는 곳은 환승 정류장이 아니에요.</li>
+      <li>출발한 뒤에는 3단계부터 오전·오후 한 번씩 버스 한 대만 옮길 수 있어요. 노선 모양은 다음 단계에서 고쳐요.</li>
+    </ul>
+    <h3>규칙과 재정</h3>
+    <div id="help-rules"></div>
+    <h3>모의 AI는 무엇을 하나요?</h3>
+    <p>외부 인공지능이 아니라, 알려진 기본 수요로 후보 계획을 비교하는 규칙 기반 추천이에요. 후보 노선은 최대 30개이고, 버스 한 대씩 바꿔 보며 가장 좋아지는 계획을 최대 3회 고릅니다. 가장 좋은 답을 보장하지 않아요.</p>
+    <p>AI의 예상은 <b>추가 사건 없는 기본 수요 기준</b>이에요. 실제 운행에는 갑자기 늘어난 수요나 청원 같은 사건이 생길 수 있어 결과가 달라질 수 있어요.</p>
+    <h3>숫자에 대해</h3>
+    <p>운임·비용·불만·신뢰 수치는 게임을 위해 정한 값이에요. 실제 교통이나 재정, 주민 마음을 잰 값이 아니에요.</p>
+    </details>
+  <form method="dialog" class="row-actions"><button class="btn" type="submit">닫기</button></form>
 </dialog>
 
 <dialog id="settings" class="dialog" aria-labelledby="settings-h">
