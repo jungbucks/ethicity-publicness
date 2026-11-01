@@ -167,9 +167,12 @@
     // buses: [{ id, x, y, num, color }] — x,y는 평면 좌표(구간 보간 결과), lane은 노선 차선
     function setBuses(buses) {
       layers.buses.innerHTML = '';
+      var narrow = (layers.buses.ownerSVGElement || layers.buses).getBoundingClientRect().width <= 520;
       buses.forEach(function (b) {
         var g = el('g', { 'class': 'bus-g', 'data-bus': b.id }, layers.buses);
         var x = b.x * U + (b.dx || 0), y = b.y * U + (b.dy || 0);
+        // 휴대폰처럼 좁은 지도(≤520px)에서는 버스를 25% 크게(2026-11-01 사용자)
+        if (narrow) g.setAttribute('transform', 'translate(' + x + ' ' + y + ') scale(1.25) translate(' + (-x) + ' ' + (-y) + ')');
         // 버스 = 작은 버스 모양(몸체 흰색 — 직행 7호차는 자두색, 띠는 노선색). 번호·인원 숫자 대신 정원 대비 차오르는 막대, 숫자는 마우스를 올렸을 때(title)
         var cap = b.regional ? 24 : b.express ? 18 : 12, fill = Math.min(1, (b.riders || 0) / cap), label = b.id + '호차' + (b.regional ? ' 광역 · 정원 24명' : b.express ? ' 직행 · 정원 18명' : '') + ' · 탑승 ' + (b.riders || 0) + '/' + cap + '명' + (b.names && b.names.length ? ' (' + b.names.join('·') + ')' : '');
         el('rect', { x: x - 14, y: y - 9, width: 28, height: 18, rx: 5, fill: b.express ? '#4B2E5C' : '#fff', stroke: '#1A1D24', 'stroke-width': 1.5 }, g);

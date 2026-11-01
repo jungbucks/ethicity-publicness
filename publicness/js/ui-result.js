@@ -257,7 +257,8 @@
       function advance(){S.nextPhase(s);if(s.stage==='ending')App.go('ending');else App.enterPlan();}
       if(last||ended){advance();return;}
       var stage={number:s.phase+1,total:cfg.phases.length,name:cfg.phases[s.phase]},kind=UI.nextCut(s);
-      if(kind)PB.Cutscene.play(kind,advance,null,stage);else advance();
+      // Stage 카드는 매 단계(2026-11-01 사용자: 카드가 안 뜬다) — 카드 다음에 새 인물 컷이 있으면 이어서
+      PB.Cutscene.play('stage',function(){if(kind)PB.Cutscene.play(kind,advance,null,stage);else advance();},null,stage);
     } }, ended ? '운영 종료 화면 보기' : last ? '학기 마무리 보기' : (s.phase + 1) + '단계로'));
     return {};
   };

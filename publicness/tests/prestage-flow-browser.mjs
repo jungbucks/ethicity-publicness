@@ -39,6 +39,8 @@ async function textOf(page, sel) {
 // 컷이 열려 있으면 다음(또는 마지막 버튼)을 누르며 센다. 컷 화면마다 글자 수를 잰다
 async function throughCuts(page, rec) {
   for (let i = 0; i < 10 && await page.locator('#goal-intro').evaluate(d => d.open); i++) {
+    // Stage 카드(‘N단계’, 2026-11-01 매 단계 다시 뜸)는 1.6초 뒤 저절로 넘어가는 짧은 카드 — 클릭·화면 수에 세지 않는다
+    if (await page.locator('#goal-intro').getAttribute('data-stage') === 'true') { await page.waitForFunction(() => { const d = document.querySelector('#goal-intro'); return !d.open || d.dataset.stage !== 'true'; }, null, { timeout: 5000 }); continue; }
     await page.waitForTimeout(80); const t = await textOf(page, '#goal-intro');
     rec.screens.push({ name: (await page.locator('#goal-intro-h').textContent()) || 'cut', ...t, phaseHead: await page.locator('#story-phase').evaluate(n => n.hidden ? null : n.textContent) });
     await page.locator('#story-next').click(); rec.clicks++;
@@ -169,7 +171,7 @@ try {
   }
 
   // 기본 화면(?minimal=0): 같은 흐름·같은 결과 구조
-  { const page = await fresh('no3d=1&minimal=0'); await page.locator('#btn-start').click(); let n = 1; while (await page.locator('#goal-intro').evaluate(d => d.open)) { await page.locator('#story-next').click(); n++; }
+  { const page = await fresh('no3d=1&minimal=0'); await page.locator('#btn-start').click(); let n = 1; while (await page.locator('#goal-intro').evaluate(d => d.open)) { if (await page.locator('#goal-intro').getAttribute('data-stage') === 'true') { await page.keyboard.press('Enter'); await page.waitForTimeout(100); continue; } await page.locator('#story-next').click(); n++; }
     await page.waitForFunction(() => document.body.dataset.screen === 'plan'); await page.locator('#first-coach').waitFor(); assert.ok(await page.locator('#people-hud').isVisible());
     await runPhase(page, false); assert.ok(await page.locator('#result-think #learning').isVisible()); assert.ok(await page.locator('#btn-next-phase').isVisible());
     await page.locator('#btn-next-phase').click(); await page.waitForFunction(() => document.body.dataset.screen === 'plan'); assert.match(await page.locator('#map-banner').textContent(), /^2단계 · /);

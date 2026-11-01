@@ -664,7 +664,9 @@
         }
         g.visible = true;
         labelEls.bus[b.id].textContent = '';
-        g.scale.set(BUS_SCALE*(b.regional?1.4:b.express?1.2:1), BUS_SCALE, BUS_SCALE);
+        // 휴대폰처럼 좁은 지도(≤520px)에서는 버스를 25% 크게(2026-11-01 사용자: 도로에 꽉 차도 괜찮음)
+        var MB=container.getBoundingClientRect().width<=520?1.25:1;
+        g.scale.set(BUS_SCALE*MB*(b.regional?1.4:b.express?1.2:1), BUS_SCALE*MB, BUS_SCALE*MB);
         // 탑승 인원은 버스 위 작은 막대가 정원만큼 차오르는 정도로(숫자 배지 대신). 숫자·주요 인물 이름은 마우스를 올렸을 때(title)·aria-label로
         if(b.riders>0){var cap=b.regional?24:b.express?18:12,count=document.createElement('span');count.className='rider-count rider-fill';count.dataset.riders=b.riders;
           count.style.setProperty('--fill',Math.min(100,Math.round(b.riders/cap*100))+'%');count.title=(b.names&&b.names.length?b.names.join('·')+' 포함 ':'')+b.riders+'/'+cap+'명';labelEls.bus[b.id].appendChild(count);}
@@ -773,7 +775,7 @@
       });
       Object.keys(labelEls.bus).forEach(function (id) {
         var g = busMesh[id]; if (!g || !g.visible) return;
-        var s = toScreen(g.position.x, 2.5 * BUS_SCALE, g.position.z);
+        var s = toScreen(g.position.x, 2.5 * BUS_SCALE * (g.scale.y / BUS_SCALE), g.position.z);
         var l = labelEls.bus[id]; l.style.left = s.left + 'px'; l.style.top = s.top + 'px';
       });
     }

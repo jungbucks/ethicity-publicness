@@ -454,7 +454,7 @@
       } else { note3d.hidden = false; note3d.textContent = '이 기기에서는 3D 화면을 쓸 수 없어 지도로 보여 드려요. 모든 기능은 그대로예요.'; }
     } else if (!want3d) { note3d.hidden = false; note3d.textContent = '지도 보기로 시작했어요.'; }
     // 네트워크·상태층(map-network.js): 지금 보이는 뷰의 장면·노선·대기·선택을 받아 같은 그림 체계로 그린다
-    App.net = PB.MapNetwork.create($('#stage'), function () { return App.view; }, { onLayout: function () { if (PB.UI.placeRunNotices) PB.UI.placeRunNotices(); if (PB.Arrival) PB.Arrival.layout(); if (PB.Hud) PB.Hud.layout(); }, reserved: function () { return controls.reserved(); }, tokens: function () { var m = cfg.ui.map, w = cfg.ui.wait; return { line: m.line, lineActive: m.lineActive, casing: m.casing, stop: m.stop, cap: m.cap, waitCaution: w.caution, waitDanger: w.danger }; } });
+    App.net = PB.MapNetwork.create($('#stage'), function () { return App.view; }, { onLayout: function () { /* 얼굴·노선 손잡이도 이름표와 같은 그림에서 바로 자리 잡기(150ms 주기만 기다리면 카메라·무대 크기 전환 중 옛 자리에 남음) */ if (PB.UI.mapLayout) PB.UI.mapLayout(); if (PB.UI.placeRunNotices) PB.UI.placeRunNotices(); if (PB.Arrival) PB.Arrival.layout(); if (PB.Hud) PB.Hud.layout(); }, reserved: function () { return controls.reserved(); }, tokens: function () { var m = cfg.ui.map, w = cfg.ui.wait; return { line: m.line, lineActive: m.lineActive, casing: m.casing, stop: m.stop, cap: m.cap, waitCaution: w.caution, waitDanger: w.danger }; } });
     [App.map2d, App.view3d].forEach(function (v) {
       if (!v) return;
       ['setScene', 'setRoutes', 'setWaiting', 'setSelected', 'setSelectable', 'flash'].forEach(function (fn) {
@@ -477,7 +477,8 @@
     App.speed = PB.Storage.readSpeed();
     $('#opt-sound').addEventListener('change', function (e) { App.setSound(e.target.checked); if (App.sound) App.chime(); });
     // 캐릭터 소개 → 맵 화면 위 Stage 1 카드 → 교육 모달 → 단계 안내 순서. 세팅 라디오는 소개 전에 읽어 둔다
-    function newGame() { PB.Cutscene.play('intro', function () { App.startGame(); }); }
+    // 소개 컷 → 지도 계획 위에 Stage 1 카드(2026-11-01 사용자: Stage 카드가 안 뜬다)
+    function newGame() { PB.Cutscene.play('intro', function () { App.startGame(); var c = App.s.config; PB.Cutscene.play('stage', function () {}, null, { number: 1, total: c.phases.length, name: c.phases[0] }); }); }
     // 저장된 진행이 있으면 ‘이어하기’를 먼저 보여 주고, 새로 시작은 지워도 되는지 한 번 묻는다
     var saved = PB.Storage.readSave(cfg.SCENARIO_VERSION), cont = $('#btn-continue');
     if (saved && cont) {

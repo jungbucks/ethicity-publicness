@@ -126,7 +126,7 @@
 
   // 노선마다 고정 위치에 ‘버스 ×N’ — 선 위 구간 중앙들 중 정류장·다른 표시·인물에서 가장 먼 곳(움직이는 버스를 쫓지 않아도 됨)
   function positionBadges(){
-    var layer=document.querySelector('#route-buses');if(!layer||!app().view)return;
+    var layer=document.querySelector('#route-buses');if(!layer||!app().view||document.body.dataset.screen!=='plan')return;/* 운행 화면에선 손잡이가 숨어 있음(크기 0) */
     /* Place chips beside route segments, away from the endpoint handles. */
     var v=app().view,placed=[],avoid=[];
     S.graph(app().s).nodes.forEach(function(id){var n=app().nodeXY(id);avoid.push(v.project(n.x,n.y));});
@@ -134,22 +134,38 @@
     var segs=segments();
     // 표시는 선 ‘옆’에 둔다(2026-10-27) — 선 위를 덮으면 그 구간을 두 번 눌러 없애거나 경유지를 당길 자리가 사라진다(짧은 구간은 정류장 반경과 겹쳐 아예 못 누름).
     // 선에서 표시 크기만큼 수직으로 비켜 놓고, 정류장·인물·다른 표시·(자기 노선의 다른 구간 포함) 다른 선에서 가장 먼 쪽을 고른다
-    drawn().forEach(function(r){var el=layer.querySelector('[data-num="'+r.num+'"]');if(!el)return;var best=null,score=-1,hw=el.offsetWidth/2||50,hh=el.offsetHeight/2||18;
-      for(var i=1;i<r.nodes.length;i++)[0.5,0.3,0.7,0.2,0.8].forEach(function(f){
+    /* 겹침은 거리 점수보다 먼저 본다(2026-11-01 휴대폰 지도 — 간판형 이름표 위에 손잡이가 앉던 문제). 예전엔 ‘가장 가까운 것까지 거리’ 하나로만 골라서,
+     * 좁은 지도에선 모든 후보가 이웃 차선·정류장 때문에 점수가 0 근처라 이름표를 덮는 자리가 뽑혔다. 이제
+     *  1순위: 이름표·정류장·번호 원·얼굴·시계 묶음·다른 손잡이(사각형) 어느 것과도 안 겹치고 노선 선도 안 덮는 자리
+     *  2순위: 사각형은 안 겹치고 선만 덮는 자리 3순위: 가장 덜 나쁜 자리(시계 묶음·번호 원·정류장 여백을 덮는 편이 이름표·얼굴·다른 손잡이를 덮는 것보다 훨씬 낫다 — WT). 같은 순위 안에서는 예전 점수(가장 먼 곳)
+     * 후보는 예전과 같은 구간 5곳 × 양옆이 먼저고, 거기 1순위가 없을 때만 구간 9곳 × 선에서 +10~+60px 더 떨어진 자리와 선 바로 위(null — 선을 덮지만 이름표·정류장을 덮는 것보다 낫다)까지 넓힌다(넓은 지도의 자리는 그대로).
+     * 이름표는 정류장 바로 옆에 그대로 두고 손잡이가 비켜 간다 */
+    var net=app().net?app().net.rects():[],boxes=[],SM=((app().s.config.ui||{}).map||{stop:9}).stop+4,WT={label:1000,face:1000,stop:4,cap:20,hud:2};
+    function ov(a,q){return Math.max(0,Math.min(a.x+a.w,q.x+q.w)-Math.max(a.x,q.x))*Math.max(0,Math.min(a.y+a.h,q.y+q.h)-Math.max(a.y,q.y));}
+    function crosses(rc){return segs.some(function(sg){var x0=rc.x,y0=rc.y,x1=rc.x+rc.w,y1=rc.y+rc.h,dx=sg.q.left-sg.p.left,dy=sg.q.top-sg.p.top,t0=0,t1=1,P4=[-dx,dx,-dy,dy],Q4=[sg.p.left-x0,x1-sg.p.left,sg.p.top-y0,y1-sg.p.top];
+      for(var k=0;k<4;k++){if(P4[k]===0){if(Q4[k]<0)return false;}else{var t=Q4[k]/P4[k];if(P4[k]<0){if(t>t1)return false;if(t>t0)t0=t;}else{if(t<t0)return false;if(t<t1)t1=t;}}}return true;});}
+    drawn().forEach(function(r){var el=layer.querySelector('[data-num="'+r.num+'"]');if(!el)return;var best=null,hw=el.offsetWidth/2||50,hh=el.offsetHeight/2||18;
+      function better(a,b){return !b||a.tier<b.tier||(a.tier===b.tier&&(a.tier===2?a.area<b.area-0.5||(Math.abs(a.area-b.area)<=0.5&&a.m>b.m+0.5):a.m>b.m+0.5));}
+      function search(fracs,extras){for(var i=1;i<r.nodes.length;i++)fracs.forEach(function(f){
         var a=app().nodeXY(r.nodes[i-1]),b=app().nodeXY(r.nodes[i]),o=v.laneOffset?v.laneOffset(r.nodes[i-1],r.nodes[i],r.num):{dx:0,dy:0};
         var p=v.project(a.x+(b.x-a.x)*f+o.dx/110,a.y+(b.y-a.y)*f+o.dy/110),P=v.project(a.x+o.dx/110,a.y+o.dy/110),Q=v.project(b.x+o.dx/110,b.y+o.dy/110);
-        var dx=Q.left-P.left,dy=Q.top-P.top,len=Math.hypot(dx,dy)||1,nx=-dy/len,ny=dx/len,gap=hw*Math.abs(nx)+hh*Math.abs(ny)+8;
-        [1,-1].forEach(function(side){
+        var dx=Q.left-P.left,dy=Q.top-P.top,len=Math.hypot(dx,dy)||1,nx=-dy/len,ny=dx/len,gap0=hw*Math.abs(nx)+hh*Math.abs(ny)+8;
+        extras.forEach(function(ex0){var gap=ex0==null?0:gap0+ex0;[1,-1].forEach(function(side){
           var c={left:Math.max(hw+8,Math.min(layer.clientWidth-hw-8,p.left+nx*gap*side)),top:Math.max(hh+8,Math.min(layer.clientHeight-hh-8,p.top+ny*gap*side))},m=Infinity;
           avoid.forEach(function(q){m=Math.min(m,Math.hypot(Math.max(0,Math.abs(q.left-c.left)-hw),Math.max(0,Math.abs(q.top-c.top)-hh)));});placed.forEach(function(q){m=Math.min(m,Math.hypot(q.left-c.left,q.top-c.top)*0.8);});
-          if(app().net)app().net.rects().forEach(function(q){var dx=Math.max(0,q.x-c.left-hw,c.left-hw-q.x-q.w),dy=Math.max(0,q.y-c.top-hh,c.top-hh-q.y-q.h);m=Math.min(m,Math.hypot(dx,dy));});
+          net.forEach(function(q){var dx=Math.max(0,q.x-c.left-hw,c.left-hw-q.x-q.w),dy=Math.max(0,q.y-c.top-hh,c.top-hh-q.y-q.h);m=Math.min(m,Math.hypot(dx,dy));});
           segs.forEach(function(sg){if(sg.p.left===P.left&&sg.p.top===P.top&&sg.q.left===Q.left&&sg.q.top===Q.top)return;
             var ex=sg.q.left-sg.p.left,ey=sg.q.top-sg.p.top,l=ex*ex+ey*ey,tt=l?Math.max(0,Math.min(1,((c.left-sg.p.left)*ex+(c.top-sg.p.top)*ey)/l)):0;
             m=Math.min(m,Math.hypot(c.left-sg.p.left-tt*ex,c.top-sg.p.top-tt*ey)*1.5);});
-          if(m>score+0.5){score=m;best=c;}
-        });
-      });
-      if(best){placed.push(best);el.style.left=best.left+'px';el.style.top=best.top+'px';}
+          var rc={x:c.left-hw-2,y:c.top-hh-2,w:hw*2+4,h:hh*2+4},area=0;
+          net.forEach(function(q){area+=ov(rc,q)*(WT[q.kind]||1);if(q.kind==='stop'){var cx=q.x+q.w/2,cy=q.y+q.h/2;area+=ov(rc,{x:cx-SM,y:cy-SM,w:SM*2,h:SM*2})*60;}});/* 정류장 마커 원 자체는 여백보다 무겁게 */boxes.forEach(function(q){area+=ov(rc,q)*1000;});
+          var cand={c:c,m:m,area:area,rc:rc,tier:area>0?2:crosses({x:c.left-hw,y:c.top-hh,w:hw*2,h:hh*2})?1:0};
+          if(better(cand,best))best=cand;
+        });});
+      });}
+      search([0.5,0.3,0.7,0.2,0.8],[0]);
+      if(!best||best.tier>0)search([0.5,0.4,0.6,0.3,0.7,0.2,0.8,0.1,0.9],[0,10,20,30,45,60,null]);
+      if(best){placed.push(best.c);boxes.push(best.rc);el.style.left=best.c.left+'px';el.style.top=best.c.top+'px';}
     });
   }
   function positionPeople(){
@@ -265,6 +281,7 @@
       face.appendChild(App.el('img',{src:'assets/art/portrait-'+rd.id+'-calm.webp',alt:''}));face.title=face.getAttribute('aria-label');/* 지도엔 얼굴만 — 이름은 툴팁·aria-label(배지 체계 정리) */people.appendChild(face);
     });stage.appendChild(people);people.dataset.phase=App.s.phase;
   }
+  PB.UI.mapLayout=positionPeople;
   PB.UI.mapPeople=function(App){mapPeople(App,document.querySelector('#stage'));requestAnimationFrame(positionPeople);};
   // AI 패널 닫기: 미리 보기 중이었으면 지도도 내 노선으로(제안은 남아 있어 다시 열면 그대로). 닫은 뒤 초점은 ‘AI 제안’ 버튼으로
   function closeAi(){state.ai=false;if(PB.UI.planSetPreview)PB.UI.planSetPreview(false);redraw();var t=document.querySelector('#plan-ai-toggle');if(t)t.focus({preventScroll:true});}
