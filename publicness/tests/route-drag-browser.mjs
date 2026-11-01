@@ -17,5 +17,7 @@ try{for(const view of ['2d','3d']){
  await page.waitForTimeout(420);await page.mouse.move(d.x,d.y);await page.waitForTimeout(100);await page.mouse.click(d.x,d.y);assert.deepEqual(await nodes(),['D','A','B','F'],'click uses nearest head');
  await page.locator('#btn-undo').click();await page.waitForTimeout(420);
  await page.mouse.move(a.x,a.y);await page.mouse.down();await page.mouse.move(d.x,d.y,{steps:5});await page.waitForTimeout(80);await page.mouse.move(a.x,a.y,{steps:5});await page.waitForTimeout(80);await page.mouse.up();assert.equal(await state(),before,'returning to prior stop rewinds');
- assert.deepEqual(errors,[]);console.log('PASS',view,'head, preview equality, undo, Esc, click, rewind');await page.close();
+ await page.evaluate(()=>{PB.App.onRouteClick(1,0);PB.App.onRouteDouble(1,0);PB.App.onNodeClick('D');});assert.deepEqual(await nodes(),['D','B','F'],'deletion clears old segment selection');
+ await page.evaluate(()=>{const api=PB.UI.routeEdit,begin=api.begin;api.begin=()=>null;try{PB.App.onNodeClick('G');}finally{api.begin=begin;}});
+ assert.deepEqual(errors,[]);console.log('PASS',view,'head, preview equality, undo, Esc, click, rewind, stale segment, unavailable transaction');await page.close();
 }}finally{await browser.close();server.close();}

@@ -29,24 +29,54 @@
     return w;
   }
   UI.table = table;
+  // 운행 계획의 노선(routeId) → 번호·버스 수·간격(인물 이유 한 줄과 작은 지도에 쓴다)
+  function routeInfoFor(App){
+    var s=App.s,tls=s.current.result.timelines.filter(function(tl){return tl.route;}),memo={};
+    return function(id){
+      if(id in memo)return memo[id];var same=tls.filter(function(tl){return tl.routeId===id;});if(!same.length)return (memo[id]=null);
+      var num=App.numForPlanRoute(same[0].route),h=PB.UI.Econ&&num!==99?PB.UI.Econ.headway(s,num,same.length):null;
+      return (memo[id]={num:num,buses:same.length,headway:h,route:same[0].route,color:App.routeStyle(num).color});
+    };
+  }
+  // 이유 한 줄과 같은 기준으로 고른 ‘문제 구간’(만족이면 첫 이동) → 작은 지도에 굵게
+  function focusLeg(App,rd,r,res,info){
+    var ps=res.passengers.filter(function(p){return p.residentId===rd.id;}),out=ps.filter(function(p){return p.leg==='outbound';})[0],back=ps.filter(function(p){return p.leg==='return';})[0];
+    var p=r.satisfied?out:r.dayStatus==='outboundIncomplete'?out:r.dayStatus==='returnIncomplete'?(back||null):[out,back].filter(Boolean).sort(function(a,b){return b.waitTotal-a.waitTotal;})[0];
+    var o=r.o||rd.o,d=r.d||rd.d,home=r.finalDestination||rd.returnTo||rd.o;
+    if(!p)return {o:d,d:home,legs:null};
+    var legs=p.journey&&p.fail!=='NO_LINK'?p.journey.map(function(l){var x=info(l.routeId);return x?{color:x.color,nodes:PB.Hud.along(x.route,l.from,l.to)||[l.from,l.to]}:null;}).filter(Boolean):null;
+    return {o:p.o,d:p.d,legs:legs&&legs.length?legs:null};
+  }
   function residentCard(App,rd,r,t){
     var data=PB.Narrative.residentResult(rd,r,App.s.current.result.passengers,App.s.config.bus.window);
     var li=el('li',{'data-resident':rd.id}),card=el('details',{'class':'resident-card'}),head=el('summary');
     var face=el('span',{'class':'resident-face '+rd.id,'aria-hidden':'true'});
     face.appendChild(el('img',{src:'assets/art/portrait-'+rd.id+'-calm.webp',alt:'',loading:'lazy'}));
     head.appendChild(face);var words=el('span',{'class':'resident-identity'});words.appendChild(el('strong',null,rd.name));
-    words.appendChild(el('span',{'class':'resident-state '+(r.satisfied?'complete':'incomplete')},(r.satisfied?'✓ 만족':'○ 불만족')));words.appendChild(el('span',{'class':'resident-reason'},r.satisfied?'필요한 이동을 기준 안에 마쳤어요.':(r.reasons||[]).map(function(x){return x.text;}).join(' ')||data.reason));head.appendChild(words);
-    head.appendChild(el('span',{'class':'resident-expand','aria-hidden':'true'},'＋'));card.appendChild(head);
+    words.appendChild(el('span',{'class':'resident-state '+(r.satisfied?'complete':'incomplete')},(r.satisfied?'✓ 만족':'○ 불만족')));// 이유 한 줄(2026-11-01): 어느 이동인지·어디서 얼마나 기다렸는지·만차·노선 없음·그 노선의 버스 수와 간격
+    words.appendChild(el('span',{'class':'resident-reason'},PB.Narrative.residentLine(App.s.config,rd,r,App.s.current.result.passengers,routeInfoFor(App))));
+    // 학기 누적 n/m과 ‘기준 달성 불가’(남은 단계를 모두 해내도 못 채움)
+    if(t){var cs=PB.Narrative.criterionState(t),tl=words.appendChild(el('span',{'class':'resident-tally'+(cs==='impossible'?' impossible':cs==='done'?' done':'')},'누적 '+t.completed+'/'+t.threshold+'회'+(cs==='impossible'?' · 기준 달성 불가':cs==='done'?' · 기준 달성':' · 남은 '+t.remaining+'단계')));tl.dataset.state=cs;}
+    head.appendChild(words);
+    // 펼침 표시(2026-11-01): 펼치면 ＋ → −, aria-expanded도 함께
+    var mark=el('span',{'class':'resident-expand','aria-hidden':'true'},'＋');head.appendChild(mark);head.setAttribute('aria-expanded','false');card.appendChild(head);
+    card.addEventListener('toggle',function(){mark.textContent=card.open?'−':'＋';head.setAttribute('aria-expanded',String(card.open));});
     var body=el('div',{'class':'resident-journey'});
     data.legs.forEach(function(leg){body.appendChild(el('p',{'class':'journey-leg'},(leg.state==='도착'?'✓ ':leg.state==='미도착'?'✕ ':'— ')+App.nodeName(leg.o)+' → '+App.nodeName(leg.d)+' · '+leg.state));});
     if(data.reason)body.appendChild(el('p',{'class':'journey-reason'},data.reason));
+    // 작은 지도: 펼칠 때 한 번 그린다(이번 단계 운행 노선은 옅게, 이 사람의 구간은 굵게 깜빡임)
+    var mm=el('figure',{'class':'resident-minimap'}),res=App.s.current.result,info=routeInfoFor(App),mmRoutes=PB.Hud?PB.Hud.routesNow():[],mmState=App.s;body.appendChild(mm);
+    card.addEventListener('toggle',function(){if(!card.open||mm.firstChild||!PB.Hud)return;var f=focusLeg(App,rd,r,res,info),map=PB.Hud.miniMap(mmState,mmRoutes,f);
+      map.setAttribute('aria-label',rd.name+'의 구간 · '+App.nodeName(f.o)+'에서 '+App.nodeName(f.d)+'까지'+(f.legs?'':' · 잇는 노선 없음'));mm.appendChild(map);
+      mm.appendChild(el('figcaption',{'class':'note'},App.nodeName(f.o)+' → '+App.nodeName(f.d)+(f.legs?'':' · 잇는 노선 없음')));});
     if(t)body.appendChild(el('p',{'class':'note'},'엔딩 기준 · 누적 '+t.completed+'/'+t.threshold+'회'+(t.completed>=t.threshold?' · 기준 달성':' · 남은 '+t.remaining+'단계')));
     var times=el('details',{'class':'resident-times'});times.appendChild(el('summary',null,'도착 시각 기록'));
     times.appendChild(el('p',{'class':'note'},'첫 도착 '+(r.arriveT!=null?App.clock(r.arriveT):'미도착')+' · 최종 도착 '+(r.homeT!=null?App.clock(r.homeT):'미도착')));body.appendChild(times);card.appendChild(body);
-    var pinned=false;
-    head.addEventListener('click',function(e){e.preventDefault();pinned=!pinned;card.open=pinned;});
-    card.addEventListener('pointerenter',function(e){if(e.pointerType==='mouse'&&matchMedia('(hover: hover)').matches)card.open=true;});
-    card.addEventListener('pointerleave',function(){if(!pinned&&!card.contains(document.activeElement))card.open=false;});
+    // 눌러서 닫은 뒤에는 마우스가 카드를 떠날 때까지 올려 두기만으로 다시 펼치지 않는다(펼친 내용·작은 지도로 카드 높이가 바뀌어도 닫힌 채)
+    var pinned=false,closedByClick=false;
+    head.addEventListener('click',function(e){e.preventDefault();pinned=!pinned;closedByClick=!pinned;card.open=pinned;});
+    card.addEventListener('pointerenter',function(e){if(!closedByClick&&e.pointerType==='mouse'&&matchMedia('(hover: hover)').matches)card.open=true;});
+    card.addEventListener('pointerleave',function(){closedByClick=false;if(!pinned&&!card.contains(document.activeElement))card.open=false;});
     card.addEventListener('focusout',function(e){if(!pinned&&!card.contains(e.relatedTarget)&&!card.matches(':hover'))card.open=false;});
     card.addEventListener('keydown',function(e){if(e.key==='Escape'){e.preventDefault();e.stopPropagation();pinned=false;card.open=false;head.focus();}});
     li.appendChild(card);return li;
@@ -77,13 +107,18 @@
     if(!row)return null;
     if(f.rule==='balance-streak'){
       if(row.deficit)lines.push('이번 단계 회차 수지 '+App.won(row.total)+' — 적자예요.'+(row.balance>=0?' 모아 둔 잔액('+App.won(row.balance)+')으로 메웠어요.':''));
-      if(f.end&&f.end.cause==='contract'&&f.end.phase===h.phase){lines.push('누적 잔액이 '+f.limit+'번 연속 0원 미만('+App.won(row.balance)+')이라 운영 계약이 종료돼요. 이번 단계 결과와 정산을 확인한 뒤 종료 화면으로 넘어가요.');warn=true;}
+      if(f.end&&f.end.cause==='contract'&&f.end.phase===h.phase){lines.push('누적 잔액이 '+f.limit+'회 연속 0원 미만('+App.won(row.balance)+')이라 운영 계약이 종료돼요. 이번 단계 결과와 정산을 확인한 뒤 종료 화면으로 넘어가요.');warn=true;}
       else if(row.balance<0){lines.push('누적 잔액 '+App.won(row.balance)+' — 다음 단계를 마칠 때도 0원 미만이면 운영 계약이 종료됩니다.');warn=true;}
     }else if(f.low)lines.push('보유 잔액 '+App.won(f.balance)+'. 기본 모드는 재정을 학기 말에 평가해요. 마지막 단계가 끝난 뒤 잔액이 0원 미만이면 파산으로 끝나요.');
     if(!lines.length)return null;
     return el('p',{id:'finance-status','class':'callout'+(warn?' warn':''),role:'status'},lines.join(' '));
   }
 
+  // 다음 단계에 새 인물 컷이 있으면 그 이름(sol·baseball·mall), 없으면 null
+  UI.nextCut = function (s) {
+    var has = function (id) { return s.config.residents.some(function (r) { return r.id === id; }); };
+    return s.phase === 2 ? 'sol' : s.phase === 3 && has('yuna') ? 'baseball' : s.phase === 6 && has('jinho') ? 'mall' : null;
+  };
   UI.result = function (App, panel) {
     document.querySelector('#stage-overlay').textContent='';
     var s = App.s, h = s.history[s.history.length - 1], m = h.metrics, e = h.expected;
@@ -218,12 +253,10 @@
 
     var last = s.phase >= cfg.phases.length, ended = !!(s.end && s.end.cause === 'contract');
     panel.appendChild(el('button', { type: 'button', 'class': 'btn btn-primary btn-lg', id: 'btn-next-phase', onclick: function () {
-      function advance(){S.nextPhase(s);if(s.stage!=='ending')s.transitionStep='reflect'; App.go(s.stage === 'ending' ? 'ending' : 'reveal');}
+      // 2026-11-01: 성찰·「마을이 달라졌어요」 화면 없이 곧바로 다음 단계 지도 계획 화면(App.enterPlan). 새 인물이 오는 단계만 컷 한 장(머리에 ‘N단계 · 이름’)
+      function advance(){S.nextPhase(s);if(s.stage==='ending')App.go('ending');else App.enterPlan();}
       if(last||ended){advance();return;}
-      // 새 인물이 등장하는 단계만 짧은 Stage 카드와 소개 컷을 보여 준다. 나머지는 바로 단계 안내로
-      var stage={number:s.phase+1,total:cfg.phases.length,name:cfg.phases[s.phase]};
-      var has=function(id){return s.config.residents.some(function(r){return r.id===id;});};
-      var kind=s.phase===2?'sol':s.phase===3&&has('yuna')?'baseball':s.phase===6&&has('jinho')?'mall':null;
+      var stage={number:s.phase+1,total:cfg.phases.length,name:cfg.phases[s.phase]},kind=UI.nextCut(s);
       if(kind)PB.Cutscene.play(kind,advance,null,stage);else advance();
     } }, ended ? '운영 종료 화면 보기' : last ? '학기 마무리 보기' : (s.phase + 1) + '단계로'));
     return {};

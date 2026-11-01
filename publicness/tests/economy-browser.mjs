@@ -10,7 +10,7 @@ try{for(const view of (process.env.VIEWS||'2d,3d').split(',')){
  const page=await browser.newPage({viewport:{width:1366,height:1000},reducedMotion:'reduce'});const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto(base+(view==='2d'?'?no3d=1':''));
  await page.evaluate(()=>{localStorage.clear();PB.App.startGame();PB.Session.beginPlan(PB.App.s);PB.App.go('plan');});
- assert.match(await page.locator('#plan-econ-h').innerText(),/이번 단계 예상 수지 −[\d,]+원 · 수행분 0\/2/,'무운행 예상은 마이너스, 조건 0/2');
+ assert.match(await page.locator('#plan-econ-h').innerText(),/이번 단계 예상 수지 · 노선을 만들면 예상 수지가 나와요/,'노선이 없으면 숫자 대신 안내(2026-11-01 플레이테스트 P1-15)');
  await page.evaluate(()=>{PB.App.onNodeClick('F');PB.App.onNodeClick('D');});
  assert.match(await page.locator('#route-econ').innerText(),/1번 · 한 바퀴 [\d.]+km · 버스 1대 · 약 .+ 간격 · 운영·연료 약 [\d,]+원 · 운임 약 [\d,]+원 → 손익 [−+]?[\d,]+원 \(기본 수요 기준 예상\)/);
  assert.match(await page.locator('#plan-econ-h').innerText(),/수행분 2\/2/);

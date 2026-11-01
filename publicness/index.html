@@ -8,7 +8,8 @@
 <link rel="stylesheet" href="css/tokens.css">
 <link rel="stylesheet" href="css/style.css">
 <link rel="stylesheet" href="css/scores.css">
-<link rel="stylesheet" href="css/minimal.css?v=20261031-original-dialogue">
+<link rel="stylesheet" href="css/minimal.css">
+<link rel="stylesheet" href="css/prestage.css">
 </head>
 <body data-screen="title">
 <a class="skip-link" href="#panel">오른쪽 안내로 건너뛰기</a>
@@ -24,7 +25,7 @@
     <fieldset class="setting">
       <legend>마을 세팅</legend>
       <label class="radio"><input type="radio" name="setting" value="default" checked> <span><b>기본 · 교육용 5단계</b> — 같은 지도와 사건으로 시작해요. 재정은 학기 말 잔액으로 평가해요</span></label>
-      <label class="radio"><input type="radio" name="setting" value="random"> <span><b>랜덤 · 도전용 8단계</b> — 위치·사건 변화, 직행과 광역 노선까지. 단계를 마칠 때 누적 잔액이 2번 연속 0원 미만이면 운영 계약이 끝나요</span></label>
+      <label class="radio"><input type="radio" name="setting" value="random"> <span><b>랜덤 · 도전용 8단계</b> — 위치·사건 변화, 직행과 광역 노선까지. 단계를 마칠 때 누적 잔액이 2회 연속 0원 미만이면 운영 계약이 끝나요</span></label>
       <p class="note" id="seed-note" aria-live="polite"></p>
     </fieldset>
     <button type="button" class="btn btn-primary btn-lg" id="btn-continue" hidden>이어하기</button>
@@ -87,7 +88,7 @@
 <dialog id="goal-intro" class="story-dialog" aria-labelledby="goal-intro-h" aria-describedby="story-full" tabindex="-1">
   <div id="story-stage" class="story-stage"><p id="story-stage-title" class="stage-title"></p><p id="story-stage-sub" class="stage-sub"></p></div>
   <img id="story-image" class="story-image" alt="">
-  <div class="story-tools"><span id="story-count"></span><button type="button" class="btn" id="btn-goal-start">건너뛰고 시작</button></div>
+  <div class="story-tools"><p id="story-phase" class="story-phase" hidden></p><span id="story-count"></span><button type="button" class="btn" id="btn-goal-start">건너뛰고 시작</button></div>
   <div class="story-dialogue">
     <h2 id="goal-intro-h"></h2>
     <p id="goal-intro-text"><span id="story-typed" aria-hidden="true"></span><span id="story-full" class="story-sr"></span></p>
@@ -102,10 +103,12 @@
     <li>정류장 두 곳 이상을 이어 노선을 만들면 대기 버스 1대가 바로 운행해요. 지도 아래 대기 버스를 노선으로 끌어 놓으면 증차, 노선 위 ‘버스 ×N’을 대기로 끌면 회수, 다른 노선에 놓으면 이동이에요(누르고 고르기·키보드로도 돼요). 같은 노선의 버스는 자동으로 간격을 두고 출발해요. AI 제안은 지도에서 미리 보고 적용할 수 있어요.</li>
     <li>지도에서 정류장을 누르거나 드래그해서 자유롭게 연결해요. 선 중간을 정류장으로 당기면 경유지가 추가되고, 선을 두 번 누르면(더블클릭·두 번 탭) 그 구간(두 정류장 사이 길)만 없어져요(↶ 되돌리기로 복구). 시작점으로 연결하면 순환하고, 열린 노선은 왕복해요.</li>
     <li>두 노선이 <b>모두 정차하는</b> 정류장에서만 한 번 갈아탈 수 있어요. 지도에서 선이 겹치기만 하는 곳은 환승 정류장이 아니에요.</li>
-    <li>출발하면 운행이 끝날 때까지 계획을 바꿀 수 없어요. 결과를 보고 다음 단계에서 고쳐요.</li>
+    <li>출발한 뒤에는 3단계부터 오전·오후 한 번씩 버스 한 대만 옮길 수 있어요. 노선 모양은 다음 단계에서 고쳐요.</li>
   </ul>
+  <h3>규칙과 재정</h3>
+  <div id="help-rules"></div>
   <h3>모의 AI는 무엇을 하나요?</h3>
-  <p>외부 인공지능이 아니라, 알려진 기본 수요로 후보 계획을 비교하는 규칙 기반 추천이에요. 후보 노선은 최대 30개이고, 버스 한 대씩 바꿔 보며 가장 좋아지는 계획을 최대 3번 고릅니다. 가장 좋은 답을 보장하지 않아요.</p>
+  <p>외부 인공지능이 아니라, 알려진 기본 수요로 후보 계획을 비교하는 규칙 기반 추천이에요. 후보 노선은 최대 30개이고, 버스 한 대씩 바꿔 보며 가장 좋아지는 계획을 최대 3회 고릅니다. 가장 좋은 답을 보장하지 않아요.</p>
   <p>AI의 예상은 <b>추가 사건 없는 기본 수요 기준</b>이에요. 실제 운행에는 갑자기 늘어난 수요나 청원 같은 사건이 생길 수 있어 결과가 달라질 수 있어요.</p>
   <h3>숫자에 대해</h3>
   <p>운임·비용·불만·신뢰 수치는 게임을 위해 정한 값이에요. 실제 교통이나 재정, 주민 마음을 잰 값이 아니에요.</p>
@@ -180,10 +183,12 @@
 <script src="js/ui-economy.js"></script>
 <script src="js/ui-transition.js"></script>
 <script src="js/ui-ending.js"></script>
-<script src="js/cutscene.js?v=20261031-original-dialogue"></script>
+<script src="js/cutscene.js"></script>
+<script src="js/ui-hud.js"></script>
+<script src="js/ui-arrival.js"></script>
 <script src="js/map-network.js"></script>
 <script src="js/app.js"></script>
 <script src="js/route-drag.js"></script>
-<script src="js/minimal-ui.js?v=20261031-original-dialogue"></script>
+<script src="js/minimal-ui.js"></script>
 </body>
 </html>

@@ -93,7 +93,7 @@
     var sec = el('section', { id: 'failure-report', 'class': 'card', 'aria-labelledby': 'fail-h' });
     sec.appendChild(el('h3', { id: 'fail-h' }, '재정 돌아보기'));
     sec.appendChild(el('p', { id: 'failure-cause' }, (f.end.cause === 'contract' && f.end.balance >= 0
-      ? f.end.phase + '단계에서 이전 규칙(회차 적자 누적 3번)으로 운영 계약이 종료됐어요. 보유 잔액은 ' + App.won(f.balance) + '이에요.'
+      ? f.end.phase + '단계에서 이전 규칙(회차 적자 누적 3회)으로 운영 계약이 종료됐어요. 보유 잔액은 ' + App.won(f.balance) + '이에요.'
       : f.end.cause === 'contract'
       ? (f.end.phase - 1) + '·' + f.end.phase + '단계를 마칠 때 누적 잔액이 연속으로 0원 미만이어서 운영 계약이 종료됐어요. 마지막 보유 잔액은 ' + App.won(f.balance) + '이에요. 한 단계 적자는 경고였고, 지급 능력(누적 잔액)으로 판정했어요.'
       : '마지막 단계까지 운행했지만 학기 말 보유 잔액이 ' + App.won(f.balance) + '이에요. 기본 모드는 학기 말 잔액이 0원 미만이면 파산으로 끝나요.') + ' 재정 판정과 별개로, 주민이 해낸 이동은 아래 인물 결과에 그대로 남아 있어요.'));

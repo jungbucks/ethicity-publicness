@@ -134,7 +134,8 @@
     if (R.last == null) R.last = now;
     var dt = now - R.last;
     R.last = now;
-    if (document.hidden || R.paused) return;
+    // 확인창(건너뛰기·도움말·설정 등 모달)이 열려 있는 동안은 시계를 멈춘다 — 닫히면 R.last가 이미 지금이라 원래 배속으로 이어 간다(2026-11-01)
+    if (document.hidden || R.paused || modalOpen()) return;
     var App = app(), cp = nextCheckpoint();
     var stopAt = P.nextStop(R.tf, { mode: R.mode, notables: R.notables, checkpoint: cp });
     var tf = Math.min(W, P.advance(R.tf, Math.min(dt, 250), R.mode === 'next' ? P.NEXT : R.speed, App.msPerMinute(), cp, R.slow));
@@ -168,6 +169,13 @@
     }
   }
 
+  function modalOpen() {
+    try { return !!document.querySelector('dialog:modal'); } catch (e) { return !!document.querySelector('dialog[open]:not(#emergency-dialog)'); }
+  }
+  // 긴급 조정이 있는 단계(3단계부터)인가 — ‘다음 결정까지’/‘다음 사건까지’ 이름과 안내 문구가 이걸 따른다
+  function hasEmergency(s) { return !!s && s.phase >= 3; }
+  function nextLabel(s) { return hasEmergency(s) ? '다음 결정까지' : '다음 사건까지'; }
+
   // 아직 결정하지 않은 긴급 조정 시점(3단계부터 오전·오후 한 번씩)
   function remainingCheckpoints() {
     if (!R || R.s.phase < 3) return [];
@@ -196,7 +204,9 @@
         var name = App.nodeName(n.node);
         return n.kind === 'full' ? { node: n.node, kind: 'full', text: name + ' 만차 · ' + n.bus + '호차에 ' + n.n + '명 못 탐' } : { node: n.node, kind: 'wait', text: name + ' 대기 ' + n.n + '명' };
       }));
-      setStatus('⏸ ' + App.clock(stopAt.t) + ' 멈춤 — ' + R.alerts.map(function (a) { return a.text; }).join(', ') + '. ▶ 재개하면 ' + App.speed + '배속, ⏭ 누르면 다음 결정까지 빨리 가요.');
+      // 멈춘 이유를 맨 앞에(예: ‘대기 10명 이상 · 밀집 주거지 12명’)
+      var why = stopAt.items.map(function (n) { return n.kind === 'full' ? '만차 · ' + App.nodeName(n.node) + ' ' + n.bus + '호차에 ' + n.n + '명 못 탐' : '대기 ' + P.ALERT_WAIT + '명 이상 · ' + App.nodeName(n.node) + ' ' + n.n + '명'; }).join(', ');
+      setStatus(why + ' · ' + App.clock(stopAt.t) + ' 멈춤. ▶ 재개하면 ' + App.speed + '배속, ⏭ 누르면 ' + nextLabel(R.s) + ' 빨리 가요.');
     }
     syncControls();
   }
@@ -325,15 +335,54 @@
     });
     d.appendChild(list);
     d.appendChild(el('p',{'class':'note'},'이번 기회에 버스 한 대를 옮길 수 있어요. 조정권 1회를 사용하며, 승객을 내려주고 종점에 도착한 뒤 이동해요. 이동 시간과 운영 비용도 들어요.'));
+    /* 고르는 규칙(2026-11-01 플레이테스트: 기본값 ‘1호차 → 1번’이 아무 효과 없이 조정권만 쓰고 1호차를 운행에서 뺐다)
+     *  · ‘새 노선’ 목록에는 그 버스가 지금 달리는 노선(앞선 조정으로 옮겨 가는 중이면 옮겨 갈 노선)을 넣지 않는다.
+     *    옮겨 갈 노선이 하나도 없는 버스는 ‘옮길 버스’ 목록에서 뺀다. Session.emergencyDecision도 같은 노선 이동을 받지 않는다
+     *  · 새 노선 기본값: 원인 정류장(주황 고리)에 서는 노선 중 지금 버스가 가장 적은 노선 → 같으면 번호가 작은 노선.
+     *    원인 정류장에 서는 노선이 없거나 그 버스가 갈 수 없으면 버스가 가장 적은 노선
+     *  · 옮길 버스 기본값: 원인과 무관한 버스(원인 정류장에 서지 않는 노선을 달리거나 대기 중) 중 가장 여유 있는 버스 =
+     *    ① 대기 중인 버스 ② 같은 노선에 다른 버스가 남는 버스(옮겨도 그 노선 운행이 끊기지 않음) ③ 지금 탄 승객이 적은 버스 ④ 번호가 작은 버스 순.
+     *    그런 버스가 없으면 그 새 노선으로 갈 수 있는 버스 전체에서, 그것도 없으면 옮길 수 있는 버스 전체에서 같은 순서로 고른다 */
+    var S = PB.Session, gr = S.graph(R.s), valid = S.routesInOrder(R.s).filter(function (r) { return !PB.Graph.validateRoute(gr, r).length; });
+    var cur = {}, count = {};
+    R.s.draft.buses.forEach(function (b) { var n = S.busRouteAt(R.s, b.id, at); cur[b.id] = n; if (n != null) count[n] = (count[n] || 0) + 1; });
+    function passes(r) { return !!cause && r.nodes.some(function (n, i) { return n === cause.node && r.stops[i]; }); }
+    function targets(id) { return valid.filter(function (r) { return r.num !== cur[id] && S.canAssign(R.s, id, r.num); }); }
+    function fewest(list) { return list.slice().sort(function (a, b) { return (count[a.num] || 0) - (count[b.num] || 0) || a.num - b.num; })[0] || null; }
+    function pickRoute(id) { var t = targets(id); return fewest(t.filter(passes)) || fewest(t); }
+    function rank(b) { var n = cur[b.id]; return [n == null ? 0 : 1, n == null || (count[n] || 0) >= 2 ? 0 : 1, occ[b.id] || 0, b.id]; }
+    function slack(list) { return list.slice().sort(function (a, b) { var x = rank(a), y = rank(b); for (var i = 0; i < x.length; i++) if (x[i] !== y[i]) return x[i] - y[i]; return 0; })[0] || null; }
+    var movable = R.s.draft.buses.filter(function (b) { return targets(b.id).length; });
+    var goal = fewest(valid.filter(passes)) || fewest(valid);
+    var pool = movable.filter(function (b) { return goal && targets(b.id).some(function (r) { return r.num === goal.num; }); });
+    var unrelated = pool.filter(function (b) { var r = cur[b.id] == null ? null : S.routeByNum(R.s, cur[b.id]); return !r || !passes(r); });
+    var first = slack(unrelated) || slack(pool) || slack(movable);
     var bus=el('select',{id:'emergency-bus'}),route=el('select',{id:'emergency-route'});
-    R.s.draft.buses.forEach(function(b){bus.appendChild(el('option',{value:b.id},b.id+'호차'));});
-    function options(){route.textContent='';PB.Session.routesInOrder(R.s).forEach(function(r){if(PB.Session.canAssign(R.s,Number(bus.value),r.num)&&!PB.Graph.validateRoute(PB.Session.graph(R.s),r).length)route.appendChild(el('option',{value:r.num},r.num+'번 · '+r.nodes.map(App.nodeName).join(' → ')));});}
-    bus.addEventListener('change',options);options();
-    d.appendChild(el('label',{'for':'emergency-bus'},'옮길 버스'));d.appendChild(bus);d.appendChild(el('label',{'for':'emergency-route'},'새 노선'));d.appendChild(route);
-    // 결정이 끝나면 처음부터 다시 재생 상태를 만든다 — 배속은 플레이어가 마지막으로 고른 값(App.speed)
-    function finish(id,num){if(!PB.Session.emergencyDecision(R.s,at,id,num))return;var s=R.s;s.runCursor=at;d.close();d.remove();stop();start(app());app().save();app().syncStage({keepBuses:true});setStatus('운행 중 · '+app().speed+'배속');}
+    movable.forEach(function(b){bus.appendChild(el('option',{value:b.id},b.id+'호차'+(cur[b.id]!=null?' · 지금 '+cur[b.id]+'번 노선':' · 대기 중')));});
+    if (first) bus.value = String(first.id);
+    // 고르면 바로 한 줄로: ‘1호차는 승객을 내린 뒤 11:45부터 3번 노선에 들어가요’(엔진으로 미리 계산할 뿐 결과는 바뀌지 않는다)
+    var preview = el('div', { id: 'emergency-preview', 'class': 'emergency-preview', 'aria-live': 'polite' });
+    function describe() {
+      if (!route.value) { preview.textContent = movable.length ? '이 버스가 옮겨 갈 수 있는 노선이 없어요.' : '지금은 옮길 수 있는 버스가 없어요.'; return; }
+      var id = Number(bus.value), num = Number(route.value), p = S.emergencyPreview(R.s, at, id, num);
+      preview.textContent = !p || p.starts == null ? id + '호차는 운행이 끝날 때까지 ' + num + '번 노선에 들어가지 못해요.'
+        : id + '호차는 ' + (p.resting ? '차고에서 출발해 ' : '승객을 내린 뒤 ') + App.clock(p.starts) + '부터 ' + num + '번 노선에 들어가요.';
+    }
+    var apply=el('button',{type:'button',id:'emergency-apply','class':'btn btn-primary',onclick:function(){if(route.value)finish(Number(bus.value),Number(route.value));}},'버스 한 대 옮기기');
+    function options(keep) {
+      var id = Number(bus.value), list = bus.value ? targets(id) : [], def = bus.value ? pickRoute(id) : null; route.textContent = '';
+      list.forEach(function (r) { route.appendChild(el('option', { value: r.num }, r.num + '번 · ' + r.nodes.map(App.nodeName).join(' → ') + (passes(r) ? ' · 원인 정류장에 서요' : ''))); });
+      route.value = keep && list.some(function (r) { return String(r.num) === keep; }) ? keep : def ? String(def.num) : '';
+      apply.disabled = !route.value; describe();
+    }
+    bus.addEventListener('change', function () { options(route.value); });
+    route.addEventListener('change', function () { apply.disabled = !route.value; describe(); });
+    options();
+    d.appendChild(el('label',{'for':'emergency-bus'},'옮길 버스'));d.appendChild(bus);d.appendChild(el('label',{'for':'emergency-route'},'새 노선'));d.appendChild(route);d.appendChild(preview);
+    // 결정이 끝나면 처음부터 다시 재생 상태를 만든다 — 배속은 플레이어가 마지막으로 고른 값(App.speed). 옮겼으면 완료 알림(aria-live)
+    function finish(id,num){if(!PB.Session.emergencyDecision(R.s,at,id,num))return;var s=R.s;s.runCursor=at;d.close();d.remove();stop();start(app());app().save();app().syncStage({keepBuses:true});setStatus('운행 중 · '+app().speed+'배속');
+      if (id != null) app().toast(id + '호차를 ' + num + '번 노선으로 옮겼어요.', { priority: true });}
     var row = el('div', { 'class': 'row-actions' });
-    var apply=el('button',{type:'button',id:'emergency-apply','class':'btn btn-primary',onclick:function(){if(route.value)finish(Number(bus.value),Number(route.value));}},'버스 한 대 옮기기');apply.disabled=!route.options.length;bus.addEventListener('change',function(){apply.disabled=!route.options.length;});
     row.appendChild(el('button',{type:'button',id:'emergency-continue','class':'btn',onclick:function(){finish(null,null);}},'변경 없이 계속'));
     row.appendChild(apply);
     d.appendChild(row);
@@ -403,7 +452,7 @@
     var c = liveCounts(m), rows = [
       ['생긴 이동 요청', c.requests + '건'], ['목적지 도착', c.arrived + '건'],
       ['지금 버스 안', c.riding + '명'], ['지금 정류장 대기', c.waiting + '명' + (c.top ? ' · 가장 많은 곳 ' + app().nodeName(c.top.node) + ' ' + c.top.n + '명' : '')],
-      ['노선이 없어 떠나지 못함', c.noLink + '건'], ['만차로 남겨짐', c.fulls ? c.fulls + '번 · ' + c.left + '명' : '없음']
+      ['노선이 없어 떠나지 못함', c.noLink + '건'], ['만차로 남겨짐', c.fulls ? c.fulls + '회 · ' + c.left + '명' : '없음']
     ];
     var dl = box.querySelector('dl'); dl.textContent = '';
     rows.forEach(function (r) { dl.appendChild(el('dt', null, r[0])); dl.appendChild(el('dd', null, r[1])); });
@@ -487,7 +536,7 @@
     if (!R || R.done || R.finishing) return;
     if (R.pendingEmergency != null) { focusEmergency(); return; }
     release(); R.mode = 'next';
-    setStatus('⏭ 다음 결정까지 빨리 가는 중…');
+    setStatus('⏭ ' + nextLabel(R.s) + ' 빨리 가는 중…');
     syncControls();
   }
 
@@ -531,7 +580,8 @@
     SPEEDS.forEach(function (speed) {
       speeds.appendChild(el('button', { type: 'button', id: 'speed-' + speed, 'class': 'btn', 'aria-pressed': String((App.speed || 1) === speed), title: '하루를 ' + Math.round(dayMs / speed / 1000) + '초에 보기', onclick: function () { tick(); setSpeed(speed); } }, speed + '×'));
     });
-    speeds.appendChild(iconLabel(el('button', { type: 'button', id: 'run-next', 'class': 'btn', 'aria-pressed': 'false', title: '다음 긴급 조정이나 만차·대기 ' + P.ALERT_WAIT + '명 이상 같은 사건까지 빨리 가기', onclick: nextDecision }), '⏭', '다음 결정까지'));
+    // 긴급 조정이 없는 1·2단계는 결정할 게 없으니 ‘다음 사건까지’(만차·대기 사건에서만 멈춤)
+    speeds.appendChild(iconLabel(el('button', { type: 'button', id: 'run-next', 'class': 'btn', 'aria-pressed': 'false', title: hasEmergency(s) ? '다음 긴급 조정이나 만차·대기 ' + P.ALERT_WAIT + '명 이상 같은 사건까지 빨리 가기' : '만차·대기 ' + P.ALERT_WAIT + '명 이상 같은 다음 사건까지 빨리 가기', onclick: nextDecision }), '⏭', nextLabel(s)));
     speeds.appendChild(iconLabel(el('button',{type:'button',id:'run-skip','class':'btn',title:'끝까지 건너뛰기',onclick:skipToEnd}),'⏩','끝까지 건너뛰기'));
     speeds.appendChild(iconLabel(el('button', { type: 'button', id: 'run-sound', 'class': 'btn', 'aria-pressed': String(App.sound), title: '효과음 켜기/끄기', onclick: function () { App.setSound(!App.sound); if (App.sound) App.sfx('person'); } }), App.sound ? '🔊' : '🔇', '소리'));
     panel.appendChild(el('p', { id: 'run-status', 'class': 'h-small', role: 'status' }, '운행 시작'));
@@ -543,7 +593,7 @@
     panel.appendChild(live);
     panel.appendChild(el('h3', null, '운행 소식'));
     panel.appendChild(el('ul', { id: 'run-feed', 'class': 'feed', 'aria-live': 'polite' }));
-    panel.appendChild(el('p', { 'class': 'note' }, '일반 버스 정원은 ' + cfg.bus.capacity + '명이에요.' + (s.config.challengeApplied && s.phase >= 6 ? ' 7호차 직행버스는 정원 18명·주행 속도 1.5배예요.' : '') + (s.config.challengeApplied && s.phase >= 8 ? ' 9호차 광역버스는 정원 24명이에요.' : '') + ' 3단계부터 오전·오후 한 번씩 멈춰 버스 한 대를 옮길 수 있어요. 조정 30분 전부터는 1배속으로 천천히 보여 주고 원인 정류장에 고리를 띄워요. ‘⏭ 다음 결정까지’는 다음 조정이나 만차·대기 ' + P.ALERT_WAIT + '명 이상 같은 사건까지 빨리 간 뒤 멈춰요. 배속은 보는 속도만 바꾸고 결과는 같아요. 지나간 소식은 결과 화면의 ‘운행 기록’에서 다시 볼 수 있어요.'));
+    panel.appendChild(el('p', { 'class': 'note' }, '일반 버스 정원은 ' + cfg.bus.capacity + '명이에요.' + (s.config.challengeApplied && s.phase >= 6 ? ' 7호차 직행버스는 정원 18명·주행 속도 1.5배예요.' : '') + (s.config.challengeApplied && s.phase >= 8 ? ' 9호차 광역버스는 정원 24명이에요.' : '') + (hasEmergency(s) ? ' 운행 중에는 오전·오후 한 번씩 멈춰 버스 한 대만 옮길 수 있어요. 노선 모양은 다음 단계에서 고쳐요. 조정 30분 전부터는 1배속으로 천천히 보여 주고 원인 정류장에 고리를 띄워요. ‘⏭ 다음 결정까지’는 다음 조정이나 만차·대기 ' + P.ALERT_WAIT + '명 이상 같은 사건까지 빨리 간 뒤 멈춰요.' : ' 이번 단계는 출발하면 운행이 끝날 때까지 그대로 달려요. 3단계부터는 오전·오후 한 번씩 버스 한 대만 옮길 수 있어요. ‘⏭ 다음 사건까지’는 만차·대기 ' + P.ALERT_WAIT + '명 이상 같은 사건까지 빨리 간 뒤 멈춰요.') + ' 배속은 보는 속도만 바꾸고 결과는 같아요. 지나간 소식은 결과 화면의 ‘운행 기록’에서 다시 볼 수 있어요.'));
     panel.appendChild(el('p', { id: 'node-info', 'class': 'note', 'aria-live': 'polite' }));
     App.onNodeClick = function (id) {
       var n = R && R.wait[id] ? R.wait[id][Math.max(0, R.minute)] : 0;

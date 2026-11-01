@@ -5,6 +5,10 @@
 (function (root) {
   'use strict';
 
+  // 두 정류장이 강의 서로 다른 쪽에 있으면 건넌다(강 중심선 기준 왼쪽·오른쪽 부호가 다름)
+  function riverSide(R, p) { return p.x - (R.x + R.amp * Math.sin(p.y * R.freq)); }
+  function crossesRiver(R, a, b) { return !!R && riverSide(R, a) * riverSide(R, b) < 0; }
+
   function build(config, phase) {
     var nodes = config.nodes.filter(function (n) { return n.fromPhase <= phase; }).map(function (n) { return n.id; }).sort();
     var adj = {};
@@ -15,15 +19,16 @@
       var points = config.nodes.filter(function (n) { return n.fromPhase <= phase; });
       points.forEach(function (a, i) { points.slice(i + 1).forEach(function (b) {
         // km = 실제 주행거리(지도 좌표 1 = 게임 거리 1km, 화면 확대·카메라와 무관). min = 그 거리를 달리는 시간(정수 초)
-        var km = Math.hypot(a.x - b.x, a.y - b.y);
-        roads.push({ a: a.id, b: b.id, fromPhase: 1, km: km, min: Math.max(1, Math.round(km * config.map.pixelsPerUnit / config.map.pixelsPerSecond)) });
+        var km = Math.hypot(a.x - b.x, a.y - b.y), river = crossesRiver(config.river, a, b);
+        if (river) km *= config.river.factor; // 강을 건너면 다리로 돌아가서 더 멀다(거리·시간·연료 모두)
+        roads.push({ a: a.id, b: b.id, fromPhase: 1, km: km, river: river, min: Math.max(1, Math.round(km * config.map.pixelsPerUnit / config.map.pixelsPerSecond)) });
       }); });
     }
     roads.forEach(function (r) {
       if (r.fromPhase > phase || !adj[r.a] || !adj[r.b]) return;
       var km = r.km != null ? r.km : r.min; // 예전 고정 도로표는 거리 = 시간으로 본다
-      adj[r.a].push({ to: r.b, min: r.min, km: km });
-      adj[r.b].push({ to: r.a, min: r.min, km: km });
+      adj[r.a].push({ to: r.b, min: r.min, km: km, river: !!r.river });
+      adj[r.b].push({ to: r.a, min: r.min, km: km, river: !!r.river });
     });
     Object.keys(adj).forEach(function (id) { adj[id].sort(function (p, q) { return p.to < q.to ? -1 : 1; }); });
     return {
@@ -40,6 +45,11 @@
         if (!adj[a]) return null;
         for (var i = 0; i < adj[a].length; i++) if (adj[a][i].to === b) return adj[a][i].km;
         return null;
+      },
+      river: function (a, b) {
+        if (!adj[a]) return false;
+        for (var i = 0; i < adj[a].length; i++) if (adj[a][i].to === b) return adj[a][i].river;
+        return false;
       }
     };
   }

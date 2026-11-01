@@ -10,6 +10,7 @@
  function handles(){var r=active();if(!r||!r.nodes.length||PB.Graph.isLoop(r))return [];return(r.nodes.length===1?['tail']:['head','tail']).map(function(end){var id=r.nodes[end==='head'?0:r.nodes.length-1];return{end:end,id:id,p:project(id)};});}
  function handleAt(p){var found=null,d=28;handles().forEach(function(h){var n=Math.hypot(h.p.left-p.x,h.p.top-p.y);if(n<=d){d=n;found=h;}});return found;}
  function segmentAt(p,r){var best=null,d=12;if(!r)return null;for(var i=0;i<r.nodes.length-1;i++){var a=project(r.nodes[i]),b=project(r.nodes[i+1]),dx=b.left-a.left,dy=b.top-a.top,t=((p.x-a.left)*dx+(p.y-a.top)*dy)/(dx*dx+dy*dy||1);if(t<.08||t>.92)continue;var dd=Math.hypot(p.x-a.left-t*dx,p.y-a.top-t*dy);if(dd<d){d=dd;best=i;}}return best;}
+ function riverIn(r){var g=PB.Session.graph(A().s);return !!(r&&g.river)&&r.nodes.some(function(id,k){return k>0&&g.river(r.nodes[k-1],id);});}
  function line(points,color,dashed,width){if(points.length<2)return;ctx.strokeStyle=color;ctx.lineWidth=width||4;ctx.lineCap='round';ctx.setLineDash(dashed?[7,6]:[]);ctx.beginPath();points.forEach(function(p,i){if(i)ctx.lineTo(p.left,p.top);else ctx.moveTo(p.left,p.top);});ctx.stroke();}
  function draw(){
   queued=0;if(!ctx)return;var w=stage.clientWidth,h=stage.clientHeight,dpr=Math.min(root.devicePixelRatio||1,2);canvas.width=w*dpr;canvas.height=h*dpr;canvas.style.width=w+'px';canvas.style.height=h+'px';ctx.setTransform(dpr,0,0,dpr,0,0);
@@ -27,7 +28,7 @@
    var key=JSON.stringify(tx.route);
    if(tx.metricKey!==key){tx.metricKey=key;tx.metrics=api().valid(tx.route)?api().preview(tx):null;}
    var m=tx.metrics,duration=function(v){return v==null?'—':A().duration(v);};
-   tip.textContent=m?(tx.last?(tx.route.nodes.length<tx.original.nodes.length?'−':'+')+A().nodeName(tx.last)+' · ':'')+'한 바퀴 '+(m.km==null?'—':Math.round(m.km*10)/10)+' km · 간격 '+duration(m.headwayBefore)+' → '+duration(m.headwayAfter)+' · 수지 '+A().won(m.before)+' → '+A().won(m.after):'이 노선에는 연결할 수 없어요.';
+   tip.textContent=m?(tx.last?(tx.route.nodes.length<tx.original.nodes.length?'−':'+')+A().nodeName(tx.last)+' · ':'')+(riverIn(tx.route)?'강 건넘(다리로 돌아감) · ':'')+'한 바퀴 '+(m.km==null?'—':Math.round(m.km*10)/10)+' km · 간격 '+duration(m.headwayBefore)+' → '+duration(m.headwayAfter)+' · 수지 '+A().won(m.before)+' → '+A().won(m.after):'이 노선에는 연결할 수 없어요.';
    if(m){tip.dataset.profit=String(m.after);tip.dataset.headway=String(m.headwayAfter);}
    tip.hidden=false;tip.style.left=Math.max(6,Math.min(w-tip.offsetWidth-6,p.x+18))+'px';tip.style.top=Math.max(6,Math.min(h-tip.offsetHeight-6,p.y+22))+'px';
   }else tip.hidden=true;
@@ -38,7 +39,7 @@
  function move(e){
   var p=point(e);if(!inside(p)){cancel();return;}
   if(!gesture){var r=active(),id=nearest(p);if(e.pointerType==='touch'||!r||r.nodes.length<2||PB.Graph.isLoop(r)||!id||r.nodes.indexOf(id)>=0||e.target.closest('button,select,input')){hover=null;schedule();return;}
-   var tx=api().begin({end:api().end(id)});tx.route=PB.RouteEdit.visit(tx.route,tx.mode,id);tx.last=id;hover={tx:tx,p:p,snap:id};schedule();return;}
+   var tx=api().begin(api().mode(id));if(!tx)return;tx.route=PB.RouteEdit.visit(tx.route,tx.mode,id);tx.last=id;hover={tx:tx,p:p,snap:id};schedule();return;}
   var g=gesture;g.p=p;if(Math.hypot(p.x-g.start.x,p.y-g.start.y)>=7)g.moved=true;if(!g.moved)return;
   var id=nearest(p);g.snap=id;
   if(g.tx.mode.index!=null){g.tx.route=PB.RouteEdit.visit(g.tx.original,g.tx.mode,id);if(!id)g.tx.route=PB.RouteEdit.copy(g.tx.original);g.tx.last=id;}

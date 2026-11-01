@@ -15,7 +15,7 @@ const costs = (s) => S.expectedRun(s).metrics.costs;
 
 test('distance is map geometry (1 coordinate = 1 km), not screen pixels or travel time', () => {
   const g = G.build(cfg, 1), a = cfg.nodes.find((n) => n.id === 'F'), b = cfg.nodes.find((n) => n.id === 'D');
-  assert.equal(g.dist('F', 'D'), Math.hypot(a.x - b.x, a.y - b.y));
+  assert.equal(g.dist('F', 'D'), Math.hypot(a.x - b.x, a.y - b.y) * cfg.river.factor, 'F(외곽 마을)–D는 강을 건너므로 × factor');
   const zoomed = structuredClone(cfg); zoomed.map.pixelsPerUnit *= 3; // 화면 배율·시간 환산이 바뀌어도
   assert.equal(G.build(zoomed, 1).dist('F', 'D'), g.dist('F', 'D'), '거리는 그대로');
   assert.notEqual(G.build(zoomed, 1).time('F', 'D'), g.time('F', 'D'));

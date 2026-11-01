@@ -259,7 +259,7 @@
       Object.keys(count).forEach(function(k){if(count[k]>1)shared.push({phase:h.phase,seg:k});});
     });
     if(shared.length&&costs[0][0]!=='holding'){var segs=shared.map(function(x){return x.seg;}).filter(function(k,i,a){return a.indexOf(k)===i;});
-      tips.push({code:'overlap',text:costs[0][1]+'가 '+won(costs[0][2])+'로 가장 컸어요. '+segs.slice(0,3).map(function(k){return k.split('–').map(function(id){return nodeName(config,id);}).join('–');}).join(', ')+' 구간을 노선 여러 개가 함께 달렸어요(단계별 합계 '+shared.length+'번). 겹친 구간의 승객이 그만큼 많았는지 노선별 이용표와 비교해 보세요.'});}
+      tips.push({code:'overlap',text:costs[0][1]+'가 '+won(costs[0][2])+'로 가장 컸어요. '+segs.slice(0,3).map(function(k){return k.split('–').map(function(id){return nodeName(config,id);}).join('–');}).join(', ')+' 구간을 노선 여러 개가 함께 달렸어요(단계별 합계 '+shared.length+'회). 겹친 구간의 승객이 그만큼 많았는지 노선별 이용표와 비교해 보세요.'});}
     return {
       totals:sum,costs:costs,crowd:crowd,noLink:noLink,notBoarded:notBoarded,resting:resting,running:running,perBus:perBus,
       event:{fare:eventFare,phases:eventPhases,unknown:eventUnknown},
@@ -267,7 +267,74 @@
       caution:'이용이 적은 외곽 노선을 없애는 것만이 답은 아니에요. 공공서비스 수행분은 외곽·병원 같은 곳에 실제로 버스를 보낼 때 받는 돈이고, 외곽 주민의 하루도 학기 결과에 들어가요.'
     };
   }
-  var api = { won:won, financeReview:financeReview, josa:josa, residentResult:residentResult,satisfactionTargets:satisfactionTargets,satisfactionText:satisfactionText,residentTally:residentTally,endingReactions:endingReactions,endingConclusion:endingConclusion, fill: fill, bubbles: bubbles, residentStory: residentStory, zoneSubtitleText: zoneSubtitleText, hookLines: hookLines, nodeName: nodeName };
+  /* ── 2026-11-01 단계 전 설명을 결과 화면으로: 순수 함수(화면 문장·판정만, 계산 규칙은 그대로) ── */
+  // 학기 말 기준 상태: 이미 달성 / 남은 단계를 모두 해내도 못 채움(‘기준 달성 불가’) / 아직 가능
+  // t = residentTally의 한 줄 {completed, threshold, remaining}(remaining = 아직 기록되지 않은 단계 수)
+  function criterionState(t) {
+    if (!t) return null;
+    if (t.completed >= t.threshold) return 'done';
+    if (t.completed + t.remaining < t.threshold) return 'impossible';
+    return 'open';
+  }
+  // 연속으로 같은 항목을 하나로 합친다(‘운행 중 들린 말’의 같은 문장 반복 → ×N). keyFn이 같은 값을 내면 같은 항목
+  function mergeRepeats(list, keyFn) {
+    var out = [];
+    (list || []).forEach(function (it) {
+      var k = keyFn(it), last = out[out.length - 1];
+      if (last && last.key === k) { last.count++; last.last = it; } else out.push({ key: k, item: it, last: it, count: 1 });
+    });
+    return out;
+  }
+  // 결과와 ‘생각해 보기’ 질문을 잇는 한 줄: 그 단계 질문이 다루는 곳(출발 또는 도착)의 이동 중 도착하지 못한 건수
+  var THEME = { 1: ['F'], 2: ['C', 'D'], 3: ['I'], 4: ['H', 'J'], 5: ['K'], 6: ['L'], 7: ['D', 'K', 'F'], 8: ['N'] };
+  function bridgeLine(config, phase, passengers) {
+    var ids = (THEME[phase] || []).filter(function (id) { return config.nodes.some(function (n) { return n.id === id && (n.fromPhase || 1) <= phase; }); });
+    if (!ids.length) return '';
+    var names = ids.map(function (id) { return nodeName(config, id); }).join('·');
+    var mine = (passengers || []).filter(function (p) { return ids.indexOf(p.o) >= 0 || ids.indexOf(p.d) >= 0; });
+    var left = mine.filter(function (p) { return p.status !== 'arrived'; }).length;
+    if (!mine.length) return '이번에는 ' + names + '에 오가는 이동이 없었어요.';
+    return left ? '이번에 ' + names + ' 이동 ' + left + '건이 남았어요.' : '이번에 ' + names + ' 이동 ' + mine.length + '건은 모두 도착했어요.';
+  }
+  // 인물 결과 한 줄: 어느 이동인지, 어디서 얼마나 기다렸는지, 만차·노선 없음, 그 노선의 버스 수·간격
+  // routeInfo(routeId) → {num, buses, headway} | null (화면이 운행 계획에서 찾아 넘긴다. 없으면 노선 정보 생략)
+  function residentLine(config, rd, rec, passengers, routeInfo) {
+    var name = function (id) { return nodeName(config, id); }, dur = function (t) { return Demand.duration(config, t); };
+    var mine = (passengers || []).filter(function (p) { return p.residentId === rd.id; });
+    var out = mine.filter(function (p) { return p.leg === 'outbound'; })[0], back = mine.filter(function (p) { return p.leg === 'return'; })[0];
+    var o = (rec && rec.o) || rd.o, d = (rec && rec.d) || rd.d, home = (rec && rec.finalDestination) || rd.returnTo || rd.o;
+    var outLabel = name(o) + '→' + name(d), backLabel = name(d) + '→' + name(home) + (home === o ? ' 귀가' : ' 이동');
+    function routeText(p) {
+      var leg = p.journey && p.journey[Math.min(p.legIndex || 0, p.journey.length - 1)], info = leg && routeInfo ? routeInfo(leg.routeId) : null;
+      if (!info) return '';
+      return ' (' + info.num + '번 노선 버스 ' + info.buses + '대' + (info.headway != null ? ', 간격 ' + dur(info.headway) : '') + ')';
+    }
+    function legText(p, label) {
+      if (p.fail === 'NO_LINK') return label + ', 잇는 노선이 없었어요';
+      if (p.fail === 'NO_TRIP_IN_WINDOW') return label + ', 운행 시간 안에 탈 버스편이 없었어요';
+      var at = (p.boardings || 0) <= 1 ? name(p.o) + '에서 ' : '갈아타는 곳까지 합쳐 ';
+      var txt = label + ', ' + at + dur(p.waitTotal) + ' 대기';
+      if (p.deniedBoardings > 0) txt += ' · 만차로 ' + p.deniedBoardings + '번 못 탐';
+      if (p.status === 'riding') txt += ' · 버스 안에서 운행이 끝남';
+      return txt + routeText(p);
+    }
+    var head = rd.name + ' · ';
+    if (!rec) return head + '이번 단계에는 이동이 없었어요.';
+    if (rec.satisfied) {
+      var longest = Math.max(out ? out.waitTotal : 0, back ? back.waitTotal : 0);
+      return head + outLabel + (back ? ', 돌아오는 길까지' : '') + ' 마쳤어요 (가장 긴 대기 ' + dur(longest) + ')';
+    }
+    if (rec.dayStatus === 'outboundIncomplete' && out) return head + legText(out, outLabel);
+    if (rec.dayStatus === 'returnIncomplete') {
+      if (back) return head + legText(back, backLabel);
+      return head + outLabel + ' 도착' + (out && out.arriveT != null ? ' ' + Demand.clock(config, out.arriveT) : '') + ', 머무는 시간을 채우니 운행이 끝나 ' + backLabel + '을 시작하지 못했어요';
+    }
+    // 이동은 마쳤지만 대기·소요 기준을 넘긴 경우: 기준을 넘긴 이동을 고른다
+    var sv = config.service || {}, worst = [out, back].filter(Boolean).sort(function (a, b) { return b.waitTotal - a.waitTotal; })[0];
+    if (worst) return head + legText(worst, worst === back ? backLabel : outLabel) + (sv.maxWait != null && worst.waitTotal > sv.maxWait ? ', 기준 ' + dur(sv.maxWait) + ' 넘김' : '');
+    return head + ((rec.reasons || [])[0] ? rec.reasons[0].text : '이동을 마치지 못했어요.');
+  }
+  var api = { criterionState: criterionState, mergeRepeats: mergeRepeats, bridgeLine: bridgeLine, residentLine: residentLine, THEME: THEME, won:won, financeReview:financeReview, josa:josa, residentResult:residentResult,satisfactionTargets:satisfactionTargets,satisfactionText:satisfactionText,residentTally:residentTally,endingReactions:endingReactions,endingConclusion:endingConclusion, fill: fill, bubbles: bubbles, residentStory: residentStory, zoneSubtitleText: zoneSubtitleText, hookLines: hookLines, nodeName: nodeName };
   root.PB = root.PB || {};
   root.PB.Narrative = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

@@ -9,7 +9,7 @@ try{
   assert.ok(info.loaded);assert.equal(info.fit,'contain');assert.equal(info.overflow,false);
   assert.ok(width<=1000?info.copyBottom>info.artBottom:info.copyRight<info.peopleLeft);
   await page.screenshot({path:`publicness/tests/_shot-title-${width}.png`,fullPage:true});
-  await page.locator('#btn-start').click();assert.ok(await page.locator('#goal-intro').evaluate(d=>d.open));await page.locator('#btn-goal-start').click();await page.locator('#btn-begin-plan').waitFor();
+  await page.locator('#btn-start').click();assert.ok(await page.locator('#goal-intro').evaluate(d=>d.open));await page.locator('#btn-goal-start').click();await page.waitForFunction(()=>document.body.dataset.screen==='plan');
   console.log('PASS '+width+'x'+height+': whole illustration, no character overlap/overflow, start flow');await page.close();
  }
 }finally{if(browser)await browser.close();server.close();}

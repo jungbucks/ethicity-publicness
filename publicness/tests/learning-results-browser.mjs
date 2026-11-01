@@ -10,23 +10,23 @@ try{
   async function scenes(){while(await page.locator('#goal-intro').evaluate(d=>d.open)){assert.equal(await page.locator('#learning-dialog:modal').count(),0);if(await page.locator('#goal-intro').getAttribute('data-stage')==='true')await page.keyboard.press('Enter');else await page.locator('#btn-goal-start').click();}}
   await scenes();
   for(let phase=1;phase<=7;phase++){
-   // ‘잠깐 생각해 보기’는 단계 안내 안의 #learning(별도 창 없음)
-   {await page.locator('#learning').waitFor();assert.equal(await page.locator('#learning-dialog:modal').count(),0);assert.equal(await page.locator('#learning').getAttribute('data-phase'),String(phase));assert.match(await page.locator('.learning-question').innerText(),/\?/);assert.equal(await page.locator('.learning-source').first().getAttribute('target'),'_blank');
+   await beginPlan(page);
+   // Run the real engine synchronously; only playback is skipped in this UI probe.
+   await page.evaluate(()=>{const s=PB.App.s,S=PB.Session;for(const r of s.draft.routes){const nodes=r.num===1?['F','D']:['B','C','A','G'];S.updateRoute(s,r.num,{nodes:r.num===5?['B','L']:nodes,stops:(r.num===5?['B','L']:nodes).map(()=>true)});}s.draft.buses.forEach(b=>{if(b.routeNum==null)S.assign(s,b.id,1);});S.startRun(s);s.current.metrics.costs.total=Math.max(0,s.current.metrics.costs.total);/* 이 설계는 5단계 적자 누적 계약 종료 — 재정은 finance-browser에서 */S.finishRun(s);PB.App.go('result');});
+   // ‘생각해 보기’ 사례 카드는 그 단계 결과 화면 안의 #learning(2026-11-01: 단계 전 안내에서 결과 화면으로, 별도 창 없음)
+   {await page.locator('#result-think #learning').waitFor();assert.equal(await page.locator('#learning-dialog:modal').count(),0);assert.equal(await page.locator('#learning').getAttribute('data-phase'),String(phase));assert.match(await page.locator('.learning-question').innerText(),/\?/);assert.equal(await page.locator('.learning-source').first().getAttribute('target'),'_blank');
     if([1,6,7].includes(phase)){await page.screenshot({path:`publicness/tests/_shot-learning-${phase}-${mode}.png`});await page.setViewportSize({width:375,height:812});assert.ok(await page.locator('#learning').evaluate(d=>d.getBoundingClientRect().right<=innerWidth));await page.screenshot({path:`publicness/tests/_shot-learning-phone-${phase}-${mode}.png`});await page.setViewportSize({width:1366,height:900});}
     if(phase===6){assert.match(await page.locator('.learning-subtitle').innerText(),/자동화 사례/);assert.equal(await page.locator('.learning-source').count(),2);}
     if(phase===7)assert.match(await page.locator('.learning-case').innerText(),/AI만의 사용량은 아니에요/);
    }
-   await beginPlan(page);
-   // Run the real engine synchronously; only playback is skipped in this UI probe.
-   await page.evaluate(()=>{const s=PB.App.s,S=PB.Session;for(const r of s.draft.routes){const nodes=r.num===1?['F','D']:['B','C','A','G'];S.updateRoute(s,r.num,{nodes:r.num===5?['B','L']:nodes,stops:(r.num===5?['B','L']:nodes).map(()=>true)});}s.draft.buses.forEach(b=>{if(b.routeNum==null)S.assign(s,b.id,1);});S.startRun(s);s.current.metrics.costs.total=Math.max(0,s.current.metrics.costs.total);/* 이 설계는 5단계 적자 누적 계약 종료 — 재정은 finance-browser에서 */S.finishRun(s);PB.App.go('result');});
    const card=page.locator('[data-resident="narae"] .resident-card'),head=card.locator(':scope > summary');
    assert.ok(!/\d\d:\d\d/.test(await head.innerText()));
    await head.hover();assert.ok(await card.evaluate(d=>d.open));await page.mouse.move(5,5);assert.ok(!await card.evaluate(d=>d.open));
    await head.focus();await page.keyboard.press('Enter');assert.ok(await card.evaluate(d=>d.open));assert.equal(await card.locator('.journey-leg').count(),2);assert.ok(!await card.locator('.resident-times').evaluate(d=>d.open));await page.keyboard.press('Escape');assert.ok(!await card.evaluate(d=>d.open));
-   if(phase===4){await page.locator('#resident-day-results').scrollIntoViewIfNeeded();await page.locator('#resident-day-results img').evaluateAll(imgs=>Promise.all(imgs.map(i=>i.decode())));assert.equal(await page.locator('.resident-face').count(),6);await page.screenshot({path:`publicness/tests/_shot-resident-faces-${mode}.png`});}
+   if(phase===4){await page.locator('#resident-day-results').scrollIntoViewIfNeeded();await page.locator('#resident-day-results img').evaluateAll(imgs=>Promise.all(imgs.map(i=>i.decode())));assert.equal(await page.locator('#resident-day-results .resident-face').count(),6);await page.screenshot({path:`publicness/tests/_shot-resident-faces-${mode}.png`});}
    if(phase<7){await page.locator('#btn-next-phase').click();await scenes();}
   }
-  assert.deepEqual(errors,[]);console.log('PASS '+mode+': inline learning phases 1–7, six faces, hover, keyboard, detailed trips');await page.close();
+  assert.deepEqual(errors,[]);console.log('PASS '+mode+': learning on result screens phases 1–7, six faces, hover, keyboard, detailed trips');await page.close();
  }
  const ctx=await browser.newContext({viewport:{width:375,height:812},hasTouch:true}),p=await ctx.newPage();await p.goto(`http://127.0.0.1:${server.address().port}/publicness/?no3d=1`);
  await p.evaluate(()=>PB.App.startGame());await beginPlan(p,'tap');

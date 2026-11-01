@@ -4,7 +4,8 @@ import {createRequire} from 'node:module';
 const require=createRequire(import.meta.url),cfg=require('../js/config.js'),S=require('../js/session.js'),A=require('../js/advisor.js');
 test('AI baseline exposes the same service verdict as departure, including long waits',()=>{
  const s=S.create(cfg);S.beginPlan(s);
- S.updateRoute(s,1,{nodes:['F','D','A','G','B','C'],stops:[true,true,true,true,true,true]});
+ // 2026-11-01 강 건너기 ×1.5 뒤: 옛 F-D-A-G-B-C는 모두 귀가 미완료가 되어, 나래가 하루를 마치되 오래 기다리는 노선으로 바꿈
+ S.updateRoute(s,1,{nodes:['C','B','G','A','D','F'],stops:[true,true,true,true,true,true]});
  S.assign(s,1,1);
  const rec=A.recommendSync(S.revealed(s),'time'),before=S.expected(s);
  assert.deepEqual(rec.baseline.residents,before.residents);

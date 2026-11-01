@@ -2,7 +2,7 @@
  * 세션 — 한 학기 다섯 단계의 흐름과 학생이 고치는 계획 초안을 담는다. serialize/restore로 브라우저에 자동 저장·이어하기(App).
  * 저장에는 운행 결과(승객·로그)를 넣지 않는다 — 결정적 엔진이라 계획·사건으로 다시 계산한다. 운행 중 저장본은 출발 직전 계획으로,
  * 결과 저장본은 이미 기록된 결과 그대로 되살리며 finishRun·nextPhase를 다시 부르지 않으므로 수입·비용·인물 횟수가 두 번 들어가지 않는다.
- * 단계 흐름: reveal(환경 공개) → plan(목표·AI·편집) → run(운행, 편집 불가) → result → 다음 단계 … → ending
+ * 단계 흐름: reveal(새 단계 직후 — 화면은 곧바로 계획으로 넘김, App.go) → plan(목표·AI·편집) → run(운행, 편집 불가) → result → 다음 단계 … → ending
  * 실제 운행은 공개 기본 수요 + 이 세션에서 미리 정해진 사건으로, 예상은 공개 기본 수요만으로 계산한다.
  */
 (function (root) {
@@ -39,6 +39,7 @@
     else seed = config.defaultSeed;
     if (mode !== 'default' && config.map) {
       config = clone(config);
+      delete config.river; // 강 장식·건너기 규칙은 기본 세팅만(랜덤 지도는 정류장이 섞여 강 위치와 무관)
       if(config.challenge&&!config.challengeApplied){
         var challenge=config.challenge;config.challengeApplied=true;
         config.phases=config.phases.concat(challenge.phases);
@@ -213,6 +214,25 @@
   function setOffset(s, busId, offset) { var b = bus(s, busId); if (b) b.offset = s.config.map ? 0 : offset; }
 
   function beginPlan(s) { if (s.stage === 'reveal') s.stage = 'plan'; }
+  /* 단계 전 화면 정리(2026-11-01): 성찰(transitionStep 'reflect')·「마을이 달라졌어요」('changes') 화면이 없어졌다. 그 화면에서 저장된 진행은
+   * 그 단계 지도 계획 화면으로 보낸다(초안·버스는 nextPhase가 이미 새 단계 값으로 만들어 둠). 성찰 답 reflections[n]은 n단계 결과 화면의
+   * 「생각해 보기」 글쓰기 칸으로 그대로 이어진다(같은 사례 learning[n−1]에 대한 답). 옛 선택 카드 문구가 들어 있으면 자유 서술이 아니라
+   * 선택이므로 choices[n−1](= n−1단계 결과에서 고른 답, n단계 지도의 ‘이번 목표’)로 옮긴다. 이미 고른 답이 있으면 덮지 않는다 */
+  var CHOICES = { many: '더 많은 사람을 빠르게', longest: '오래 기다린 사람부터' };
+  function choiceKey(text) { var t = String(text || '').trim(); for (var k in CHOICES) if (CHOICES[k] === t) return k; return null; }
+  function migrateTransition(s) {
+    var moved = false;
+    if (s.stage === 'reveal') { s.stage = 'plan'; moved = true; }
+    if (s.transitionStep != null) { delete s.transitionStep; moved = true; }
+    if (s.reflections) Object.keys(s.reflections).forEach(function (k) {
+      var key = choiceKey(s.reflections[k]), n = Number(k);
+      if (!key) return;
+      s.choices = s.choices || {};
+      if (n > 1 && s.choices[n - 1] == null) s.choices[n - 1] = key;
+      delete s.reflections[k]; moved = true;
+    });
+    return moved;
+  }
 
   function introduceFourth(s) {
     if (s.config.progression) return false;
@@ -308,9 +328,10 @@
   function expected(s, plan) { return expectedRun(s, plan).metrics; }
 
   // 이번 단계 실제 운행(기본 수요 + 이 세션의 사건). 같은 계획이면 언제 다시 계산해도 같은 결과
+  function runRequests(s, ev) { return Demand.sortReqs(Demand.base(s.config, s.phase, s.seed).concat(Demand.extra(s.config, s.phase, ev))); }
   function computeRun(s, plan) {
     var g = graph(s), ev = s.events[s.phase - 1];
-    var requests = Demand.sortReqs(Demand.base(s.config, s.phase, s.seed).concat(Demand.extra(s.config, s.phase, ev)));
+    var requests = runRequests(s, ev);
     var adjustments=(s.emergencyLog||[]).filter(function(a){return a.phase===s.phase&&a.busId!=null;});
     var result = Sim.run({ g: g, config: s.config, phase: s.phase, plan: plan, requests: requests, event: ev, adjustments:adjustments });
     var baseline=adjustments.length?Metrics.summarize(Sim.run({g:g,config:s.config,phase:s.phase,plan:plan,requests:requests,event:ev}),g,plan,s.config):null;
@@ -333,10 +354,37 @@
     var route=busId==null?null:routeByNum(s,routeNum);
     if(busId!=null&&(!route||!canAssign(s,busId,routeNum)||Graph.validateRoute(graph(s),route).length))return false;
     if(busId!=null&&!s.draft.buses.some(function(b){return b.id===busId;}))return false;
+    // 이미 그 노선을 맡은 버스를 같은 노선으로 ‘옮기면’ 조정권만 쓰고 승객을 내리느라 운행에서 빠진다(2026-11-01 플레이테스트) — 받지 않는다
+    if(busId!=null&&busRouteAt(s,busId,at)===routeNum)return false;
     var departure=s.current.plan,baseline=s.current.baseline||s.current.metrics;
     decisions.push({phase:s.phase,at:at,busId:busId,routeNum:routeNum,route:route?clone(route):null});
     s.current=computeRun(s,departure);s.current.baseline=baseline;
     return true;
+  }
+
+  // 운행 계획의 노선(엔진 사본) → 초안 노선 번호. 초안에 같은 노선이 없으면 null
+  function routeNumOf(s, route) {
+    if (!route) return null;
+    var hit = s.draft.routes.filter(function (r) { return r.nodes.join('|') === route.nodes.join('|') && r.stops.join('|') === route.stops.join('|'); })[0];
+    return hit ? hit.num : null;
+  }
+  // 긴급 조정 시점 at에 버스가 맡은 노선 번호(쉬는 버스는 null). 앞선 조정으로 옮겨 가는 중(승객을 내리는 중)이면 옮겨 갈 노선
+  function busRouteAt(s, busId, at) {
+    var res = s.current && s.current.result; if (!res) return null;
+    var pending = (s.emergencyLog || []).filter(function (a) { return a.phase === s.phase && a.busId === busId && a.at < at; }).pop();
+    if (pending) return pending.routeNum;
+    var tl = res.timelines.filter(function (x) { return x.busId === busId; })[0]; if (!tl) return null;
+    var route = tl.route; (tl.assignments || []).forEach(function (a) { if (a.t <= at) route = a.route; });
+    return routeNumOf(s, route);
+  }
+  // 조정을 미리 계산만 한다(저장·결과는 그대로): 버스가 승객을 내리고 그 노선에 들어가는 시각 starts(엔진 시간, 운행 안에 못 들어가면 null)
+  function emergencyPreview(s, at, busId, routeNum) {
+    var route = routeByNum(s, routeNum); if (!route || !s.current || busId == null) return null;
+    var ev = s.events[s.phase - 1], adj = (s.emergencyLog || []).filter(function (a) { return a.phase === s.phase && a.busId != null; })
+      .concat([{ phase: s.phase, at: at, busId: busId, routeNum: routeNum, route: clone(route) }]);
+    var res = Sim.run({ g: graph(s), config: s.config, phase: s.phase, plan: s.current.plan, requests: runRequests(s, ev), event: ev, adjustments: adj });
+    var tl = res.timelines.filter(function (x) { return x.busId === busId; })[0], a = tl && (tl.assignments || []).filter(function (x) { return x.depart >= at; })[0];
+    return { starts: a ? a.t : null, leaves: a ? a.depart : null, resting: busRouteAt(s, busId, at) == null };
   }
 
   // 주요 인물의 ‘해낸 하루’ 판정 — 출발 전 경고(예상), 결과 화면, 학기 말 누적이 모두 이 함수 하나를 쓴다.
@@ -488,13 +536,14 @@
     // 예전 저장본(적자 3회 규칙 시절): 연속 마이너스 잔액 횟수를 정산 기록에서 다시 센다. 이미 끝난 계약(s.end)은 그대로 둔다
     if (s.negStreak == null) s.negStreak = (s.ledger || []).reduce(function (k, r) { return r.balance < 0 ? k + 1 : 0; }, 0);
     s.history.forEach(function (h) { if (!h.scores || h.scores.version !== Scores.VERSION) rescore(s, h); });
+    migrateTransition(s);
     if (s.stage === 'ending' && !s.end) { var bal = balance(s); s.end = { cause: financeRule(s) === 'final-balance' && bal < 0 ? 'bankrupt' : 'complete', phase: s.phase, balance: bal }; }
     return s;
   }
 
   var api = {
-    emergencyDecision:emergencyDecision,EMERGENCY_AT:EMERGENCY_AT,
-    serialize: serialize, restore: restore, scoresOverall: scoresOverall, rescore: rescore, financeRule: financeRule, financeStatus: financeStatus, balance: balance, DEFICIT_LIMIT: DEFICIT_LIMIT, NEGATIVE_LIMIT: NEGATIVE_LIMIT, residentVerdict: residentVerdict, tripLimit: tripLimit, expectedRun: expectedRun,
+    emergencyDecision:emergencyDecision,EMERGENCY_AT:EMERGENCY_AT,busRouteAt:busRouteAt,emergencyPreview:emergencyPreview,routeNumOf:routeNumOf,
+    serialize: serialize, restore: restore, migrateTransition: migrateTransition, CHOICES: CHOICES, choiceKey: choiceKey, scoresOverall: scoresOverall, rescore: rescore, financeRule: financeRule, financeStatus: financeStatus, balance: balance, DEFICIT_LIMIT: DEFICIT_LIMIT, NEGATIVE_LIMIT: NEGATIVE_LIMIT, residentVerdict: residentVerdict, tripLimit: tripLimit, expectedRun: expectedRun,
     parseSeedParam: parseSeedParam, create: create, graph: graph, visibleNodeIds: visibleNodeIds, routeByNum: routeByNum,
     toPlan: toPlan, validate: validate, routeLimit: routeLimit, routesInOrder: routesInOrder, stopLimit:stopLimit, routeFits:routeFits, routeRule:routeRule, canAssign:canAssign, addRoute: addRoute, updateRoute: updateRoute, deleteRoute: deleteRoute,
     assign: assign, lease: lease, unlease: unlease, leaseLimit: leaseLimit, leasedBuses: leasedBuses, LEASE_BASE: LEASE_BASE, restingFor: restingFor, autoPlace: autoPlace, busCost: busCost, typicalBusCost: typicalBusCost, setOffset: setOffset, beginPlan: beginPlan, introduceFourth: introduceFourth,

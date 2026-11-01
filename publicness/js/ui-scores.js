@@ -67,7 +67,7 @@
     if (!list.length) return null;
     var ol = el('ul', { 'class': 'score-tips', id: 'score-tips' });
     list.forEach(function (t) {
-      var text = t.code === 'full' ? t.num + '번 노선에서 만차가 ' + t.fulls + '번 났고, 만차를 겪은 뒤 끝내 마치지 못한 이동이 ' + t.missed + '건이에요. 이 노선 구간의 증차를 검토해 보세요.' :
+      var text = t.code === 'full' ? t.num + '번 노선에서 만차가 ' + t.fulls + '회 났고, 만차를 겪은 뒤 끝내 마치지 못한 이동이 ' + t.missed + '건이에요. 이 노선 구간의 증차를 검토해 보세요.' :
         t.code === 'noLink' ? '잇는 노선이 없어 떠나지 못한 이동이 ' + t.missed + '건이에요(가장 많은 구간 ' + App.nodeName(t.pair.o) + '→' + App.nodeName(t.pair.d) + ' ' + t.pair.n + '건). 노선 연결을 검토해 보세요.' :
         t.num + '번 노선은 버스 ' + t.buses + '대가 대당 ' + t.perBus + '회 승차로 운행 노선 평균(' + t.avg + '회)의 절반에 못 미쳤고 만차는 없었어요. 버스 배치 조정을 검토해 보세요. 꼭 필요한 곳을 잇는 노선이라면 1대는 남겨 두세요.';
       ol.appendChild(el('li', { 'data-tip': t.code }, text));

@@ -35,7 +35,7 @@ test('rush creates real denied boardings and never exceeds capacity',()=>{
 test('free links use rounded fixed design pixels, not original road graph',()=>{
   const g=G.build(cfg,1), a=cfg.nodes.find(n=>n.id==='F'), b=cfg.nodes.find(n=>n.id==='H');
   assert.deepEqual(G.validateRoute(g,route(['F','H','E'])),[]);
-  assert.equal(g.time('F','H'),Math.max(1,Math.round(Math.hypot(a.x-b.x,a.y-b.y)*cfg.map.pixelsPerUnit/cfg.map.pixelsPerSecond)));
+  assert.equal(g.time('F','H'),Math.max(1,Math.round(Math.hypot(a.x-b.x,a.y-b.y)*cfg.river.factor*cfg.map.pixelsPerUnit/cfg.map.pixelsPerSecond)));
   assert.equal(g.time('F','H'),g.time('H','F'));
   assert.equal(g.time('F','I'),null);
 });

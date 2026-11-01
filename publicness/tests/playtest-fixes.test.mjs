@@ -11,6 +11,11 @@ const ACCESS = [[[['F', 'C', 'B', 'A'], 1], [['D', 'A', 'G'], 1]], [[['F', 'C', 
   [[['F', 'C', 'B', 'A'], 2], [['I', 'D', 'A', 'G'], 1], [['E', 'H', 'A'], 1]], [[['F', 'C', 'B', 'A'], 2], [['I', 'D', 'A', 'G'], 2], [['J', 'E', 'H', 'B'], 1]],
   [[['F', 'K', 'B', 'A'], 2], [['I', 'D', 'A', 'G'], 2], [['J', 'E', 'H', 'B'], 1], [['B', 'C'], 1]]];
 
+// 2026-11-01 강 건너기(외곽 마을·복지관 ×1.5) 뒤의 접근성 설계: 외곽 마을에서 병원까지 갈아타지 않고 가는 노선(ACCESS는 나래가 1~3단계에 놓침)
+const ACCESS_RIVER = [[[['F', 'B', 'A', 'D'], 1], [['C', 'B', 'A', 'G'], 1]], [[['F', 'B', 'A', 'D'], 1], [['C', 'B', 'A', 'G'], 1], [['E', 'H', 'A'], 1]],
+  [[['F', 'B', 'A', 'D'], 2], [['C', 'B', 'A', 'G'], 1], [['I', 'D', 'G'], 1]], [[['F', 'B', 'A', 'D'], 2], [['C', 'B', 'A', 'G'], 1], [['I', 'D', 'G'], 1], [['J', 'E', 'H', 'B'], 1]],
+  [[['F', 'K', 'B', 'A', 'D'], 2], [['C', 'B', 'A', 'G'], 1], [['I', 'D', 'G'], 1], [['J', 'E', 'H', 'B'], 2]]];
+
 test('save → restore keeps progress; run restores to the pre-departure plan without settling twice', () => {
   const s = S.create(cfg); S.beginPlan(s); plan(s, ACCESS[0]);
   S.startRun(s);
@@ -125,7 +130,7 @@ function tour(s) {
   return out.concat(out[0]);
 }
 test('representative designs: access-minded plan satisfies everyone, a long all-stops loop does not, none goes bankrupt', () => {
-  const loop = season((s) => [[tour(s), s.draft.buses.length]]), demand = season((s, p) => DEMAND[p - 1]), access = season((s, p) => ACCESS[p - 1]);
+  const loop = season((s) => [[tour(s), s.draft.buses.length]]), demand = season((s, p) => DEMAND[p - 1]), access = season((s, p) => ACCESS_RIVER[p - 1]);
   assert.equal(access.satisfied.length, 6);
   assert.ok(loop.satisfied.length < access.satisfied.length, 'loop ' + loop.satisfied);
   assert.ok(!demand.satisfied.includes('narae'), '수요 집중 설계는 외곽 마을의 나래를 놓친다');

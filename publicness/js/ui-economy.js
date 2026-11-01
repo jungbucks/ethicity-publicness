@@ -40,14 +40,14 @@
     (M.costParts(k).service || []).forEach(function (c) {
       var li = el('li', { 'data-node': c.id, 'class': c.met ? 'met' : 'unmet' });
       li.appendChild(el('b', null, (c.met ? '✓ ' : '· ') + c.label));
-      li.appendChild(document.createTextNode(' · 하루 ' + c.stops + '/' + c.need + '번 정차 · ' + (c.met ? won(c.amount) + (expected ? ' 받을 예정' : ' 받음') : (expected ? '지금 계획으로는 못 받아요' : '받지 못함'))));
+      li.appendChild(document.createTextNode(' · 하루 ' + c.stops + '/' + c.need + '회 정차 · ' + (c.met ? won(c.amount) + (expected ? ' 받을 예정' : ' 받음') : (expected ? '지금 계획으로는 못 받아요' : '받지 못함'))));
       ul.appendChild(li);
     });
     return ul;
   };
   E.conditionText = function (s) {
     var F = s.config.finance.service, list = F.stops.filter(function (x) { return x.fromPhase <= s.phase && S.graph(s).has(x.id); });
-    return list.map(function (x) { return x.label; }).join('·') + ' — 실제로 달리는 버스가 운행 시간 안에 ' + F.minStops + '번 이상 정차하면 곳마다 ' + won(F.amount) + '(승객 수와 무관, 단계 정산 때 지급)';
+    return list.map(function (x) { return x.label; }).join('·') + ' — 실제로 달리는 버스가 운행 시간 안에 ' + F.minStops + '회 이상 정차하면 곳마다 ' + won(F.amount) + '(승객 수와 무관, 단계 정산 때 지급)';
   };
   // 이번 단계 재정표(결과·계획 공통). expected면 ‘예상’ 문구
   E.financeTable = function (k, opts) {
@@ -72,7 +72,7 @@
     opts = opts || {};
     var rows = econ.rows.map(function (r) {
       return [r.num != null ? r.num + '번' : '기타', r.buses + '대', won(r.fare), won(-r.cost), signed(r.profit), r.arrived + '건',
-        r.service.length ? r.service.map(function (x) { return x.label + ' ' + x.stops + '번'; }).join(', ') : '-'];
+        r.service.length ? r.service.map(function (x) { return x.label + ' ' + x.stops + '회'; }).join(', ') : '-'];
     });
     var wrap = el('div', { 'class': 'route-economy' }), c = econ.common, sum = econ.rows.reduce(function (a, r) { return a + r.profit; }, 0);
     var t = UI.table(['노선', '버스', '운임(첫 탑승)', '운영·연료비', '손익', opts.expected ? '도착 예상' : '도착', '공공서비스 정차'], rows);
@@ -82,11 +82,31 @@
     wrap.appendChild(el('p', { 'class': 'note' }, '손익이 마이너스인 노선도 누군가의 이동을 책임지고 있을 수 있어요. 도착한 이동과 공공서비스 정차를 함께 보세요.'));
     return wrap;
   };
+  /* 운행 중 ‘지금까지’ 수지(2026-11-01, 표시용): 단계에 정해진 몫(기본 지원 − 보유비 − 임차료) + 그 시각까지 받은 운임
+   * − 그 시각까지 든 관제·운영비와 연료·정비비 + 그 시각까지 조건을 채운 공공서비스 수행분. 정산 숫자(Sim finance)는 바꾸지 않고
+   * 같은 규칙을 시각 t까지만 센다 — 운행이 끝나는 시각에는 정산 수지와 같다(테스트). 운영비는 운행 배정 시각부터 고르게, 연료비는 달린 거리만큼, 운임은 첫 탑승 때 */
+  E.live = function (s, tf) {
+    var res = s.current && s.current.result; if (!res) return null;
+    var F = s.config.finance, W = s.config.bus.window, plan = s.current.plan, g = S.graph(s), t = Math.max(0, Math.min(W, tf));
+    var leased = plan.buses.filter(function (b) { return b.leased; }).length, provided = plan.buses.length - leased;
+    var riders = res.passengers.filter(function (p) { return p.firstBoardT != null && p.firstBoardT <= t; }).length, op = 0, km = 0;
+    res.timelines.forEach(function (tl) { var m = tl.opMinutes || 0; op += Math.max(0, Math.min(m, t - (W - m))); km += Q.driven(g, tl.segments, t); });
+    var service = 0, sv = F.service;
+    if (sv) sv.stops.filter(function (x) { return x.fromPhase <= s.phase && g.has(x.id); }).forEach(function (x) {
+      var n = 0; res.timelines.forEach(function (tl) { tl.visits.forEach(function (v) { if (v.node === x.id && v.kind === 'stop' && v.t <= t) n++; }); });
+      if (n >= sv.minStops) service += sv.amount;
+    });
+    var fixed = (F.basePerBus || 0) * provided - F.holding * provided - (F.lease ? F.lease.fee : 0) * leased;
+    var opWon = Math.round(F.opPerMin * op), fuelWon = Math.round(F.fuelPerKm * km);
+    return { t: t, total: fixed + service + F.fare * riders - opWon - fuelWon, fixed: fixed, fare: F.fare * riders, op: opWon, fuel: fuelWon, service: service };
+  };
   // 계획 화면(지도 아래) — 접힌 줄 하나 + 펼치면 상세. 편집 중 노선 한 줄은 늘 보인다
   E.planPanel = function (s, state) {
     var p = E.plan(s), k = p.k, c = M.costParts(k), box = el('section', { id: 'plan-econ', 'aria-labelledby': 'plan-econ-h' }), bal = S.balance(s);
     var met = c.service.filter(function (x) { return x.met; }).length;
     var head = el('p', { id: 'plan-econ-h', 'class': 'econ-line' });
+    // 노선이 없으면 숫자 대신 안내(2026-11-01: 노선이 없는데 ‘예상 −20,000’이 크게 떠 있었다)
+    if (!s.draft.routes.some(function (r) { return r.nodes.length >= 2; })) { head.appendChild(el('b', null, '이번 단계 예상 수지')); head.appendChild(el('span', { 'class': 'econ-empty' }, ' · 노선을 만들면 예상 수지가 나와요')); box.appendChild(head); return box; }
     head.appendChild(el('b', null, '이번 단계 예상 수지 ' + signed(c.total)));
     head.appendChild(document.createTextNode(' · 수행분 ' + met + '/' + c.service.length + ' · 누적 잔액 ' + won(bal) + ' → 약 ' + won(bal + c.total)));
     head.appendChild(el('small', null, ' 기본 수요 기준 예상(돌발 수요 제외)'));

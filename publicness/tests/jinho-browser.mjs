@@ -13,15 +13,17 @@ try{
   // 6단계 결과까지 시험 상태로(재정은 판정 밖으로 0 하한)
   await page.evaluate(()=>{const S=PB.Session,s=PB.App.s;for(let p=1;p<=6;p++){S.beginPlan(s);S.startRun(s);s.current.metrics.costs.total=Math.max(0,s.current.metrics.costs.total);S.finishRun(s);if(p<6)S.nextPhase(s);}PB.App.go('result');});
   await page.locator('#btn-next-phase').click();
-  assert.equal(await page.locator('#goal-intro').getAttribute('data-stage'),'true');assert.match(await page.locator('#story-stage-sub').innerText(),/붐비는 도시 · 7 \/ 8/);
-  await page.keyboard.press('Enter');
-  assert.equal(await page.locator('#goal-intro').getAttribute('data-scene'),'mall');assert.equal(await page.locator('#goal-intro-h').innerText(),'진호 · 인플루언서');
+  // 2026-11-01: 따로 넘기는 Stage 카드 없이 컷 머리에 ‘7단계 · 붐비는 도시’, 화면 대사는 한 줄(원래 대사는 화면 낭독용 사본)
+  assert.equal(await page.locator('#goal-intro').getAttribute('data-stage'),'false');assert.equal(await page.locator('#story-phase').innerText(),'7단계 · 붐비는 도시');
+  assert.equal(await page.locator('#goal-intro').getAttribute('data-scene'),'mall');assert.match(await page.locator('#story-full').textContent(),/방송 끝나면 저녁에는 신도시 집으로/);assert.equal(await page.locator('#goal-intro-h').innerText(),'진호 · 인플루언서');
   await page.locator('#story-image').evaluate(i=>i.decode());assert.ok(await page.locator('#story-image').evaluate(i=>i.naturalWidth===1920&&/interlude-influencer\.webp$/.test(i.src)));
-  await page.keyboard.press('Space');assert.match(await page.locator('#story-typed').innerText(),/솔잎몰 개장/);assert.equal(await page.locator('#story-next').innerText(),'솔잎몰 연결하기');
+  assert.match(await page.locator('#story-typed').innerText(),/솔잎몰 개장/);/* 단계 사이 컷은 타자 효과 없이 바로 보임 */assert.equal(await page.locator('#story-next').innerText(),'솔잎몰 연결하기');
   await page.screenshot({path:'publicness/tests/_shot-jinho-cut.png'});
-  await page.locator('#story-next').click();
-  assert.match(await page.locator('#phase-changes').innerText(),/새 인물\s*진호 \(신도시 → 솔잎몰\)/);
-  assert.match(await page.locator('#phase-changes').innerText(),/새로 생김\s*솔잎몰/);
+  await page.locator('#story-next').click();await page.waitForFunction(()=>document.body.dataset.screen==='plan');
+  // 단계 안내 화면 대신 지도 배너 + HUD 칩(진호 신도시→솔잎몰) + 텍스트 모드 단계 안내
+  assert.match(await page.locator('#map-banner').innerText(),/7단계 · 붐비는 도시 · 솔잎몰이 생겼어요 · 진호 등장/);
+  assert.match(await page.locator('#person-chip-jinho').innerText(),/진호[\s\S]*신도시→솔잎몰/);
+  await page.locator('#minimal-text-toggle').click();assert.match(await page.locator('#stage-brief').innerText(),/새 인물\s*진호/);await page.locator('#minimal-text-toggle').click();
   // 신도시–솔잎몰 왕복 노선에 버스 두 대 → 운행 중 [진호] 이름표, 결과 카드
   await beginPlan(page);
   await page.evaluate(()=>{const s=PB.App.s,S=PB.Session;const r=S.routeByNum(s,1);S.updateRoute(s,1,{nodes:['I','M'],stops:[true,true]});s.draft.buses.forEach(b=>b.routeNum=null);S.assign(s,1,1);S.assign(s,2,1);PB.App.render();window.__pbFast=true;});

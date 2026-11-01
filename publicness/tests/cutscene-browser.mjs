@@ -20,12 +20,12 @@ try{
    if(index===0||index===3)await page.screenshot({path:`publicness/tests/_shot-cutscene-${width}-${index}.png`});
    await page.keyboard.press('ArrowRight');
   }
-  // 소개가 끝나면 Stage 카드 없이 바로 1단계 안내(생각해 보기 포함)
-  await page.locator('#btn-begin-plan').waitFor();assert.equal(await page.locator('body').getAttribute('data-screen'),'reveal');assert.ok(await page.locator('#learning').isVisible());assert.equal(await page.locator('#goal-intro').evaluate(d=>d.open),false);
-  if(await page.locator('#learning-dialog:modal').count())await page.locator('#btn-learning-continue').click();
+  // 소개가 끝나면 Stage 카드·단계 안내 없이 바로 1단계 지도 계획 화면(2026-11-01), 첫 노선 코치 말풍선
+  await page.waitForFunction(()=>document.body.dataset.screen==='plan');await page.locator('#first-coach').waitFor();assert.equal(await page.locator('#goal-intro').evaluate(d=>d.open),false);
   await page.evaluate(()=>{PB.App.motion=true;window.sceneDone=0;PB.Cutscene.play('sol',()=>window.sceneDone++);});
   await page.locator('#story-image').evaluate(img=>img.decode());
-  assert.equal(await page.locator('#story-typed').textContent(),await page.locator('#story-full').textContent());
+  // 단계 사이 컷: 화면 대사는 짧은 한 줄, 원래 대사는 화면 낭독용 사본(#story-full)에 그대로
+  assert.equal(await page.locator('#story-typed').textContent(),'새로 이사 왔어요. 기차역까지 버스가 있을까요?');assert.match(await page.locator('#story-full').textContent(),/^저는 솔이에요\./);
   assert.equal(await page.locator('#story-image').evaluate(img=>getComputedStyle(img).animationName),'none');
   await page.screenshot({path:`publicness/tests/_shot-cutscene-sol-${width}.png`});
   await page.keyboard.press('Escape');assert.equal(await page.evaluate(()=>window.sceneDone),1);

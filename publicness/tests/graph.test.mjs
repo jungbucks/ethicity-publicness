@@ -23,7 +23,7 @@ test('links are two-way with distance-derived seconds', () => {
   assert.equal(g1.time('A', 'B'), 5);
   assert.equal(g1.time('B', 'A'), 5);
   assert.equal(g1.time('H', 'G'), 5);
-  assert.equal(g1.time('B', 'F'), 5);
+  assert.equal(g1.time('B', 'F'), 8); // 강을 건너는 구간(외곽 마을) — 직선 5초 × 1.5
   assert.equal(g1.time('A', 'C'), 10);
 });
 
@@ -88,4 +88,20 @@ test('config carries PRD values', () => {
   assert.equal(cfg.nodes.length, 9);
   assert.equal(cfg.roads.length, 13);
   assert.equal(cfg.demandRows.length, 11);
+});
+
+test('river crossing: default map only, × factor on distance and time (2026-11-01)', () => {
+  const cfgD = require('../js/config.js'), g = G.build(cfgD, 5), R = cfgD.river;
+  const P = (id) => cfgD.nodes.find((n) => n.id === id), raw = (a, b) => Math.hypot(P(a).x - P(b).x, P(a).y - P(b).y);
+  assert.equal(R.factor, 1.5);
+  for (const [a, b] of [['F', 'D'], ['F', 'B'], ['K', 'A'], ['K', 'C']]) {
+    assert.equal(g.river(a, b), true, a + '–' + b + ' 강 건넘');
+    assert.ok(Math.abs(g.dist(a, b) - raw(a, b) * R.factor) < 1e-9);
+  }
+  for (const [a, b] of [['F', 'K'], ['B', 'C'], ['A', 'G'], ['E', 'J']]) {
+    assert.equal(g.river(a, b), false, a + '–' + b + ' 같은 쪽');
+    assert.ok(Math.abs(g.dist(a, b) - raw(a, b)) < 1e-9);
+  }
+  const noRiver = structuredClone(cfgD); delete noRiver.river;
+  assert.ok(G.build(noRiver, 1).dist('F', 'D') < g.dist('F', 'D'), '강 설정이 없으면(랜덤 지도) 직선 거리');
 });

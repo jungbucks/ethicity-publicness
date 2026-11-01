@@ -2,7 +2,7 @@ import {createRequire} from 'node:module';import assert from 'node:assert/strict
 const require=createRequire(import.meta.url),{chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright'),server=await startServer(0),browser=await chromium.launch({channel:'msedge',headless:true});
 // ‘⏭ 다음 결정까지’를 눌러 다음 긴급 조정 창까지(그 전 주목할 사건 멈춤은 다시 누른다). ‘끝까지 건너뛰기’는 남은 기회를 묻는다(speed-next-browser)
 async function toEmergency(page){for(let i=0;i<40&&!await page.locator('#emergency-dialog[open]').count();i++){await page.locator('#run-next').click();await page.waitForFunction(()=>PB.UI.runState()&&PB.UI.runState().hold,null,{timeout:20000,polling:20});}await page.locator('#emergency-dialog[open]').waitFor();}
-try{const page=await browser.newPage();page.on('pageerror',e=>console.log('PAGE ERROR',e.stack));await page.goto(`http://127.0.0.1:${server.address().port}/publicness/?no3d=1`);
+try{const page=await browser.newPage();page.on('pageerror',e=>console.log('PAGE ERROR',e.stack));await page.goto(`http://127.0.0.1:${server.address().port}/publicness/?no3d=1&minimal=0`);
  await page.evaluate(()=>{PB.App.startGame();const s=PB.App.s;s.phase=3;s.owned=4;s.draft.buses=[1,2,3,4].map(id=>({id,routeNum:id===1?1:null,offset:0}));PB.Session.beginPlan(s);PB.Session.updateRoute(s,1,{nodes:['A','B'],stops:[true,true]});PB.Session.updateRoute(s,2,{nodes:['F','D'],stops:[true,true]});PB.Session.startRun(s);PB.App.go('run');});
  assert.equal(await page.locator('#run-skip').count(),1,'run can be skipped');
  await toEmergency(page);
@@ -14,5 +14,7 @@ try{const page=await browser.newPage();page.on('pageerror',e=>console.log('PAGE 
  assert.equal(await page.evaluate(()=>PB.App.s.emergencyLog.length),1);
  await page.locator('#emergency-continue').click();await page.locator('#run-skip').click();await page.locator('#resident-day-results').waitFor();
  assert.equal(await page.evaluate(()=>PB.App.s.history.length),1);assert.equal(await page.evaluate(()=>PB.App.s.emergencyLog.length),2);
- assert.ok(await page.locator('#emergency-report').isVisible());console.log('PASS: next-decision stops twice, one change, saved checkpoint resumes, settlement once');
+ // 결과 화면 기본 보기 ‘이번 운행에서 생긴 일’에 긴급 조정 두 줄(시각), 자세한 비교는 ‘자세히’ 안 #emergency-report(2026-11-01)
+ assert.equal(await page.locator('#result-events li').filter({hasText:'긴급 조정'}).count(),2);
+ await page.locator('#result-details > summary').click();assert.ok(await page.locator('#emergency-report').isVisible());console.log('PASS: next-decision stops twice, one change, saved checkpoint resumes, settlement once');
 }finally{await browser.close();server.close();}

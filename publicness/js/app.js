@@ -71,9 +71,27 @@
   }
   App.el = el;
 
+  // 짧은 알림(지도 아래쪽 알약, role=status·aria-live) — 빈 문장은 그리지 않는다(2026-11-01: 빈 검은 알약이 뜨던 문제).
+  // priority 알림(예: 긴급 조정 완료)이 떠 있는 동안에는 일반 알림이 덮지 않는다. 같은 문장이 이미 떠 있으면 다시 띄우지 않는다
+  var toastTimer = null, toastLockUntil = 0;
+  App.toast = function (text, opts) {
+    opts = opts || {};
+    var msg = text == null ? '' : String(text).trim(), n = $('#minimal-toast');
+    if (!n) { n = el('div', { id: 'minimal-toast', 'class': 'minimal-toast', role: 'status', 'aria-live': 'polite' }); n.hidden = true; ($('#stage') || document.body).appendChild(n); }
+    if (!msg) return false;
+    var now = Date.now();
+    if (!opts.priority && now < toastLockUntil) return false;
+    if (!n.hidden && n.textContent === msg) return true;
+    if (opts.priority) toastLockUntil = now + (opts.ms || 2600);
+    n.textContent = msg; n.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { n.hidden = true; n.textContent = ''; }, opts.ms || (opts.priority ? 2600 : 2000));
+    return true;
+  };
+
   /* ── 화면 ───────────────────────── */
   App.go = function (screen) {
-    if(screen==='reveal'&&App.s&&App.s.transitionStep==='reflect')screen='reflect';
+    // 단계 전 화면(1단계 안내·성찰·「마을이 달라졌어요」)은 없앴다(2026-11-01) — 새 단계는 곧바로 지도 계획 화면. 예전 경로로 와도 계획으로
+    if ((screen === 'reveal' || screen === 'reflect') && App.s) { S.beginPlan(App.s); delete App.s.transitionStep; screen = 'plan'; }
     document.body.classList.remove('result-map-open');
     document.body.setAttribute('data-screen', screen);
     App.render();
@@ -85,19 +103,14 @@
     renderTopbar();
     var panel = $('#panel');
     panel.innerHTML = '';
-    var fn = screen === 'reveal' ? renderReveal : (PB.UI && PB.UI[screen]);
+    var fn = PB.UI && PB.UI[screen];
     App.onNodeClick = null;
     App.onLink = null; App.onRouteClick = null; App.onRouteDouble = null;
     var stageOpts = fn ? fn(App, panel) : null;
-    var heading=panel.querySelector('h2'),focus=PB.stories.phaseEthics[App.s.phase-1];
-    if(screen==='reveal'&&heading&&focus){
-      // 단계 질문은 한 줄. 단계 안내에서는 그대로, 다른 화면에서는 접어 두고 펼치면 전체 문장
-      var line=el('span'),ethics;line.appendChild(el('b',null,'이번 단계 질문 · '));line.appendChild(document.createTextNode(focus.short||focus.title));
-      if(screen==='reveal'){ethics=el('p',{'class':'callout ethics-focus','data-phase':App.s.phase});ethics.appendChild(line);}
-      else{ethics=el('details',{'class':'callout ethics-focus','data-phase':App.s.phase});var sm=el('summary');sm.appendChild(line);ethics.appendChild(sm);ethics.appendChild(el('p',null,focus.title+' — '+focus.text));}
-      heading.insertAdjacentElement('afterend',ethics);
-    }
-    if(screen!=='reflect')App.syncStage(stageOpts || {});
+    // 단계 질문(stories.phaseEthics)은 그 단계 결과 화면 ‘생각해 보기’에 있다(2026-11-01)
+    App.syncStage(stageOpts || {});
+    if (PB.Hud) PB.Hud.render(App);
+    if (PB.Arrival) PB.Arrival.render(App);
     // 화면이 바뀌면(운행 조작 묶음이 생기는 등) 지도 맞춤을 다시 — 정류장이 조작 버튼 밑에 깔리지 않게
     App.fitFrame(); if (App.view && App.view.refit) App.view.refit(); if (App.net) App.net.redraw();
     App.syncPanelToggle();
@@ -115,6 +128,10 @@
     var p = el('div', { id: 'phase-peek', 'class': 'phase-peek', role: 'dialog', 'aria-label': h.phase + '단계 결과 요약', 'data-phase': h.phase, tabindex: '-1' });
     p.appendChild(el('b', null, h.phase + '단계 · ' + App.s.config.phases[h.phase - 1]));
     [['도착', m.arrived + ' / ' + m.N + '건'], ['단계 수지', App.won(m.costs.total)], ['주요 인물 기준 충족', ok + ' / ' + ids.length + '명']].forEach(function (r) { var q = el('p'); q.appendChild(el('span', null, r[0])); q.appendChild(el('strong', null, r[1])); p.appendChild(q); });
+    // 그 단계 결과 화면에서 남긴 생각(옛 성찰 화면에서 쓴 답도 같은 자리, 2026-11-01)
+    var mine = (App.s.reflections || {})[h.phase], pick = (App.s.choices || {})[h.phase];
+    if (pick) { var q1 = el('p'); q1.appendChild(el('span', null, '고른 답')); q1.appendChild(el('strong', null, S.CHOICES[pick] || pick)); p.appendChild(q1); }
+    if (mine) p.appendChild(el('p', { 'class': 'peek-note' }, '내 생각 · ' + mine));
     document.body.appendChild(p); var a = anchor.getBoundingClientRect(); p.style.left = Math.max(8, Math.min(innerWidth - p.offsetWidth - 8, a.left - 20)) + 'px'; p.style.top = (a.bottom + 8 + scrollY) + 'px'; p.focus();
     function close(e) { if (e.type === 'keydown' && e.key !== 'Escape') return; if (e.type === 'pointerdown' && p.contains(e.target)) return; p.remove(); document.removeEventListener('keydown', close, true); document.removeEventListener('pointerdown', close, true); if (e.type === 'keydown') { e.stopPropagation(); anchor.focus(); } }
     document.addEventListener('keydown', close, true); document.addEventListener('pointerdown', close, true);
@@ -127,6 +144,13 @@
     var a = App.view && App.view.contentAspect && App.view.contentAspect();
     if (!a || (screen !== 'plan' && screen !== 'run')) return;
     var col = st.parentNode, cs = getComputedStyle(col), W = col.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), availH = st.offsetHeight;
+    // 계획 화면(넓은 화면): 지도·노선 버튼·대기 버스·출발 버튼이 스크롤 없이 한 화면에 들어오도록, 지도 높이 = 창 높이 − 지도 위쪽 − 아래 조작부(2026-11-01:
+    // 1440×900에서 출발 버튼이 약 34px 잘렸다 — CSS 고정 계산(100dvh − 330px)이 위쪽 금액 줄·조작부 실제 높이를 몰랐다). 좁은 화면은 위아래로 스크롤하는 배치라 CSS 그대로
+    var bar = screen === 'plan' && root.innerWidth > 850 ? $('#plan-toolbar') : null;
+    if (bar && bar.offsetHeight) {
+      var sr = st.getBoundingClientRect(), below = bar.getBoundingClientRect().bottom - sr.bottom + parseFloat(cs.paddingBottom || 0) + 4;
+      availH = Math.max(300, Math.floor(root.innerHeight - (sr.top + root.scrollY) - below));
+    }
     var P = Math.min(80, Math.max(54, Math.min(W, availH) * 0.1)), need = (W - 2 * P) / a + 2 * P + 24, H, Wst = W;
     if (need <= availH) H = Math.max(200, need);
     else { H = availH; Wst = Math.min(W, (H - 2 * P - 24) * a + 2 * P + 40); }
@@ -184,9 +208,9 @@
     var roads = [];
     var key = s.phase + ':' + nodes.length;
     if (App._sceneKey !== key) {
-      // Decorative terrain only: route distance and accessibility remain unchanged.
-      var river = [];
-      if(s.mode === 'default')for(var y=-30;y<=30;y+=.15)river.push({x:-3.9+.45*Math.sin(y*.48),y:y});
+      // 강: config.river(기본 세팅만). 건너는 구간은 Graph가 거리 × factor로 계산한다
+      var river = [], R = s.config.river;
+      if(R)for(var y=-30;y<=30;y+=.15)river.push({x:R.x+R.amp*Math.sin(y*R.freq),y:y});
       var frame = s.config.nodes.filter(function (n) { return n.id !== 'N' || g.has('N'); });
       v.setScene({ nodes: nodes, frame: frame, roads: roads, phase: s.phase, river: river, load: PB.Demand.stopLoad(s.config, s.phase, s.seed), boundary: nodes.some(function(n){return n.id==='N';}) ? {x:Math.sign(nodes.filter(function(n){return n.id==='N';})[0].x)*6.4} : null }); App._sceneKey = key;
     }
@@ -207,7 +231,8 @@
     // 선택한 노선은 굵게·빛으로 강조(다른 노선을 흐리게 하지 않는다)
     else if(s.stage==='plan'&&opts.activeRoute!=null)routes.forEach(function(r){r.active=r.num===opts.activeRoute;});
     if (s.config.challengeApplied) routes.forEach(function (r) { r.kind = r.num === 5 ? 'express' : r.num === 6 ? 'regional' : null; });
-    if (App.net && s.stage !== 'plan') App.net.setFaces([]); // 인물 얼굴 자리는 계획 화면에서만(ui-map-plan이 채움)
+    // 인물 얼굴 자리는 계획·운행 화면(2026-11-01: 운행 중에도 얼굴이 지도에서 사라지지 않게). 결과·엔딩에선 비움
+    if (App.net) App.net.setFaces(s.stage === 'plan' || s.stage === 'run' ? PB.Demand.residents(s.config, s.phase).map(function (rd) { return { id: rd.id, node: rd.o, size: 40 }; }) : []);
     if (App.net) App.net.setOptions({ showWait: s.stage === 'run' || s.stage === 'result' });
     v.setRoutes(routes);
     // A view refresh can happen while paused, when the playback tick does not run.
@@ -215,7 +240,8 @@
     if (v.setDrivingSegments) v.setDrivingSegments(s.current && (s.stage === 'run' || s.stage === 'result')
       ? s.current.result.timelines.reduce(function (out, tl) { return out.concat(tl.segments.filter(function (seg) { return seg.deadhead; })); }, []) : []);
     document.querySelector('#stage').classList.toggle('previewing',!!opts.preview);
-    document.querySelector('#stage').dataset.caption=opts.preview?'AI 제안 미리보기 · 적용 전':'정류장을 연결해 나만의 노선을 만드세요';
+    // 지도 왼쪽 위 안내는 노선이 하나라도 생기면 숨긴다(2026-11-01: 텍스트 모드에서 기차역 이름표와 겹쳤다)
+    document.querySelector('#stage').dataset.caption=opts.preview?'AI 제안 미리보기 · 적용 전':s.draft.routes.some(function(r){return r.nodes.length>=2;})?'':'정류장을 연결해 나만의 노선을 만드세요';
     v.setSelectable(opts.selectable || []);
     v.setSelected(opts.selected || []);
     if (!opts.keepBuses) {
@@ -272,53 +298,38 @@
     box.appendChild(ul);
   }
 
-  /* ── 단계 공개 화면 ───────────────── */
-  // 단계 안내 = 변화 카드: 줄마다 사실 하나, 지난 단계와 비교되는 값은 차이를 붙인다. 반복 설명은 넣지 않는다
+  /* ── 새 단계에서 바뀐 것(지도 배너·텍스트 모드 안내가 같은 사실을 쓴다, 2026-11-01) ───────────────── */
+  // 예전 「이번 단계에서 달라진 것」 표의 설명(새 정류장마다 누가 오가는지)은 텍스트 모드 단계 안내(#stage-brief)에 남는다
   var NEW_PLACE = { H: '경기·운동하러 오가는 사람들', I: '새 주거지 · 기차역·병원으로 오가는 주민', J: '기차역·시장을 오가는 이동과 운동장 왕복', K: '외곽 마을·밀집 주거지에서 낮 방문',
     L: '가족 3팀(12명)이 함께 방문하고 귀가', M: '낮 방문 60명 · 저녁 귀가 60명', N: '아침 출발 36명 · 저녁 귀가 36명' };
+  App.NEW_PLACE = NEW_PLACE;
   function signed(n) { return n > 0 ? '+' + n : String(n); }
-  function renderReveal(app, panel) {
-    if(App.s.phase>1)return PB.UI.changes(App,panel);
-    var s = App.s, cfg = s.config, p = s.phase, reqs = PB.Demand.base(cfg, p, s.seed).length, prog = cfg.progression;
-    panel.appendChild(el('p', { 'class': 'eyebrow' }, p + '단계 · ' + cfg.phases[p - 1]));
-    panel.appendChild(el('h2', null, p === 1 ? '첫 운행을 준비해요' : '이번 단계에서 달라진 것'));
-    if (p === 1 && App.player) panel.appendChild(el('p', null, App.player.nickname + ' 운영자님, 반가워요.'));
-    var rows = [], limit = S.routeLimit(s);
-    if (p === 1) {
-      rows.push(['버스·노선', '버스 ' + s.owned + '대 · 노선 최대 ' + limit + '개']);
-      rows.push(['오늘 이동 요청', requestText(cfg, p, s.seed)]);
-      rows.push(['할 일', '정류장을 이어 첫 노선을 만들어 보세요']);
-      rows.push(['학기 말 기준', (cfg.challengeApplied ? '총 ' + cfg.phases.length + '단계 · ' : '') + PB.Narrative.satisfactionText(cfg)]);
-      rows.push(['지원금', '기본: 기본 제공 차량 ' + s.owned + '대 × ' + App.won(cfg.finance.basePerBus) + '(보유비 대당 ' + App.won(cfg.finance.holding) + '의 일부) · 공공서비스 수행분: ' + PB.UI.Econ.conditionText(s)]);
-      rows.push(['재정 규칙', App.financeRuleText(s)]);
-    } else {
-      var h = s.history[s.history.length - 1], m = h.metrics;
-      rows.push(['지난 운행', m.N + '건 중 ' + m.arrived + '건 도착 (' + Math.round(m.arrived / Math.max(1, m.N) * 100) + '%)']);
-      var places = cfg.nodes.filter(function (n) { return n.fromPhase === p; });
-      if (places.length) rows.push(['새로 생김', places.map(function (n) { return n.name + (NEW_PLACE[n.id] ? ' — ' + NEW_PLACE[n.id] : ''); }).join(' · ')]);
-      var people = cfg.residents.filter(function (r) { return r.fromPhase === p; }).map(function (r) { var rd = PB.Demand.residents(cfg, p).filter(function (x) { return x.id === r.id; })[0] || r; return { name: r.name, o: rd.o, d: rd.d }; });
-      if (people.length) rows.push(['새 인물', people.map(function (r) { return r.name; }).join('·') + ' (' + App.nodeName(people[0].o) + ' → ' + App.nodeName(people[0].d) + ')']);
-      var dBus = prog ? s.owned - prog.buses[p - 2] : 0, dRoute = prog ? limit - prog.routes[p - 2] : 0;
-      var bus = '버스 ' + s.owned + '대' + (dBus ? ' (' + signed(dBus) + ')' : '') + ' · 노선 최대 ' + limit + '개' + (dRoute ? ' (' + signed(dRoute) + ')' : '');
-      var newest = s.draft.buses[s.draft.buses.length - 1];
-      if (cfg.challengeApplied && p === 6 && S.routeByNum(s, 5)) bus += ' · 7호차 직행(정원 18명·1.5배)은 5번 직행 전용, 정류장 3곳까지';
-      else if (cfg.challengeApplied && p === 8) bus += ' · 9호차 광역(정원 24명)은 6번 광역 전용';
-      else if (dBus && newest && newest.routeNum == null) bus += ' · 새 ' + newest.id + '호차는 대기 버스(새 노선을 완성하면 바로 운행)';
-      rows.push(['버스·노선', bus]);
-      var prev = PB.Demand.base(cfg, p - 1, s.seed).length;
-      rows.push(['오늘 이동 요청', requestText(cfg, p, s.seed) + ' · 예정 이동 ' + signed(reqs - prev) + '건']);
-      var now = PB.Demand.stopLoad(cfg, p, s.seed), before = PB.Demand.stopLoad(cfg, p - 1, s.seed);
-      var grew = Object.keys(now).filter(function (id) { return before[id] && now[id].count - before[id].count >= 5; })
-        .sort(function (x, y) { return (now[y].count - before[y].count) - (now[x].count - before[x].count); }).slice(0, 2);
-      if (grew.length) rows.push(['늘어난 곳', grew.map(function (id) { return App.nodeName(id) + ' ' + signed(now[id].count - before[id].count) + '건'; }).join(' · ')]);
-    }
-    var dl = el('dl', { id: 'phase-changes', 'class': 'kv phase-changes' });
-    rows.forEach(function (r) { dl.appendChild(el('dt', null, r[0])); dl.appendChild(el('dd', null, r[1])); });
-    panel.appendChild(dl);
-    panel.appendChild(el('p', { 'class': 'note', id: 'request-terms' }, '이동 요청 1건 = 한 사람의 한 번 이동이에요. 지도의 정류장 숫자는 그 정류장에서 출발하거나 도착하는 요청이라, 모두 더하면 이동 요청의 두 배가 돼요. 실제 운행에는 돌발 수요가 더해질 수 있어요.'));
-    learning(panel, s.phase);
-    panel.appendChild(el('button', { type: 'button', 'class': 'btn btn-primary btn-lg', id: 'btn-begin-plan', onclick: function () { S.beginPlan(App.s); App.go('plan'); if (App.s.phase === 1 && !App.s.tutorialSeen) App.showTutorial(); } }, '계획 시작'));
-  }
+  App.signed = signed;
+  // 이번 단계에 새로 생긴 것: 정류장·인물·버스·노선 칸(지난 단계 대비). 1단계는 처음 주어진 버스·노선
+  App.phaseChanges = function (s) {
+    var cfg = s.config, p = s.phase, prog = cfg.progression, limit = S.routeLimit(s);
+    var out = { phase: p, name: cfg.phases[p - 1], places: [], people: [], buses: 0, routes: 0, newBusIds: [], owned: s.owned, limit: limit, express: null };
+    if (p === 1) return out;
+    out.places = cfg.nodes.filter(function (n) { return n.fromPhase === p; });
+    out.people = cfg.residents.filter(function (r) { return r.fromPhase === p; });
+    out.buses = prog ? s.owned - prog.buses[p - 2] : 0;
+    out.routes = prog ? limit - prog.routes[p - 2] : 0;
+    out.newBusIds = s.draft.buses.filter(function (b) { return b.id > s.owned - out.buses && !b.leased; }).map(function (b) { return b.id; });
+    if (cfg.challengeApplied && p === 6) out.express = '5번 직행 신설 · 7호차 전용(정원 18명 · 1.5배 · 정류장 3곳까지)';
+    if (cfg.challengeApplied && p === 8) out.express = '6번 광역 신설 · 9호차 전용(정원 24명 · 마을 한 곳과 대도시)';
+    return out;
+  };
+  // 지도 배너 한 줄: ‘3단계 · 변화기 · 신도시가 생겼어요 · 버스 +1’
+  App.changeLine = function (s) {
+    var c = App.phaseChanges(s), parts = [c.phase + '단계 · ' + c.name];
+    if (c.phase === 1) parts.push('버스 ' + c.owned + '대 · 노선 최대 ' + c.limit + '개');
+    c.places.forEach(function (n) { parts.push(PB.Narrative.josa(n.name, '이가') + ' 생겼어요'); });
+    if (c.people.length) parts.push(c.people.map(function (r) { return r.name; }).join('·') + ' 등장');
+    if (c.buses) parts.push('버스 ' + signed(c.buses));
+    if (c.routes) parts.push('노선 ' + signed(c.routes));
+    if (c.express) parts.push(c.express.split(' · ')[0]);
+    return parts.join(' · ');
+  };
 
   // 안내용 이동 요청: 예정 이동 + 목적지에 도착하면 생기는 다음 이동(주요 인물·가족). 예상·결과와 같은 이름을 쓴다
   function requestText(c, phase, seed) {
@@ -326,42 +337,27 @@
     return '예정 ' + q.planned + '건' + (q.followUps ? ' + 도착하면 생기는 다음 이동 최대 ' + q.followUps + '건' : '');
   }
   App.requestText = requestText;
-  // ‘잠깐 생각해 보기’ — 별도 창 대신 단계 안내 안에서 읽는다(교육 내용은 그대로)
+  // 실제 AI 사례 카드(stories.learning) — 2026-11-01부터 그 단계 결과 화면 ‘생각해 보기’ 안에서 읽는다(사례 문구·출처는 그대로)
   function learning(panel, phase) {
-    var item = PB.stories.learning[phase - 1]; if (!item) return;
+    var item = PB.stories.learning[phase - 1]; if (!item) return null;
     var sec = el('section', { id: 'learning', 'class': 'learning', 'aria-labelledby': 'learning-title', 'data-phase': phase });
-    sec.appendChild(el('p', { 'class': 'eyebrow' }, '잠깐 생각해 보기'));
-    sec.appendChild(el('h3', { id: 'learning-title' }, item.title));
+    sec.appendChild(el('p', { 'class': 'eyebrow' }, '실제 AI 사례'));
+    sec.appendChild(el('h4', { id: 'learning-title' }, item.title));
     if (item.subtitle) sec.appendChild(el('p', { 'class': 'note learning-subtitle' }, item.subtitle));
     sec.appendChild(el('p', { 'class': 'learning-case' }, item.text));
     var q = el('p', { 'class': 'learning-question' }); q.appendChild(el('b', null, '생각 질문 · ')); q.appendChild(document.createTextNode(item.question)); sec.appendChild(q);
     [{ label: item.source, url: item.url }].concat(item.extraSources || []).forEach(function (src) { sec.appendChild(el('a', { href: src.url, target: '_blank', rel: 'noopener noreferrer', 'class': 'learning-source' }, '출처: ' + src.label + ' (새 탭)')); });
     panel.appendChild(sec);
+    return sec;
   }
 
   App.renderLearning=learning;
 
-  /* ── 첫 노선 안내(1단계 계획에 처음 들어올 때, 도움말에서 다시 보기) ── */
+  /* ── 첫 노선 안내 = 지도 위 코치 말풍선 + 손가락(2026-11-01: 모달 대신, PB.Arrival). 1단계 계획에 처음 들어올 때 저절로, 도움말에서 다시 보기 ── */
   App.showTutorial = function () {
-    var s = App.s; if (!s) return; s.tutorialSeen = true;
-    var d = document.querySelector('#tutorial-dialog');
-    if (!d) { d = el('dialog', { id: 'tutorial-dialog', 'class': 'dialog', 'aria-labelledby': 'tutorial-title' }); document.body.appendChild(d); }
-    d.textContent = '';
-    d.appendChild(el('p', { 'class': 'eyebrow' }, '첫 노선 만들기'));
-    d.appendChild(el('h2', { id: 'tutorial-title', tabindex: '-1' }, '정류장 두 곳을 이어 보세요'));
-    var ol = el('ol', { 'class': 'tutorial-steps' });
-    ['지도에서 출발할 정류장을 누르세요.', '이어서 갈 정류장을 누르면 노선이 생겨요.'].forEach(function (t) { ol.appendChild(el('li', null, t)); });
-    d.appendChild(ol);
-    // 첫 안내는 두 줄(2026-10-27 사용자 지시). 버스 수·노선 한도는 이 단계 실제 값, 운행 시각은 설정(하루 운행 0 ~ bus.window)에서.
-    // 회수·배속·오전·오후 조정·인물별 이동은 그 상황의 화면(버스 고르기 안내, 운행 배속 버튼, 조정 창, 인물 얼굴·칩)에서 안내한다
-    var rule = el('div', { id: 'tutorial-rule' });
-    rule.appendChild(el('p', null, '이번 단계는 버스 ' + s.owned + '대 · 노선 최대 ' + S.routeLimit(s) + '개로 운영해요.'));
-    rule.appendChild(el('p', null, '출발하면 ' + App.clock(0) + '~' + App.clock(s.config.bus.window) + '의 하루 운행이 시작돼요.'));
-    d.appendChild(rule);
-    d.appendChild(el('button', { type: 'button', id: 'btn-tutorial-close', 'class': 'btn btn-primary', onclick: function () { d.close(); } }, '정류장 이어 보기'));
-    // 닫으면 누를 수 있는 정류장을 한 번 깜빡여 지도로 시선을 옮긴다
-    d.onclose = function () { if (App.s === s && s.stage === 'plan') { S.visibleNodeIds(s).forEach(function (id) { App.view.flash(id); }); var h = document.querySelector('#panel h2'); if (h) h.focus({ preventScroll: true }); } };
-    d.showModal(); d.querySelector('h2').focus();
+    var s = App.s; if (!s) return;
+    App.coachReplay = true; App.keepFocus = true;
+    if (document.body.dataset.screen === 'plan') App.render();
   };
 
   /* ── 시작 ───────────────────────── */
@@ -369,7 +365,7 @@
   // 모드별 재정 규칙(안내·결과·종료 화면이 같은 문장을 쓴다)
   App.financeRuleText = function (s) {
     return S.financeRule(s) === 'balance-streak'
-      ? '단계가 끝날 때마다 회차 수지를 정산해 누적 잔액에 더해요. 한 단계 적자는 경고일 뿐, 모아 둔 잔액으로 적자 노선을 유지할 수 있어요. 누적 잔액이 0원 미만인 채로 ' + S.NEGATIVE_LIMIT + '번 연속 단계를 마치면 운영 계약이 종료돼요.'
+      ? '단계가 끝날 때마다 회차 수지를 정산해 누적 잔액에 더해요. 한 단계 적자는 경고일 뿐, 모아 둔 잔액으로 적자 노선을 유지할 수 있어요. 누적 잔액이 0원 미만인 채로 ' + S.NEGATIVE_LIMIT + '회 연속 단계를 마치면 운영 계약이 종료돼요.'
       : '중간에 돈이 모자라도 운행은 계속돼요. 마지막 단계가 끝난 뒤 누적 잔액이 0원 미만이면 파산으로 끝나요.';
   };
   // 다시 하기: 기본은 같은 시나리오, 랜덤은 같은 조건(같은 세팅 번호 → 같은 지도·수요·사건) 또는 새 랜덤 게임. 진행 상태는 모두 새로 만든다
@@ -378,7 +374,7 @@
     PB.Storage.clearSave();
     App.s = S.create(cfg, opt);
     App._sceneKey = null; App._resultFor = null;
-    App.go('reveal');
+    App.enterPlan();
   };
   App.startGame = function () {
     var chosen = document.querySelector('input[name=setting]:checked');
@@ -386,7 +382,13 @@
     PB.Storage.clearSave();
     App.s = S.create(cfg, opt);
     App._sceneKey = null;
-    App.go('reveal');
+    App.enterPlan();
+  };
+  // 새 단계 시작: 곧바로 지도 계획 화면. 이번 단계에서 바뀐 것은 지도 배너·새 정류장 고리·대기 버스 반짝임으로(PB.Arrival)
+  App.enterPlan = function () {
+    var s = App.s; S.beginPlan(s); delete s.transitionStep;
+    App.arrival = { phase: s.phase, at: Date.now(), changes: App.phaseChanges(s), line: App.changeLine(s), done: false };
+    App.go('plan');
   };
 
   /* ── 효과음(기본 켜짐, 파일 없이 합성). 끈 상태는 이 브라우저에 기억 ─── */
@@ -452,7 +454,7 @@
       } else { note3d.hidden = false; note3d.textContent = '이 기기에서는 3D 화면을 쓸 수 없어 지도로 보여 드려요. 모든 기능은 그대로예요.'; }
     } else if (!want3d) { note3d.hidden = false; note3d.textContent = '지도 보기로 시작했어요.'; }
     // 네트워크·상태층(map-network.js): 지금 보이는 뷰의 장면·노선·대기·선택을 받아 같은 그림 체계로 그린다
-    App.net = PB.MapNetwork.create($('#stage'), function () { return App.view; }, { onLayout: function () { if (PB.UI.placeRunNotices) PB.UI.placeRunNotices(); }, reserved: function () { return controls.reserved(); }, tokens: function () { var m = cfg.ui.map, w = cfg.ui.wait; return { line: m.line, lineActive: m.lineActive, casing: m.casing, stop: m.stop, cap: m.cap, waitCaution: w.caution, waitDanger: w.danger }; } });
+    App.net = PB.MapNetwork.create($('#stage'), function () { return App.view; }, { onLayout: function () { if (PB.UI.placeRunNotices) PB.UI.placeRunNotices(); if (PB.Arrival) PB.Arrival.layout(); if (PB.Hud) PB.Hud.layout(); }, reserved: function () { return controls.reserved(); }, tokens: function () { var m = cfg.ui.map, w = cfg.ui.wait; return { line: m.line, lineActive: m.lineActive, casing: m.casing, stop: m.stop, cap: m.cap, waitCaution: w.caution, waitDanger: w.danger }; } });
     [App.map2d, App.view3d].forEach(function (v) {
       if (!v) return;
       ['setScene', 'setRoutes', 'setWaiting', 'setSelected', 'setSelectable', 'flash'].forEach(function (fn) {
@@ -461,6 +463,12 @@
       });
     });
     $('#btn-view-toggle').addEventListener('click', App.toggleView);
+    // 지도 위 금액 줄·아래 조작부 높이가 그린 뒤에 바뀌어도(미니멀 금액 표시, 오류 줄 등) 지도 높이를 다시 맞춘다. 높이가 그대로면 아무것도 안 한다
+    if (root.ResizeObserver) { var colT = null; new root.ResizeObserver(function () { clearTimeout(colT); colT = setTimeout(function () {
+      var scr = document.body.dataset.screen, st = $('#stage'); if (!App.s || (scr !== 'plan' && scr !== 'run')) return;
+      var before = st.style.height + '|' + st.style.maxWidth; App.fitFrame();
+      if (st.style.height + '|' + st.style.maxWidth !== before) { if (App.view && App.view.refit) App.view.refit(); if (App.net) App.net.redraw(); }
+    }, 60); }).observe(document.querySelector('.stage-col')); }
     var fitT = null; root.addEventListener('resize', function () { clearTimeout(fitT); fitT = setTimeout(function () { if (App.s) { App.fitFrame(); if (App.view && App.view.refit) App.view.refit(); if (App.net) App.net.redraw(); } }, 80); });
     App.motion = !!root.__pbReduceMotion;
     $('#opt-motion').checked = App.reducedMotion();
@@ -475,7 +483,7 @@
     if (saved && cont) {
       var ss = saved.session, total = (ss.config ? ss.config.phases.length : cfg.phases.length);
       cont.hidden = false;
-      $('#continue-note').textContent = (ss.mode === 'default' ? '기본' : '랜덤') + ' 세팅 · ' + (ss.stage === 'ending' ? (ss.end && ss.end.cause === 'bankrupt' ? '파산으로 운영 종료' : ss.end && ss.end.cause === 'contract' ? App.contractTitle(ss.end) : '학기 마무리') : ss.phase + ' / ' + total + '단계 ' + ({ reveal: '안내', plan: '계획', run: typeof ss.runCursor==='number'?'운행 이어보기':'운행(출발 직전 계획으로 돌아가요)', result: '결과' }[ss.stage] || '')) + ' · ' + new Date(saved.savedAt).toLocaleString('ko-KR');
+      $('#continue-note').textContent = (ss.mode === 'default' ? '기본' : '랜덤') + ' 세팅 · ' + (ss.stage === 'ending' ? (ss.end && ss.end.cause === 'bankrupt' ? '파산으로 운영 종료' : ss.end && ss.end.cause === 'contract' ? App.contractTitle(ss.end) : '학기 마무리') : ss.phase + ' / ' + total + '단계 ' + ({ reveal: '계획', plan: '계획', run: typeof ss.runCursor==='number'?'운행 이어보기':'운행(출발 직전 계획으로 돌아가요)', result: '결과' }[ss.stage] || '')) + ' · ' + new Date(saved.savedAt).toLocaleString('ko-KR');
       cont.addEventListener('click', function () { App.resume(PB.Storage.readSave(cfg.SCENARIO_VERSION) || saved); });
       $('#btn-start').textContent = '새로 시작하기';
       $('#btn-start').classList.remove('btn-primary');
@@ -485,7 +493,7 @@
       newGame();
     });
     App.newGame = newGame;
-    $('#btn-help').addEventListener('click', function () { $('#btn-tutorial-replay').hidden = !App.s; $('#help').showModal(); });
+    $('#btn-help').addEventListener('click', function () { $('#btn-tutorial-replay').hidden = !App.s; if (PB.Arrival) PB.Arrival.fillHelp(App); $('#help').showModal(); });
     $('#btn-tutorial-replay').addEventListener('click', function () { $('#help').close(); App.showTutorial(); });
     $('#btn-settings').addEventListener('click', function () { $('#settings').showModal(); });
     $('#restart-no').addEventListener('click', function () { $('#confirm-restart').close(); });

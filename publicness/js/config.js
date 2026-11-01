@@ -24,20 +24,23 @@
     },
     // Fixed design pixels, independent of viewport. All engine time values are seconds.
     map: { pixelsPerUnit: 110, pixelsPerSecond: 110 },
+    // 강(기본 세팅만): 중심선 x = x + amp·sin(y·freq). 강을 건너는 구간은 다리로 돌아가므로 거리·시간 × factor(2026-11-01 사용자 지시 — 외곽 마을·복지관이 ‘지도에서 보는 것보다 멀다’)
+    river: { x: -3.9, amp: 0.45, freq: 0.48, factor: 1.5 },
 
+    // short = 좁은 지도(휴대폰)의 간판형 이름표 글자(2026-11-01). 전체 이름은 title·aria-label로
     // 생활권과 정류장 (PRD §4). x,y = 고정 카메라 배치용 평면 좌표(지도 1칸 = 1km). 2026-10-27 세로 ×1.3으로 펼침(옛 y × 1.3, 상대 위치 유지)
     nodes: [
       { id: 'A', name: '기차역', x: -0.6, y: -3.38, fromPhase: 1 },
       { id: 'B', name: '밀집 주거지', x: -2.4, y: -0.78, fromPhase: 1 },
       { id: 'C', name: '대학교', x: -2, y: 2.6, fromPhase: 1 },
-      { id: 'D', name: '병원·공공서비스', x: 3, y: -2.34, fromPhase: 1 },
-      { id: 'E', name: '구도심 시장', x: 1.2, y: 2.34, fromPhase: 1 },
+      { id: 'D', name: '병원·공공서비스', short: '병원', x: 3, y: -2.34, fromPhase: 1 },
+      { id: 'E', name: '구도심 시장', short: '시장', x: 1.2, y: 2.34, fromPhase: 1 },
       { id: 'F', name: '외곽 마을', x: -4.8, y: 3.64, fromPhase: 1 },
-      { id: 'G', name: '산업·일자리', x: 4.4, y: 0.65, fromPhase: 1 },
-      { id: 'H', name: '종합운동장', x: 0, y: -0.26, fromPhase: 2 },
+      { id: 'G', name: '산업·일자리', short: '일자리', x: 4.4, y: 0.65, fromPhase: 1 },
+      { id: 'H', name: '종합운동장', short: '운동장', x: 0, y: -0.26, fromPhase: 2 },
       { id: 'I', name: '신도시', x: 4.8, y: -2.73, fromPhase: 3 },
-      { id: 'J', name: '고속버스터미널', x: 4.4, y: 3.51, fromPhase: 4 },
-      { id: 'K', name: '어린이·노인복지관', x: -4.4, y: 0.91, fromPhase: 5 }
+      { id: 'J', name: '고속버스터미널', short: '터미널', x: 4.4, y: 3.51, fromPhase: 4 },
+      { id: 'K', name: '어린이·노인복지관', short: '복지관', x: -4.4, y: 0.91, fromPhase: 5 }
     ],
 
     // 제어된 테스트용 기존 도로. 실제 지도에서는 map 거리 공식으로 모든 구간을 생성한다.

@@ -27,7 +27,7 @@
     var svg = svgEl('svg', { 'class': 'net-svg net-status-svg' }); layer.appendChild(svg);
     var labels = document.createElement('div'); labels.className = 'net-labels'; layer.appendChild(labels);
     stage.appendChild(layer);
-    var st = { nodes: {}, routes: [], waiting: {}, selected: [], selectable: [], show: true, faces: [] }, placed = [], flashT = {}, facePos = {};
+    var st = { nodes: {}, routes: [], waiting: {}, selected: [], selectable: [], show: true, faces: [], newNodes: [], newAt: 0 }, placed = [], flashT = {}, facePos = {};
 
     function project(x, y) { var v = getView(); return v.project(x, y); }
     function lanePoint(a, b, num, f) {
@@ -62,6 +62,8 @@
       Object.keys(st.nodes).forEach(function (id) {
         var n = st.nodes[id], p = project(n.x, n.y), sel = st.selected.indexOf(id) >= 0, can = !st.selectable.length || st.selectable.indexOf(id) >= 0 || sel;
         var g = svgEl('g', { 'class': 'net-stop' + (sel ? ' selected' : '') + (can ? '' : ' muted') + (flashT[id] && performance.now() - flashT[id] < 900 ? ' flash' : ''), 'data-node': id }, gStop);
+        // 이번 단계에 새로 생긴 정류장(2026-11-01): 처음 2.6초 강조 고리(지도 배너와 함께), 이름표엔 ‘새 정류장’ 배지
+        if (st.newNodes.indexOf(id) >= 0 && performance.now() - st.newAt < 2600) svgEl('circle', { 'class': 'new-ring', cx: p.left, cy: p.top, r: T.stop + 10 }, g);
         svgEl('circle', { cx: p.left, cy: p.top, r: T.stop }, g);
         (at[id] || []).forEach(function (c, k, all) {
           var ang = -Math.PI / 2 + (k - (all.length - 1) / 2) * 0.62, R = T.stop + 3.5;
@@ -93,7 +95,68 @@
         placed.push(c.start ? { x: c.x - 16, y: c.y - 15, w: 56, h: 30, kind: 'cap', route: c.num, start: true } : { x: c.x - T.cap - 2, y: c.y - T.cap - 2, w: w + 4, h: T.cap * 2 + 4, kind: 'cap', route: c.num, start: false });
       });
       st.caps = caps;
-      // 인물 얼굴 자리(이름표보다 먼저): 출발 정류장 옆 — 위 → 왼쪽 위 → 오른쪽 위 → 왼쪽 → 오른쪽 → 아래, 노선 선·마커·번호 원을 피한다
+      /* 이름표(+대기 pill) — 2026-11-01 플레이테스트 수정. 390px 지도에서 빈자리를 못 찾으면 78px+이름표 폭까지 멀리 가서(다른 정류장 옆)
+       * 엉뚱한 정류장 이름처럼 보였고(병원 이름표가 대학교 옆 등), 노선을 바꿀 때마다 자리가 좌우로 튀었다. 그래서
+       *  ① 정류장마다 기본 방향을 노선과 무관하게 정한다 — 정류장 배치만 보고, 이웃 정류장 마커에서 가장 먼 쪽(아래 → 오른쪽 → 왼쪽 → 위 순으로 비교, 4px 넘게 나아야 바꿈)
+       *  ② 기본 자리가 겹칠 때만(다른 이름표·마커·번호 원·시계 묶음, 그다음 노선 선) 가까운 다른 자리로 — 바로 옆 4방향·대각 4방향, 조금 더 떨어진 4방향(최대 +24px)까지만
+       *  ③ 그래도 없으면 그 가까운 자리 중 가장 덜 겹치는 곳(이름표·정류장과의 겹침이 가장 나쁨). 멀리 있는 다른 정류장 옆으로는 가지 않는다
+       *  ④ 이름표와 정류장 마커 사이에는 늘 짧은 연결선
+       * 이름표는 인물 얼굴보다 먼저 자리를 잡는다(얼굴이 이름표를 피함). 좌표는 뷰의 project = 무대 CSS px(3D 캔버스는 devicePixelRatio 배율 버퍼를
+       * CSS 크기로 늘려 그리므로 같은 좌표계)이고, 무대 크기가 바뀌면(ResizeObserver·창 크기 변경) 다시 배치한다 */
+      /* 간판형(2026-11-01 사용자 선택 A, 좁은 지도 ≤ 520px): 이름표를 정류장(건물) 바로 옆에 붙인다 — 짧은 이름(config short), 연결선 없음,
+       * 더 떨어진 자리(+12·+24px) 후보 없음. 안 겹치는 바로 옆 자리가 없으면 바로 옆 자리 중 가장 덜 겹치는 곳 */
+      var narrow = box.width <= 520;
+      var ids = Object.keys(st.nodes), P = {}, L = {}, DIRS = ['S', 'E', 'W', 'N'];
+      function inBox(r) { return r.x >= 2 && r.y >= 2 && r.x + r.w <= box.width - 2 && r.y + r.h <= box.height - 2; }
+      ids.forEach(function (id) {
+        var n = st.nodes[id], el = document.createElement('div'), wait = st.waiting[id] || 0;
+        P[id] = project(n.x, n.y);
+        el.className = 'net-label'; el.dataset.node = id;
+        el.appendChild(document.createElement('span')).textContent = narrow && n.short ? n.short : n.name;
+        if (narrow && n.short) { el.title = n.name; el.setAttribute('aria-label', n.name); }
+        if (st.newNodes.indexOf(id) >= 0) { var nb = document.createElement('span'); nb.className = 'net-new'; nb.textContent = '새 정류장'; el.appendChild(nb); el.classList.add('is-new'); }
+        if (st.showWait && wait > 0) {
+          var w = document.createElement('span'); w.className = 'net-wait' + (wait >= T.waitDanger ? ' danger' : wait >= T.waitCaution ? ' caution' : '');
+          w.textContent = '👤 ' + wait; w.title = n.name + ' 대기 ' + wait + '명'; el.appendChild(w); el.dataset.wait = wait;
+        }
+        labels.appendChild(el);
+        var own = placed.filter(function (q) { return q.kind === 'stop' && q.id === id; })[0];
+        L[id] = { el: el, w: el.offsetWidth, h: el.offsetHeight, gap: (own ? own.w / 2 : T.stop + 7) - 2 };
+      });
+      function slot(id, dir, extra) {
+        var p = P[id], w = L[id].w, h = L[id].h, g = L[id].gap + (extra || 0), d = g * 0.72, r;
+        if (dir === 'S') r = { x: p.left - w / 2, y: p.top + g }; else if (dir === 'E') r = { x: p.left + g, y: p.top - h / 2 };
+        else if (dir === 'W') r = { x: p.left - g - w, y: p.top - h / 2 }; else if (dir === 'N') r = { x: p.left - w / 2, y: p.top - g - h };
+        else if (dir === 'SE') r = { x: p.left + d, y: p.top + d }; else if (dir === 'SW') r = { x: p.left - d - w, y: p.top + d };
+        else if (dir === 'NE') r = { x: p.left + d, y: p.top - d - h }; else r = { x: p.left - d - w, y: p.top - d - h };
+        return { x: Math.round(r.x), y: Math.round(r.y), w: w, h: h, dir: dir };
+      }
+      function clearance(id, r) { var m = 60; ids.forEach(function (o) { if (o === id) return; var q = P[o], dx = Math.max(r.x - q.left, 0, q.left - (r.x + r.w)), dy = Math.max(r.y - q.top, 0, q.top - (r.y + r.h)); m = Math.min(m, Math.hypot(dx, dy)); }); return m; }
+      ids.forEach(function (id) { var best = 'S', bs = -Infinity; DIRS.forEach(function (d) { var r = slot(id, d), c = clearance(id, r) - (inBox(r) ? 0 : 1000); if (c > bs + 4) { bs = c; best = d; } }); L[id].dir = best; });
+      var WEIGHT = { label: 5, stop: 4, face: 2, cap: 2, hud: 0.2 };
+      ids.forEach(function (id) {
+        var lab = L[id], p = P[id], order = [lab.dir].concat(DIRS.filter(function (d) { return d !== lab.dir; })), cands = [];
+        order.forEach(function (d) { cands.push(slot(id, d, 0)); }); ['SE', 'SW', 'NE', 'NW'].forEach(function (d) { cands.push(slot(id, d, 0)); });
+        if (!narrow) [12, 24].forEach(function (e) { order.forEach(function (d) { cands.push(slot(id, d, e)); }); });
+        var inside = cands.filter(inBox); if (!inside.length) inside = [cands[0]].map(function (r) { return { x: Math.min(Math.max(2, r.x), box.width - r.w - 2), y: Math.min(Math.max(2, r.y), box.height - r.h - 2), w: r.w, h: r.h, dir: r.dir }; });
+        function others(q) { return !(q.kind === 'stop' && q.id === id); }
+        function hits(r, hud) { return placed.some(function (q) { return others(q) && (hud || q.kind !== 'hud') && overlap(r, q); }); }
+        function lines(r) { return segs.some(function (s) { return segHits(s, r, s.pad); }); }
+        var best = null;
+        // 0) 기본 자리가 다른 것과 안 겹치면 그대로(노선 선이 지나가도 — 노선을 바꿀 때마다 튀지 않게) 1) 옮길 때는 노선 선까지 피함 2) 선은 허용 3) 시계·조작 묶음 가장자리도 허용
+        if (inside[0].dir === lab.dir && inBox(inside[0]) && !hits(inside[0], false)) best = inside[0];
+        else [[true, false], [false, false], [false, true]].some(function (pass) { return inside.some(function (r) { if (hits(r, pass[1]) || (pass[0] && lines(r))) return false; best = r; return true; }); });
+        if (!best) best = inside.reduce(function (acc, r) {
+          var sc = placed.reduce(function (sum, q) { if (!others(q)) return sum; var a2 = Math.max(0, Math.min(r.x + r.w, q.x + q.w) - Math.max(r.x, q.x)) * Math.max(0, Math.min(r.y + r.h, q.y + q.h) - Math.max(r.y, q.y)); return sum + a2 * (WEIGHT[q.kind] || 1); }, 0) + (lines(r) ? 40 : 0);
+          return !acc || sc < acc.sc ? { r: r, sc: sc } : acc;
+        }, null).r;
+        lab.el.style.left = best.x + 'px'; lab.el.style.top = best.y + 'px'; lab.el.dataset.dir = best.dir;
+        // 짧은 연결선: 마커 가장자리 → 이름표의 가장 가까운 점
+        var bx = Math.max(best.x, Math.min(p.left, best.x + best.w)), by = Math.max(best.y, Math.min(p.top, best.y + best.h)), dd = Math.hypot(bx - p.left, by - p.top);
+        if (!narrow && dd > T.stop + 1) svgEl('line', { 'class': 'leader', 'data-node': id, x1: p.left + (bx - p.left) / dd * T.stop, y1: p.top + (by - p.top) / dd * T.stop, x2: bx, y2: by }, gLead);
+        placed.push({ x: best.x, y: best.y, w: best.w, h: best.h, kind: 'label', id: id });
+      });
+      // 인물 얼굴 자리(이름표 다음): 출발 정류장 옆 — 위 → 왼쪽 위 → 오른쪽 위 → 왼쪽 → 오른쪽 → 아래, 노선 선·마커·번호 원·이름표를 피한다
       facePos = {};
       st.faces.forEach(function (f) {
         var n = st.nodes[f.node]; if (!n) return;
@@ -105,7 +168,7 @@
           return cand.some(function (o) {
             var r = { x: p.left + o[0], y: p.top + o[1], w: s, h: s };
             if (r.x < 2 || r.y < 2 || r.x + r.w > box.width - 2 || r.y + r.h > box.height - 2) return false;
-            var area = placed.reduce(function (sum, q) { return sum + Math.max(0, Math.min(r.x + r.w, q.x + q.w) - Math.max(r.x, q.x)) * Math.max(0, Math.min(r.y + r.h, q.y + q.h) - Math.max(r.y, q.y)); }, 0);
+            var area = placed.reduce(function (sum, q) { return sum + Math.max(0, Math.min(r.x + r.w, q.x + q.w) - Math.max(r.x, q.x)) * Math.max(0, Math.min(r.y + r.h, q.y + q.h) - Math.max(r.y, q.y)) * (q.kind === 'label' ? 3 : 1); }, 0);
             if (area < leastA) { leastA = area; least = r; }
             if (area > 0) return false;
             if (avoidLines && segs.some(function (sg) { return segHits(sg, r, sg.pad); })) return false;
@@ -114,42 +177,6 @@
         });
         if (!best) best = least || { x: p.left - s / 2, y: p.top - g2 - s, w: s, h: s }; // 빈 자리가 끝내 없으면 가장 덜 겹치는 곳
         facePos[f.id] = best; placed.push({ x: best.x, y: best.y, w: s, h: s, kind: 'face', id: f.id });
-      });
-      // 이름표(+대기 pill): 아래 → 오른쪽 → 왼쪽 → 위 중 빈 자리
-      Object.keys(st.nodes).forEach(function (id) {
-        var n = st.nodes[id], p = project(n.x, n.y), el = document.createElement('div'), wait = st.waiting[id] || 0;
-        el.className = 'net-label'; el.dataset.node = id;
-        el.appendChild(document.createElement('span')).textContent = n.name;
-        if (st.showWait && wait > 0) {
-          var w = document.createElement('span'); w.className = 'net-wait' + (wait >= T.waitDanger ? ' danger' : wait >= T.waitCaution ? ' caution' : '');
-          w.textContent = '👤 ' + wait; w.title = n.name + ' 대기 ' + wait + '명'; el.appendChild(w); el.dataset.wait = wait;
-        }
-        labels.appendChild(el);
-        // 아래 → 오른쪽 → 왼쪽 → 위(바로 옆), 안 되면 조금씩 멀리(8방향) — 다른 이름표·마커·번호 원과 노선 선을 피한다.
-        // 떨어진 자리면 보조선으로 마커와 잇는다. 끝내 자리가 없으면 노선 선만 무시하고 다시 찾는다
-        var lw = el.offsetWidth, lh = el.offsetHeight, gap = T.stop + 5, best = null, far = false;
-        function cands() { var out = [[-lw / 2, gap], [gap + 2, -lh / 2], [-gap - 2 - lw, -lh / 2], [-lw / 2, -gap - lh]];
-          [18, 36, 56, 78].forEach(function (d) { [[0, 1], [1, 0], [-1, 0], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]].forEach(function (u) {
-            var cx = u[0] * (gap + d + (u[0] ? lw / 2 : 0)), cy = u[1] * (gap + d + (u[1] ? lh / 2 : 0)); out.push([cx - lw / 2, cy - lh / 2, true]); }); });
-          return out; }
-        // 1) 선·모든 것 피함 2) 선은 허용 3) 시계·조작 묶음 가장자리는 허용 4) 그래도 없으면 가장 덜 겹치는 곳(이름표끼리 겹침이 가장 나쁨)
-        var least = null, leastA = Infinity;
-        [[true, true], [false, true], [false, false]].some(function (pass) {
-          return cands().some(function (o) {
-            var r = { x: p.left + o[0], y: p.top + o[1], w: lw, h: lh };
-            if (r.x < 2 || r.y < 2 || r.x + r.w > box.width - 2 || r.y + r.h > box.height - 2) return false;
-            var area = placed.reduce(function (sum, q) { var a2 = Math.max(0, Math.min(r.x + r.w, q.x + q.w) - Math.max(r.x, q.x)) * Math.max(0, Math.min(r.y + r.h, q.y + q.h) - Math.max(r.y, q.y)); return sum + a2 * (q.kind === 'hud' ? 0.2 : q.kind === 'label' ? 5 : 1); }, 0);
-            if (area < leastA) { leastA = area; least = { r: r, far: !!o[2] }; }
-            if (placed.some(function (q) { return (pass[1] || q.kind !== 'hud') && overlap(r, q); })) return false;
-            if (pass[0] && segs.some(function (s) { return segHits(s, r, s.pad); })) return false;
-            best = r; far = !!o[2]; return true;
-          });
-        });
-        if (!best && least) { best = least.r; far = least.far; }
-        if (!best) best = { x: Math.min(Math.max(2, p.left - lw / 2), box.width - lw - 2), y: p.top + gap, w: lw, h: lh };
-        el.style.left = best.x + 'px'; el.style.top = best.y + 'px';
-        if (far) { var bx = Math.max(best.x, Math.min(p.left, best.x + lw)), by = Math.max(best.y, Math.min(p.top, best.y + lh)); svgEl('line', { 'class': 'leader', x1: p.left, y1: p.top, x2: bx, y2: by }, gLead); }
-        placed.push({ x: best.x, y: best.y, w: lw, h: lh, kind: 'label', id: id });
       });
       if (opts.onLayout) opts.onLayout();
     }
@@ -165,7 +192,11 @@
       flash: function (id) { flashT[id] = performance.now(); redraw(); root.setTimeout(redraw, 950); },
       setFaces: function (list) { st.faces = list || []; redraw(); },
       facePos: function (id) { return facePos[id] || null; },
-      setOptions: function (o) { if ('showWait' in o) st.showWait = !!o.showWait; if ('show' in o) st.show = !!o.show; redraw(); },
+      setOptions: function (o) {
+        if ('showWait' in o) st.showWait = !!o.showWait; if ('show' in o) st.show = !!o.show;
+        if ('newNodes' in o) { var was = st.newNodes.join(), at = o.newAt || 0; st.newNodes = o.newNodes || []; if (was !== st.newNodes.join() || at !== st.newAt) { st.newAt = at; var left = 2700 - (performance.now() - at); if (st.newNodes.length && left > 0) root.setTimeout(redraw, left); } }
+        redraw();
+      },
       redraw: redraw, draw: draw,
       rects: function () { return placed.slice(); },
       caps: function () { return (st.caps || []).slice(); }

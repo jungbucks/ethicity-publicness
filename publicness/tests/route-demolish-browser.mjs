@@ -70,7 +70,7 @@ try{for(const view of (process.env.VIEWS||'2d,3d').split(',')){
  await page.locator('#btn-undo').click();assert.deepEqual(await nodes(page),['FCB','DE']);assert.deepEqual(await buses(page),[1,2],'되돌리기로 노선·배치 복구');
  await setRoutes(page,[['F','D'],[]]);
  // AI 미리보기 중에는 철거하지 않는다
- await page.locator('#plan-ai-toggle').click();await page.locator('#goal-time').click();await page.locator('#rec-card').waitFor();await page.locator('#plan-ai-toggle').click();
+ await page.locator('#plan-ai-toggle').click();await page.locator('#goal-time').click();await page.locator('#rec-card').waitFor();/* 2026-11-01: AI 패널이 지도 밖 사이드바라 닫지 않고 미리 보기 그대로 둔다(닫으면 미리 보기도 끝남) */
  await page.waitForTimeout(500);const before=await page.evaluate(()=>JSON.stringify(PB.App.s.draft));pt=await linePoint(page,1,.3);
  if(pt){await page.mouse.dblclick(pt.x,pt.y);await page.waitForTimeout(150);}
  assert.equal(await page.evaluate(()=>JSON.stringify(PB.App.s.draft)),before,'미리보기 중 초안 그대로');
