@@ -11,6 +11,9 @@
 .map-banner { position: absolute; top: 12px; left: 12px; right: 12px; width: fit-content; z-index: 12; margin: 0 auto; padding: 7px 14px;
   border-radius: 999px; background: #1f2a37f0; color: #fff; font-size: 14px; font-weight: 600; line-height: 1.5; text-align: center; pointer-events: none; box-shadow: 0 4px 14px #17233533; }
 @media (max-width: 700px) { .map-banner { top: 64px; font-size: 13px; border-radius: 12px; } }
+/* 빈자리가 모자라면 작은 글씨로(ui-arrival placeBanner, P1-5 ④) */
+.map-banner.is-compact { padding: 3px 9px; font-size: 12px; line-height: 1.4; border-radius: 10px; }
+.map-banner.is-outside { z-index: 40; right: auto; margin: 0; }
 
 /* ── 새 정류장: 고리(2.6초) + 이름표 배지 ── */
 .net-stop .new-ring { fill: none; stroke: var(--sem-action); stroke-width: 3; transform-box: fill-box; transform-origin: center; animation: new-ring 1.3s ease-out 2; }
@@ -31,6 +34,15 @@
 .first-coach .coach-close { margin-top: 6px; padding: 2px 8px; font-size: 13px; }
 .first-coach[data-step="done"] { border-color: var(--ok); }
 @media (max-width: 500px) { .first-coach { width: min(210px, calc(100% - 16px)); padding: 8px 10px 6px; } .first-coach .coach-text { font-size: 15px; } }
+/* P1-1(2026-11-02 재수정): 지도에 빈자리가 모자라면 상자를 줄인다(ui-arrival place가 큰 것부터 재 봄) — 작게: 제목·닫기 한 줄, 글자 14px / 한 줄: 제목은 화면 읽기용으로만, 글 한 줄 + 닫기 */
+.first-coach.is-compact { display: grid; grid-template-columns: 1fr auto; align-items: center; column-gap: 6px; width: max-content; max-width: min(196px, calc(100% - 16px)); padding: 5px 8px 7px; border-radius: 12px; }
+.first-coach.is-compact .coach-title { grid-column: 1; grid-row: 1; margin: 0; font-size: 12px; }
+.first-coach.is-compact .coach-close { grid-column: 2; grid-row: 1; margin: 0; padding: 0 6px; min-height: 0; font-size: 12px; line-height: 1.6; }
+.first-coach.is-compact .coach-text { grid-column: 1 / -1; grid-row: 2; font-size: 14px; line-height: 1.4; }
+.first-coach.is-line { max-width: calc(100% - 12px); padding: 2px 3px 2px 10px; border-radius: 999px; }
+.first-coach.is-line .coach-title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.first-coach.is-line .coach-text { grid-column: 1; grid-row: 1; font-size: 13px; line-height: 1.35; }
+.first-coach.is-line .coach-close { grid-column: 2; grid-row: 1; line-height: 1.35; }
 .coach-finger { position: absolute; z-index: 13; width: 0; height: 0; pointer-events: none; }
 .coach-finger svg { position: absolute; left: -6px; top: 4px; filter: drop-shadow(0 2px 2px #0005); animation: coach-press 1.2s ease-in-out infinite; }
 .coach-finger .coach-tap { position: absolute; left: -20px; top: -20px; width: 40px; height: 40px; border-radius: 50%; border: 3px solid var(--sem-action); animation: coach-tap 1.2s ease-out infinite; }

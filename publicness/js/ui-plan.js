@@ -361,25 +361,11 @@
     var bodyWrap=el('div',{'class':'panel-body'});while(panel.firstChild&&panel.firstChild!==foot)bodyWrap.appendChild(panel.firstChild);panel.insertBefore(bodyWrap,foot);bodyWrap.scrollTop=P.scroll||0;
     P.baseline=snapshot();var r=active();return{selectable:P.preview?[]:nextStops(),selected:P.preview?[]:(r?r.nodes:[]),activeRoute:P.editing,preview:P.preview&&P.rec?P.rec.plan:null};
   };
-  // 출발 확인(2026-10-27 사용자 결정으로 단순화): 운행 구성만 보여 주고 [노선 고치기]·[이대로 출발]. 예상 결과(인물 위험·노선별 예상 이용·재정 예상)는 빼서
-  // 텍스트를 줄이고 모바일에서도 한눈에 보이게 한다(재정 예상은 계획 화면 지도 아래 한 줄에 있다). 구성 오류(빈 노선 배정 등)는 출발 버튼 자체가 막는다
+  // 출발 확인(2026-11-02 사용자 결정, 재논의 금지): "이대로 출발할까요?"만 묻는다 — 주요 인물 기준 충족 예상·노선 없는 요청·예상 수지 요약,
+  // 운행 구성 목록, 출발 뒤 규칙 문단은 넣지 않는다(P1-5 ① 요약을 되돌림). 예측이 아닌 안전 경고 하나만: 운행하는 버스가 0대면 한 줄
   function departCheck(){
     var s=st(),body=document.querySelector('#confirm-depart-body');body.textContent='';
-    var used=s.draft.buses.filter(function(b){return b.routeNum!=null;}),resting=s.draft.buses.filter(function(b){return b.routeNum==null;});
-    var comp=el('ul',{'class':'plain depart-plan'});
-    S.routesInOrder(s).forEach(function(r){var ids=assigned(r.num).map(function(b){return b.id+'호차';});
-      comp.appendChild(el('li',{'data-num':r.num},r.num+'번 · '+(r.nodes.length?routeText(r):'정류장 없음')+' · '+(ids.length?ids.join(', '):'버스 없음 — 운행하지 않아요')));});
-    if(resting.length)comp.appendChild(el('li',null,'쉬는 버스: '+resting.map(function(b){return b.id+'호차';}).join(', ')));
-    /* P1-5 ①(2026-11-02): 접지 않은 요약 2~3줄 — 주요 인물 기준 충족 예상·노선이 없어 못 떠나는 요청·예상 수지(계획 화면과 같은 기본 수요 기준 예상) */
-    var ex=S.expectedRun(s),cnt=PB.ResidentEvaluation.count(ex.metrics.residents),k=ex.metrics.costs,sum=el('ul',{'class':'plain depart-summary',id:'depart-summary'});
-    sum.appendChild(el('li',{'data-key':'residents','class':cnt.satisfied<cnt.total?'warn':''},'주요 인물 기준 충족 예상 '+cnt.satisfied+'/'+cnt.total+'명'));
-    sum.appendChild(el('li',{'data-key':'nolink','class':ex.metrics.noLink?'warn':''},'노선이 없어 못 떠나는 요청 '+ex.metrics.noLink+'건'));
-    sum.appendChild(el('li',{'data-key':'profit'},'예상 수지 '+app().won(k.total)));
-    body.appendChild(sum);
-    body.appendChild(el('h3',null,'운행 구성'));body.appendChild(comp);
-    if(!used.length)body.appendChild(el('p',{'class':'callout warn',id:'depart-no-bus'},'운행하는 버스가 없어요. 이대로 출발하면 아무도 버스를 탈 수 없어요.'));
-    // 출발 뒤 바꿀 수 있는 것(도움말·운행 안내와 같은 규칙, 2026-11-01)
-    body.appendChild(el('p',{'class':'note',id:'depart-rule'},s.phase>=3?'출발한 뒤에는 오전·오후 한 번씩 버스 한 대만 옮길 수 있어요. 노선 모양은 다음 단계에서 고쳐요.':'이번 단계는 출발하면 운행이 끝날 때까지 그대로 달려요. 3단계부터는 오전·오후 한 번씩 버스 한 대만 옮길 수 있어요. 노선 모양은 다음 단계에서 고쳐요.'));
+    if(!s.draft.buses.some(function(b){return b.routeNum!=null;}))body.appendChild(el('p',{'class':'callout warn',id:'depart-no-bus'},'운행하는 버스가 없어요. 이대로 출발하면 아무도 버스를 탈 수 없어요.'));
     document.querySelector('#confirm-depart').showModal();document.querySelector('#confirm-yes').focus();
   }
   var M=PB.Metrics;

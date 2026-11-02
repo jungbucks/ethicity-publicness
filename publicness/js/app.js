@@ -84,6 +84,7 @@
     if (!n.hidden && n.textContent === msg) return true;
     if (opts.priority) toastLockUntil = now + (opts.ms || 2600);
     n.textContent = msg; n.hidden = false;
+    if (PB.Arrival && $('#map-banner')) PB.Arrival.layout(); /* 단계 배너가 알림 자리를 비켜 가게(P1-5 ④) */
     clearTimeout(toastTimer); toastTimer = setTimeout(function () { n.hidden = true; n.textContent = ''; }, opts.ms || (opts.priority ? 2600 : 2000));
     return true;
   };

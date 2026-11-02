@@ -34,7 +34,7 @@ try{
   const startEvents=await page.evaluate(()=>JSON.stringify(PB.App.s.events));
   // 1단계 −10 → 잔액 −10: 1번째 경고(창 없이 결과 본문 + 상단)
   await runPhase(page,-10);
-  assert.match(await page.locator('#finance-status').innerText(),/적자예요[\s\S]*누적 잔액 −10원 — 다음 단계를 마칠 때도 0원 미만이면 운영 계약이 종료됩니다/);
+  assert.match(await page.locator('#finance-status').innerText(),/적자예요[\s\S]*누적 잔액 −10원 — 다음 단계를 마칠 때도 0원 미만이면 운영 계약이 종료돼요/);
   assert.equal(await top(page).innerText(),'잔액 마이너스 1/2회 연속');
   assert.equal(await page.locator('dialog:modal').count(),0,'경고는 새 창 없이 결과 화면에');
   // 2단계 +5,000 → 잔액 4,990: 경고 해제

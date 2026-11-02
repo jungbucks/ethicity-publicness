@@ -165,7 +165,7 @@ try {
     const help = await page.locator('#help').innerText(); assert.doesNotMatch(help, /바꿀 수 없어요/); assert.match(help, /출발한 뒤에는 3단계부터 오전·오후 한 번씩 버스 한 대만 옮길 수 있어요\. 노선 모양은 다음 단계에서 고쳐요\./);
     await page.locator('#help form button[type=submit]').click();
     await page.evaluate(() => PB.Minimal.text(true)); await page.locator('#btn-depart').click(); await page.locator('#confirm-depart[open]').waitFor();
-    assert.match(await page.locator('#depart-rule').innerText(), /^이번 단계는 출발하면 운행이 끝날 때까지 그대로 달려요\. 3단계부터는 오전·오후 한 번씩 버스 한 대만 옮길 수 있어요/);
+    assert.equal(await page.locator('#depart-rule').count(), 0, '출발 확인은 질문만(2026-11-02 사용자 결정) — 규칙 문단 없음');
     await page.locator('#confirm-yes').click(); await page.waitForTimeout(300);
     // P1-12 → 2026-11-02 P1-2: 모든 단계 ‘다음 멈춤까지’
     assert.equal(await page.locator('#run-next').getAttribute('aria-label'), '다음 멈춤까지');

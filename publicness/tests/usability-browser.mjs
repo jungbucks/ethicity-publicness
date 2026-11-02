@@ -14,7 +14,7 @@ try{
   await page.screenshot({path:`publicness/tests/_shot-usability-tablet-${mode}.png`});
   await page.locator('#btn-new-route').click();for(const id of ['F','C','D']){await page.locator('#stop-picker').evaluate(n=>n.open=true);await page.locator('.next-stop[data-node="'+id+'"]').click();}
   assert.ok((await page.locator('#route-allocation').innerText()).includes('운행 버스 없음'));
-  await page.locator('#btn-depart').click();assert.match(await page.locator('#confirm-depart-body').innerText(),/4번 · .*버스 없음 — 운행하지 않아요/);await page.locator('#confirm-no').click();
+  await page.locator('#btn-depart').click();assert.equal(await page.locator('#confirm-depart-h').innerText(),'이대로 출발할까요?');/* 2026-11-02: 출발 확인은 질문만 — 운행 구성 목록 없음 */await page.locator('#confirm-no').click();
   await page.locator('#assign-route-1').click();assert.equal(await page.evaluate(()=>PB.App.s.draft.buses[0].routeNum),4);
   assert.ok((await page.locator('#route-allocation').innerText()).includes('운행 버스: 1호차'));
   assert.ok((await page.locator('#unassigned-warning').innerText()).includes('1번'));

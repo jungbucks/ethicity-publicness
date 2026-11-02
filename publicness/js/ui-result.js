@@ -108,7 +108,7 @@
     if(f.rule==='balance-streak'){
       if(row.deficit)lines.push('이번 단계 회차 수지 '+App.won(row.total)+' — 적자예요.'+(row.balance>=0?' 모아 둔 잔액('+App.won(row.balance)+')으로 메웠어요.':''));
       if(f.end&&f.end.cause==='contract'&&f.end.phase===h.phase){lines.push('누적 잔액이 '+f.limit+'회 연속 0원 미만('+App.won(row.balance)+')이라 운영 계약이 종료돼요. 이번 단계 결과와 정산을 확인한 뒤 종료 화면으로 넘어가요.');warn=true;}
-      else if(row.balance<0){lines.push('누적 잔액 '+App.won(row.balance)+' — 다음 단계를 마칠 때도 0원 미만이면 운영 계약이 종료됩니다.');warn=true;}
+      else if(row.balance<0){lines.push('누적 잔액 '+App.won(row.balance)+' — 다음 단계를 마칠 때도 0원 미만이면 운영 계약이 종료돼요.');warn=true;}
     }else if(f.low)lines.push('보유 잔액 '+App.won(f.balance)+'. 기본 모드는 재정을 학기 말에 평가해요. 마지막 단계가 끝난 뒤 잔액이 0원 미만이면 파산으로 끝나요.');
     if(!lines.length)return null;
     return el('p',{id:'finance-status','class':'callout'+(warn?' warn':''),role:'status'},lines.join(' '));
@@ -150,7 +150,7 @@
         App.view.setSelected([id]);App.view.flash(id);
         document.querySelector('#reason-focus').textContent=App.nodeName(id)+' 출발 정류장을 지도에 표시했어요. '+parts.join(' · ');
         document.querySelector('#stage').dataset.reasonOrigin=id;
-      }},App.nodeName(id)+' · 미도착 '+(g.noLink+g.full+g.time)+'명 — 지도에서 보기');
+      }},App.nodeName(id)+' · 미도착 '+(g.noLink+g.full+g.time)+'건 — 지도에서 보기');
       li.appendChild(b);li.appendChild(el('p',{'class':'note'},parts.join(' · ')));outcomes.appendChild(li);
     });
     if(!outcomes.children.length)outcomes.appendChild(el('li',null,'모든 지역의 요청이 목적지에 도착했어요.'));
@@ -168,7 +168,7 @@
       var od = PB.Demand.directional(cfg, h.phase)[h.event.odIndex];
       panel.appendChild(el('p', { 'class': 'callout' }, App.clock(h.event.t) + '에 ' + App.nodeName(od.o) + '→' + App.nodeName(od.d) + ' 요청이 12건 늘었어요(추가 수요).'));
     }
-    if (h.petition) panel.appendChild(el('p', { 'class': 'callout warn' }, App.clock(h.petition.t) + ' ' + App.nodeName(h.petition.zone) + ' 주민 청원: 그때까지 요청 ' + h.petition.total + '건 중 ' + h.petition.count + '명이 아직 도착하지 못했어요.'));
+    if (h.petition) panel.appendChild(el('p', { 'class': 'callout warn' }, App.clock(h.petition.t) + ' ' + App.nodeName(h.petition.zone) + ' 주민 청원: 그때까지 요청 ' + h.petition.total + '건 중 ' + h.petition.count + '건이 아직 도착하지 못했어요.'));
 
     // 예상과 실제
     var cmp = el('section', { id: 'result-compare', 'class': 'card' });
@@ -204,7 +204,7 @@
     zs.appendChild(tbl);
     zs.appendChild(el('p', { 'class': 'note' }, '출발 요청은 그 생활권에서 출발한 이동만 세요(합계 = 전체 이동 요청). 미탑승에는 잇는 노선이 없어 떠나지 못한 요청도 들어가요. 전체 도착률은 인원 합으로 계산해요(생활권 비율의 평균이 아니에요). 불만·신뢰는 게임 반응을 위한 지수예요.'));
     var extra = el('dl', { 'class': 'kv' });
-    [['이용자(한 번 이상 탄 사람)', m.users + '명 / ' + m.N],
+    [['버스를 탄 요청(한 번 이상 탐)', m.users + '건 / ' + m.N + '건'],
       ['승차 횟수(환승 포함)', m.boardings + '회'],
       ['요금 낸 미완료', m.costs.paidUnfinished + '건'],
       ['완료한 이동의 평균 소요', m.travel.doneAvg == null ? '-' : App.duration(m.travel.doneAvg)],

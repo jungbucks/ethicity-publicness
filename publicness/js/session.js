@@ -27,7 +27,7 @@
       var n = Number(str);
       if (isFinite(n)) return { seed: Number(BigInt.asUintN(32, BigInt(String(str).trim()))), mode: 'fixed', note: null };
     }
-    return { seed: 42, mode: 'default', note: '세팅 번호는 정수여야 해요. 기본 세팅으로 시작합니다.' };
+    return { seed: 42, mode: 'default', note: '세팅 번호는 정수여야 해요. 기본 세팅으로 시작해요.' };
   }
 
   function create(config, opts) {

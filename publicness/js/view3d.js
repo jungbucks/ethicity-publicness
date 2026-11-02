@@ -752,6 +752,9 @@
       }
       // 단계가 바뀐 맞춤이면 이전 카메라에서 0.6초 동안 옮겨 간다(움직임 줄이기면 바로)
       if (animateNext && start && target && !reduced) { camAnim = { from: start, to: target, t0: root.performance.now() }; setCam(start); }
+      /* P1-5 ②(2026-11-02 재수정): 옮겨 가는 0.6초 사이에 다시 맞추면(지도 틀이 자리 잡으며 크기가 바뀜) 진행 중인 이동의 끝을 새 맞춤으로 바꾼다.
+       * 예전에는 이동이 옛 끝(옛 틀 크기 기준)으로 끝나 그대로 남았다가, 단계 도착 뒤 첫 클릭(다시 그리기)에 지도 전체 투영이 바뀌어 얼굴·이름표가 한꺼번에 움직였다 */
+      else if (camAnim && target) { camAnim.to = target; setCam(camAnim.from); }
       animateNext = false; camStart = target; dirty = true; if (opts.onCamera) opts.onCamera();
     }
 

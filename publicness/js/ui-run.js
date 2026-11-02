@@ -26,10 +26,10 @@
     res.log.forEach(function (e) {
       if (e.type === 'event' && e.data.type === 'demand') {
         var od = D.directional(c, s.phase)[ev.odIndex];
-        items.push({ t: e.t, cls: 'event', text: app().clock(e.t) + ' · 갑자기 ' + app().nodeName(od.o) + '에서 ' + PB.Narrative.josa(app().nodeName(od.d), '으로') + ' 가려는 사람이 늘었어요(' + app().duration(c.events.extraMinutes) + ' 동안 12명).' });
+        items.push({ t: e.t, cls: 'event', text: app().clock(e.t) + ' · 갑자기 ' + app().nodeName(od.o) + '에서 ' + PB.Narrative.josa(app().nodeName(od.d), '으로') + ' 가려는 요청이 늘었어요(' + app().duration(c.events.extraMinutes) + ' 동안 12건).' });
       }
       if (e.type === 'petition') {
-        var complaint = '우리 동네에서 출발한 ' + e.data.count + '명이 아직 도착하지 못했어요.';
+        var complaint = '우리 동네에서 출발한 요청 ' + e.data.count + '건이 아직 도착하지 못했어요.';
         items.push({ t: e.t, cls: 'event', node: e.node, bubble: { kind: 'petition', text: complaint }, text: app().clock(e.t) + ' · ' + app().nodeName(e.node) + ' 주민 청원: “' + complaint + '”' });
       }
     });
@@ -627,7 +627,7 @@
       var sb = iconLabel(el('button', { type: 'button', id: 'speed-' + speed, 'class': 'btn', 'aria-pressed': String((App.speed || 1) === speed), title: speed + '배속 · 하루를 ' + Math.round(dayMs / speed / 1000) + '초에 보기', onclick: function () { tick(); setSpeed(speed); } }), speed + '×', speed + '배');
       sb.firstChild.className = 'speed-icon'; sb.setAttribute('aria-label', speed + '배속'); speeds.appendChild(sb);
     });
-    // 긴급 조정이 없는 1·2단계는 결정할 게 없으니 ‘다음 사건까지’(만차·대기 사건에서만 멈춤)
+    // ‘다음 멈춤까지’(P1-2): 모든 단계 같은 이름 — 긴급 조정 창과 주요 인물 판정(왕복 완료·오늘 기준 초과)에서 멈춤
     speeds.appendChild(iconLabel(el('button', { type: 'button', id: 'run-next', 'class': 'btn', 'aria-pressed': 'false', title: NEXT_TITLE, onclick: nextDecision }), '⏭', '다음 멈춤'));
     speeds.appendChild(iconLabel(el('button',{type:'button',id:'run-skip','class':'btn',title:'끝까지 건너뛰기',onclick:skipToEnd}),'⏩','끝까지'));
     speeds.appendChild(iconLabel(el('button', { type: 'button', id: 'run-sound', 'class': 'btn', 'aria-pressed': String(App.sound), title: '효과음 켜기/끄기', onclick: function () { App.setSound(!App.sound); if (App.sound) App.sfx('person'); } }), App.sound ? '🔊' : '🔇', '소리'));
@@ -640,7 +640,7 @@
     panel.appendChild(live);
     panel.appendChild(el('h3', null, '운행 소식'));
     panel.appendChild(el('ul', { id: 'run-feed', 'class': 'feed', 'aria-live': 'polite' }));
-    panel.appendChild(el('p', { 'class': 'note' }, '일반 버스 정원은 ' + cfg.bus.capacity + '명이에요.' + (s.config.challengeApplied && s.phase >= 6 ? ' 7호차 직행버스는 정원 18명·주행 속도 1.5배예요.' : '') + (s.config.challengeApplied && s.phase >= 8 ? ' 9호차 광역버스는 정원 24명이에요.' : '') + (hasEmergency(s) ? ' 운행 중에는 오전·오후 한 번씩 멈춰 버스 한 대만 옮길 수 있어요. 노선 모양은 다음 단계에서 고쳐요. 조정 30분 전부터는 1배속으로 천천히 보여 주고 원인 정류장에 고리를 띄워요. ‘⏭ 다음 결정까지’는 다음 조정이나 만차·대기 ' + P.ALERT_WAIT + '명 이상 같은 사건까지 빨리 간 뒤 멈춰요.' : ' 이번 단계는 출발하면 운행이 끝날 때까지 그대로 달려요. 3단계부터는 오전·오후 한 번씩 버스 한 대만 옮길 수 있어요. ‘⏭ 다음 사건까지’는 만차·대기 ' + P.ALERT_WAIT + '명 이상 같은 사건까지 빨리 간 뒤 멈춰요.') + ' 배속은 보는 속도만 바꾸고 결과는 같아요. 지나간 소식은 결과 화면의 ‘운행 기록’에서 다시 볼 수 있어요.'));
+    panel.appendChild(el('p', { 'class': 'note' }, '일반 버스 정원은 ' + cfg.bus.capacity + '명이에요.' + (s.config.challengeApplied && s.phase >= 6 ? ' 7호차 직행버스는 정원 18명·주행 속도 1.5배예요.' : '') + (s.config.challengeApplied && s.phase >= 8 ? ' 9호차 광역버스는 정원 24명이에요.' : '') + (hasEmergency(s) ? ' 운행 중에는 오전·오후 한 번씩 멈춰 버스 한 대만 옮길 수 있어요. 노선 모양은 다음 단계에서 고쳐요. 조정 30분 전부터는 1배속으로 천천히 보여 주고 원인 정류장에 고리를 띄워요.' : ' 이번 단계는 출발하면 운행이 끝날 때까지 그대로 달려요. 3단계부터는 오전·오후 한 번씩 버스 한 대만 옮길 수 있어요.') + ' ‘⏭ 다음 멈춤까지’는 ' + (hasEmergency(s) ? '다음 긴급 조정이나 ' : '') + '주요 인물이 왕복을 마치거나 오늘 대기 기준을 넘긴 순간까지 빨리 간 뒤 멈춰요.' + ' 배속은 보는 속도만 바꾸고 결과는 같아요. 지나간 소식은 결과 화면의 ‘운행 기록’에서 다시 볼 수 있어요.'));
     panel.appendChild(el('p', { id: 'node-info', 'class': 'note', 'aria-live': 'polite' }));
     App.onNodeClick = function (id) {
       var n = R && R.wait[id] ? R.wait[id][Math.max(0, R.minute)] : 0;

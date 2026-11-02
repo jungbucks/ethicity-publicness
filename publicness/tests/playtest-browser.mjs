@@ -30,7 +30,7 @@ try{
   assert.ok(lay.bodyBottom<=lay.barTop+1&&lay.barBottom<=977,'출발 줄이 스크롤 영역과 겹치지 않음 '+JSON.stringify(lay));
   for(const q of ['#btn-new-route','#stop-picker summary','.route-summary']){await page.locator(q).scrollIntoViewIfNeeded();const r=await page.locator(q).boundingBox();assert.ok(r.y+r.height<=lay.barTop,q+' 가 출발 줄 위에서 보임');}
   await page.locator('#btn-depart').click();
-  assert.match(await page.locator('#confirm-depart-body').innerText(),/운행 구성/);await page.locator('#confirm-yes').click();await page.locator('#speed-2').click();
+  assert.equal(await page.locator('#confirm-depart-h').innerText(),'이대로 출발할까요?');await page.locator('#confirm-yes').click();await page.locator('#speed-2').click();
   const half=await page.evaluate(()=>PB.config.bus.window*PB.config.playback.msPerMinute/2);
   const t0=await page.evaluate(()=>Date.now());await page.clock.runFor(half-2000);assert.equal(await page.evaluate(()=>PB.App.s.stage),'run','2배속 절반 직전엔 아직 운행 중');
   await page.clock.runFor(4000);await page.locator('#resident-summary').waitFor();assert.ok(await page.evaluate(t0=>Date.now()-t0,t0)<=half+3000);

@@ -48,7 +48,7 @@ body.minimal-emergency[data-screen=run] .person-chip-time,body.minimal-emergency
 #minimal-profit{min-height:56px;box-sizing:border-box}#minimal-profit.empty{display:flex;align-items:center;align-self:auto}
 
 /* P1-4 공공서비스 정류장 이름표 옆 정차 횟수(채우면 초록) */
-.net-label .net-service{padding:0 6px;border-radius:8px;background:#eef1ee;color:#41504a;font-size:11px;font-weight:700;white-space:nowrap}.net-label .net-service.done{background:#3b8267;color:#fff}
+.net-label .net-service{box-sizing:border-box;font-variant-numeric:tabular-nums;padding:0 6px;border-radius:8px;background:#eef1ee;color:#41504a;font-size:11px;font-weight:700;white-space:nowrap}.net-label .net-service.done{background:#3b8267;color:#fff}
 
 /* P1-4 예상 수지 내역(누르거나 올리면) */
 #minimal-profit{position:relative;cursor:pointer}#minimal-profit:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:8px}

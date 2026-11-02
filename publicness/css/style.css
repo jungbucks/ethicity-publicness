@@ -627,6 +627,8 @@ body[data-screen="result"] .resident-cards>li { animation:resident-reveal .35s e
 .net-cap .cap-count { fill: var(--map-label-ink); paint-order: stroke; stroke: #fff; stroke-width: 3px; }
 .net-labels { position: absolute; inset: 0; }
 .net-label { position: absolute; display: flex; align-items: center; gap: 4px; padding: 1px 7px; border-radius: 10px; background: var(--map-label-bg); color: var(--map-label-ink); font: 600 var(--fs-label)/1.5 var(--font); white-space: nowrap; box-shadow: 0 1px 3px rgba(23,35,53,.25); }
+/* 서쪽(왼쪽)에 놓인 이름표는 오른쪽 끝을 고정하므로 대기 pill·‘새 정류장’ 배지를 앞에 — 이름 글자가 정류장 옆에 그대로(P1-5 ②) */
+.net-label[data-anchor="right"] .net-wait, .net-label[data-anchor="right"] .net-new { order: -1; }
 .net-wait { padding: 0 5px; border-radius: 8px; background: #EEF0F3; font-variant-numeric: tabular-nums; }
 .net-wait.caution { background: var(--sem-caution); color: #fff; }
 .net-wait.danger { background: var(--sem-danger); color: #fff; }
@@ -724,7 +726,8 @@ body[data-screen="run"] .stage { height:min(66vh, 650px); }
   #run-controls .speed-icon { display:none; }
   #run-controls [id^="speed-"] .btn-text { margin-left:0; font-size:var(--fs-body); }
 }
-#run-controls.is-paused [id^="speed-"][aria-pressed="true"] { background:transparent; box-shadow:inset 0 0 0 1px #c9d3e0; color:var(--accent-ink); }
+/* 소리 켜짐 표시(#run-sound)도 멈춘 동안은 옅게 — ▶ 재개만 강조(P1-2 재수정 2026-11-02) */
+#run-controls.is-paused [id^="speed-"][aria-pressed="true"], #run-controls.is-paused #run-sound[aria-pressed="true"], #run-controls.is-paused #run-next[aria-pressed="true"] { background:transparent; box-shadow:inset 0 0 0 1px #c9d3e0; color:var(--accent-ink); }
 #run-controls .btn:disabled { opacity:.4; cursor:not-allowed; }
 /* P1-5 ③ 사건 고리(주황 원)가 정류장 이름표를 가리지 않게 이름표를 고리 위로 */
 #net-layer .net-labels { z-index: 11; }

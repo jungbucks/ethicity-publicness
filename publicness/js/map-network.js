@@ -28,7 +28,7 @@
     var svg = svgEl('svg', { 'class': 'net-svg net-status-svg' }); layer.appendChild(svg);
     var labels = document.createElement('div'); labels.className = 'net-labels'; layer.appendChild(labels);
     stage.appendChild(layer);
-    var st = { nodes: {}, routes: [], waiting: {}, selected: [], selectable: [], show: true, faces: [], newNodes: [], newAt: 0, service: {} }, placed = [], flashT = {}, facePos = {}, keep = { key: null, lab: {}, face: {} };
+    var st = { nodes: {}, routes: [], waiting: {}, selected: [], selectable: [], show: true, faces: [], newNodes: [], newAt: 0, service: {} }, placed = [], flashT = {}, facePos = {}, keep = { key: null, lab: {}, face: {}, svc: {} }, keeps = {};
 
     function project(x, y) { var v = getView(); return v.project(x, y); }
     function lanePoint(a, b, num, f) {
@@ -109,10 +109,20 @@
       /* 간판형(2026-11-01 사용자 선택 A, 좁은 지도 ≤ 520px): 이름표를 정류장(건물) 바로 옆에 붙인다 — 짧은 이름(config short), 연결선 없음,
        * 더 떨어진 자리(+12·+24px) 후보 없음. 안 겹치는 바로 옆 자리가 없으면 바로 옆 자리 중 가장 덜 겹치는 곳 */
       var ids = Object.keys(st.nodes), P = {}, L = {}, DIRS = ['S', 'E', 'W', 'N'];
-      /* P1-5 ②(2026-11-02): 노선을 그리거나 운행해도 이름표·얼굴이 움직이지 않게 — 같은 정류장 묶음·지도 틀 크기 동안은 지난번 자리(이름표 = 방향,
-       * 얼굴 = 정류장 기준 위치)를 먼저 쓴다. 그 자리가 다른 사각형(이름표·정류장·번호 원·시계)과 겹칠 때만 다시 고른다(노선 선이 지나가는 것은 괜찮음) */
-      var keepKey = ids.join(',') + '|' + Math.round(box.width) + 'x' + Math.round(box.height);
-      if (keep.key !== keepKey) keep = { key: keepKey, lab: {}, face: {} };
+      /* P1-5 ②(2026-11-02, 검증 뒤 재수정): 노선을 그리거나 운행해도 이름표·얼굴이 움직이지 않게 — 한 번 배치하면 같은 묶음 동안 그대로 고정한다.
+       * 묶음 = 정류장 목록 · 지도 틀 크기 · 지도 배율·위치(3D 카메라 이동 중에는 바뀜) · 계획/운행(대기 pill 자리) · 정차 횟수 pill이 붙는 정류장. 예전에는 지난 자리가 다른 사각형과 겹치면 다시 골라
+       * 노선을 이을 때마다 이름표·얼굴이 움직였다. 이제 고정 자리는 다시 고르지 않고, 나중에 생기는 번호 원이 이름표·얼굴을 피해 간다.
+       * 운행·결과에서는 처음 배치할 때 대기 pill(‘👤 88’) 자리를 미리 잡고, 이름표의 정류장 쪽 끝을 고정해 pill이 붙거나 떨어져도 이름 글자가 움직이지 않게 한다 */
+      ids.forEach(function (id) { P[id] = project(st.nodes[id].x, st.nodes[id].y); });
+      var a0 = ids.length ? P[ids[0]] : null, a1 = ids.length ? P[ids[ids.length - 1]] : null, scaleSig = a0 ? Math.round(Math.hypot(a1.left - a0.left, a1.top - a0.top) / 3) : 0;
+      var panSig = a0 ? Math.round(a0.left / 2) + ',' + Math.round(a0.top / 2) : '';
+      var keepKey = ids.join(',') + '|' + Math.round(box.width) + 'x' + Math.round(box.height) + '|' + scaleSig + '@' + panSig + '|' + (st.showWait ? 'run' : 'plan') + '|' + Object.keys(st.service).join('');
+      // 잠깐 다른 크기가 됐다 돌아와도(긴급 조정 시트 등) 그 크기에서 처음 잡은 자리로 — 묶음별로 기억(최대 40개)
+      if (keep.key !== keepKey) { if (!keeps[keepKey] && Object.keys(keeps).length >= 40) keeps = {}; keep = keeps[keepKey] = keeps[keepKey] || { key: keepKey, lab: {}, face: {}, svc: {} }; }
+      // 카메라가 아직 자리 잡기 전(정류장이 틀 밖에 투영됨)의 배치는 기억하지 않는다 — 틀 안으로 끌어온 자리가 고정되면 이름표가 엉뚱한 곳에 남는다
+      var settled = ids.every(function (id) { return P[id].left >= 0 && P[id].left <= box.width && P[id].top >= 0 && P[id].top <= box.height; });
+      var frozen = settled && ids.length > 0 && ids.every(function (id) { return keep.lab[id]; }), pillW = 0;
+      function rightAnchored(dir) { return dir === 'W' || dir === 'SW' || dir === 'NW' || /-L$/.test(dir); }
       function inBox(r) { return r.x >= 2 && r.y >= 2 && r.x + r.w <= box.width - 2 && r.y + r.h <= box.height - 2; }
       ids.forEach(function (id) {
         var n = st.nodes[id], el = document.createElement('div'), wait = st.waiting[id] || 0;
@@ -122,14 +132,20 @@
         if (narrow && n.short) { el.title = n.name; el.setAttribute('aria-label', n.name); }
         if (st.newNodes.indexOf(id) >= 0) { var nb = document.createElement('span'); nb.className = 'net-new'; nb.textContent = '새 정류장'; el.appendChild(nb); el.classList.add('is-new'); }
         // P1-4(2026-11-02): 공공서비스 정류장(외곽 마을·병원 등)은 계획 중에도 정차 횟수와 지원금 조건을 이름표 옆에(6회를 채우면 색이 바뀜)
-        if (st.service[id]) { var sv = document.createElement('span'); sv.className = 'net-service' + (st.service[id].done ? ' done' : ''); sv.textContent = st.service[id].text; sv.title = st.service[id].title || sv.textContent; el.appendChild(sv); }
+        if (st.service[id]) { var sv = document.createElement('span'); sv.className = 'net-service' + (st.service[id].done ? ' done' : ''); sv.textContent = st.service[id].text; sv.title = st.service[id].title || sv.textContent; el.appendChild(sv);
+          // 정차 횟수 글이 짧아져도(6회 채움 ✓) 처음 폭을 지켜 이름 글자가 움직이지 않게(P1-5 ②)
+          if (keep.svc[id]) sv.style.minWidth = keep.svc[id] + 'px'; }
+        labels.appendChild(el);
+        if (sv && !keep.svc[id]) keep.svc[id] = sv.getBoundingClientRect().width;
+        var baseW = el.getBoundingClientRect().width;
+        if (st.showWait && !pillW) { var probe = document.createElement('span'); probe.className = 'net-wait'; probe.textContent = '👤 88'; el.appendChild(probe); pillW = el.getBoundingClientRect().width - baseW; el.removeChild(probe); }
         if (st.showWait && wait > 0) {
           var w = document.createElement('span'); w.className = 'net-wait' + (wait >= T.waitDanger ? ' danger' : wait >= T.waitCaution ? ' caution' : '');
           w.textContent = '👤 ' + wait; w.title = n.name + ' 대기 ' + wait + '명'; el.appendChild(w); el.dataset.wait = wait;
         }
-        labels.appendChild(el);
         var own = placed.filter(function (q) { return q.kind === 'stop' && q.id === id; })[0];
-        L[id] = { el: el, w: el.offsetWidth, h: el.offsetHeight, gap: (own ? own.w / 2 : T.stop + 7) - 2 };
+        // w = 자리 잡기에 쓰는 폭(운행·결과는 대기 pill 자리 포함), real = 지금 그린 폭
+        L[id] = { el: el, w: baseW + (st.showWait ? pillW : 0), real: el.getBoundingClientRect().width, h: el.offsetHeight, gap: (own ? own.w / 2 : T.stop + 7) - 2 };
       });
       function slot(id, dir, extra) {
         var p = P[id], w = L[id].w, h = L[id].h, g = L[id].gap + (extra || 0), d = g * 0.72, r;
@@ -147,7 +163,11 @@
       function core(r, q) { if (q.kind !== 'stop') return 0; var m = T.stop + 4, cx = q.x + q.w / 2, cy = q.y + q.h / 2; return area(r, { x: cx - m, y: cy - m, w: m * 2, h: m * 2 }) * 60; }
       function lines(r) { return segs.some(function (s) { return segHits(s, r, s.pad); }); }
       var res = {};
-      ids.forEach(function (id) {
+      if (frozen) ids.forEach(function (id) {
+        var k = keep.lab[id], w = L[id].w, h = L[id].h, x = k.right ? P[id].left + k.ox - w : P[id].left + k.ox, r = { x: Math.round(x), y: Math.round(P[id].top + k.oy), w: w, h: h, dir: k.dir };
+        var q = { x: r.x, y: r.y, w: w, h: h, kind: 'label', id: id }; placed.push(q); res[id] = { r: r, q: q, inside: [r] };
+      });
+      else ids.forEach(function (id) {
         var lab = L[id], order = [lab.dir].concat(DIRS.filter(function (d) { return d !== lab.dir; })), cands = [];
         order.forEach(function (d) { cands.push(slot(id, d, 0)); }); ['SE', 'SW', 'NE', 'NW'].forEach(function (d) { cands.push(slot(id, d, 0)); });
         /* 위·아래 자리를 옆으로 민 것(2026-11-01): 가운데 맞춤 대신 이름표 한쪽 끝이 정류장 마커 위·아래에 걸치게 — 여전히 정류장에 붙은 간판. 대기 pill로 넓어진 이름표가 이웃 마커를 덮던 것 */
@@ -157,11 +177,8 @@
         function others(q) { return !(q.kind === 'stop' && q.id === id); }
         function hits(r, hud) { return placed.some(function (q) { return others(q) && (hud || q.kind !== 'hud') && overlap(r, q); }); }
         var best = null;
-        // 0) 기본 자리가 다른 것과 안 겹치면 그대로(노선 선이 지나가도 — 노선을 바꿀 때마다 튀지 않게) 1) 옮길 때는 노선 선까지 피함 2) 선은 허용 3) 시계·조작 묶음 가장자리도 허용
-        var kept = keep.lab[id] && inside.filter(function (r) { return r.dir === keep.lab[id]; })[0];
-        // 번호 원과만 겹치면 이름표는 그대로 두고 번호 원이 비켜 간다(fixCaps)
-        if (kept && !placed.some(function (q) { return others(q) && q.kind !== 'hud' && q.kind !== 'cap' && overlap(kept, q); })) best = kept;
-        else if (inside[0].dir === lab.dir && inBox(inside[0]) && !hits(inside[0], false)) best = inside[0];
+        // 0) 기본 자리가 다른 것과 안 겹치면 그대로 1) 옮길 때는 노선 선까지 피함 2) 선은 허용 3) 시계·조작 묶음 가장자리도 허용
+        if (inside[0].dir === lab.dir && inBox(inside[0]) && !hits(inside[0], false)) best = inside[0];
         else [[true, false], [false, false], [false, true]].some(function (pass) { return inside.some(function (r) { if (hits(r, pass[1]) || (pass[0] && lines(r))) return false; best = r; return true; }); });
         if (!best) best = inside.reduce(function (acc, r) {
           var sc = placed.reduce(function (sum, q) { if (!others(q)) return sum; return sum + area(r, q) * (WEIGHT[q.kind] || 1) + core(r, q); }, 0) + (lines(r) ? 40 : 0);
@@ -218,18 +235,28 @@
         }); });
       }); }
       // 이름표 고치기 → 번호 원 비키기 → (번호 원이 비켜 생긴 자리로) 이름표 한 번 더 → 번호 원 한 번 더
-      repairLabels(); fixCaps(); repairLabels(); fixCaps();
+      if (!frozen) { repairLabels(); fixCaps(); repairLabels(); } fixCaps();
       ids.forEach(function (id) {
         var best = res[id].r, p = P[id], el = L[id].el;
-        el.style.left = best.x + 'px'; el.style.top = best.y + 'px'; el.dataset.dir = best.dir; keep.lab[id] = best.dir;
+        var right = rightAnchored(best.dir), real = L[id].real;
+        // 정류장 쪽 끝을 고정: 오른쪽(서쪽 자리)은 오른쪽 끝, 나머지는 왼쪽 끝 — 대기 pill은 정류장에서 먼 쪽에 붙는다(CSS data-anchor)
+        el.style.left = (right ? best.x + best.w - real : best.x) + 'px'; el.style.top = best.y + 'px'; el.dataset.dir = best.dir; el.dataset.anchor = right ? 'right' : 'left';
+        if (!frozen && settled) keep.lab[id] = { dir: best.dir, right: right, ox: (right ? best.x + best.w : best.x) - p.left, oy: best.y - p.top };
         // 짧은 연결선: 마커 가장자리 → 이름표의 가장 가까운 점
         var bx = Math.max(best.x, Math.min(p.left, best.x + best.w)), by = Math.max(best.y, Math.min(p.top, best.y + best.h)), dd = Math.hypot(bx - p.left, by - p.top);
         if (!narrow && dd > T.stop + 1) svgEl('line', { 'class': 'leader', 'data-node': id, x1: p.left + (bx - p.left) / dd * T.stop, y1: p.top + (by - p.top) / dd * T.stop, x2: bx, y2: by }, gLead);
       });
+      /* 운행·결과: 이름표 칸 = 지금 그린 이름표(대기 pill 포함) + 아직 비어 있는 pill 자리(pad). 얼굴·번호 원은 그린 이름표는 피하고,
+       * 빈 pill 자리는 다른 곳이 없을 때만 쓴다(좁은 지도에서 pill 자리 때문에 얼굴이 이름표 위로 밀리던 것) */
+      ids.forEach(function (id) {
+        var o = res[id], k = placed.indexOf(o.q), right = rightAnchored(o.r.dir), real = L[id].real; if (k < 0 || Math.abs(o.r.w - real) < 1) return;
+        var core = { x: right ? o.r.x + o.r.w - real : o.r.x, y: o.r.y, w: real, h: o.r.h, kind: 'label', id: id }; placed[k] = core; o.q = core;
+        if (o.r.w > real) placed.push({ x: right ? o.r.x : o.r.x + real, y: o.r.y, w: o.r.w - real, h: o.r.h, kind: 'pad', id: id });
+      });
       // 인물 얼굴 자리(이름표 다음): 출발 정류장 옆 — 위 → 왼쪽 위 → 오른쪽 위 → 왼쪽 → 오른쪽 → 아래, 노선 선·마커·번호 원·이름표를 피한다
       facePos = {};
       /* 빈자리가 끝내 없을 때 얼굴이 덮어도 되는 순서: 시계 묶음 가장자리 < 번호 원 < 정류장 여백 ≪ 이름표·다른 얼굴(이름표·얼굴은 다른 길이 정말 없을 때만) */
-      var FACE_W = { label: 1000, face: 1000, stop: 4, cap: 20, hud: 1 };
+      var FACE_W = { label: 1000, face: 1000, stop: 4, cap: 20, hud: 1, pad: 3 };
       st.faces.forEach(function (f) {
         var n = st.nodes[f.node]; if (!n) return;
         var p = project(n.x, n.y), s = f.size, g2 = T.stop + 4, best = null;
@@ -237,8 +264,7 @@
         /* 좁은 지도(≤ 520px)는 빈자리가 드물어 10px 간격으로 더 촘촘히 찾는다(2026-11-01). 끝내 없으면 FACE_W 순서로 가장 덜 나쁜 자리 */
         (narrow ? [10, 20, 30, 40, 50, 62] : [20, 40, 62]).forEach(function (d) { [[0, -1], [-1, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [1, 1], [0, 1]].forEach(function (u) { cand.push([u[0] * (g2 + d + s / 2) - s / 2, u[1] * (g2 + d + s / 2) - s / 2]); }); });
         var least = null, leastA = Infinity, was = keep.face[f.id];
-        if (was) { var wr = { x: p.left + was.dx, y: p.top + was.dy, w: s, h: s };
-          if (wr.x >= 2 && wr.y >= 2 && wr.x + s <= box.width - 2 && wr.y + s <= box.height - 2 && !placed.some(function (q) { return q.kind !== 'cap' && area(wr, q) > 0; })) best = wr; }
+        if (was && settled) best = { x: p.left + was.dx, y: p.top + was.dy, w: s, h: s }; // 같은 묶음이면 처음 자리 그대로(P1-5 ②)
         if (!best) [true, false].some(function (avoidLines) {
           return cand.some(function (o) {
             var r = { x: p.left + o[0], y: p.top + o[1], w: s, h: s };
@@ -251,7 +277,7 @@
           });
         });
         if (!best) best = least || { x: p.left - s / 2, y: p.top - g2 - s, w: s, h: s }; // 빈 자리가 끝내 없으면 가장 덜 겹치는 곳
-        keep.face[f.id] = { dx: best.x - p.left, dy: best.y - p.top };
+        if (settled) keep.face[f.id] = { dx: best.x - p.left, dy: best.y - p.top };
         facePos[f.id] = best; placed.push({ x: best.x, y: best.y, w: s, h: s, kind: 'face', id: f.id });
       });
       // 얼굴이 제자리를 지켰으면 그 위의 번호 원을 한 번 더 비켜 놓는다
