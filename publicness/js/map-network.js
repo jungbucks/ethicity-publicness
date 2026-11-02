@@ -55,6 +55,11 @@
           var ln = svgEl('line', { x1: p.left, y1: p.top, x2: q.left, y2: q.top, stroke: r.color, 'stroke-width': r.preview ? T.line * 0.6 : w, 'data-route': r.num }, gLine);
           if (dash) ln.setAttribute('stroke-dasharray', dash);
           if (r.active) ln.setAttribute('class', 'active');
+          /* 노선마다 선 모양(2026-11-02 휴대폰 정리 — 빨강·초록을 구분하기 어려운 학생용): 1 실선 · 2 이중선(가운데 흰 줄) · 3 점선 · 4 동글 점선. 흰 테두리(casing)가 틈을 채운다 */
+          var pat = !r.preview && root.PB.Names ? root.PB.Names.pattern(r.num) : 'solid';
+          if (pat === 'dash') { ln.setAttribute('stroke-dasharray', (w * 2.2).toFixed(1) + ' ' + (w * 1.1).toFixed(1)); ln.setAttribute('stroke-linecap', 'butt'); ln.classList.add('pat-dash'); }
+          else if (pat === 'dot') { ln.setAttribute('stroke-dasharray', '0 ' + (w * 1.75).toFixed(1)); ln.setAttribute('stroke-width', w + 0.6); ln.classList.add('pat-dot'); }
+          else if (pat === 'double') svgEl('line', { x1: p.left, y1: p.top, x2: q.left, y2: q.top, 'class': 'double-stripe', 'stroke-width': Math.max(1.4, w * 0.32) }, gLine);
           if (!r.preview && r.kind === 'express') svgEl('line', { x1: p.left, y1: p.top, x2: q.left, y2: q.top, 'class': 'express-stripe', 'stroke-width': Math.max(2, w * 0.3) }, gLine);
           if (!r.preview && r.kind === 'regional') { ln.setAttribute('stroke-width', w + 3); svgEl('line', { x1: p.left, y1: p.top, x2: q.left, y2: q.top, 'class': 'regional-stripe', 'stroke-width': Math.max(1.5, w * 0.22) }, gLine); }
         }
@@ -89,8 +94,10 @@
       });
       caps.forEach(function (c) {
         var g = c.g = svgEl('g', { 'class': 'net-cap', 'data-route': c.num, 'data-end': c.start ? 'start' : 'end' }, gCap);
-        svgEl('circle', { cx: c.x, cy: c.y, r: T.cap, fill: c.color }, g);
-        var t = svgEl('text', { x: c.x, y: c.y + 4, 'text-anchor': 'middle', fill: lum(c.color) > 0.35 ? '#1A1D24' : '#FFFFFF' }, g); t.textContent = String(c.num);
+        /* 노선 끝 표시 = 숫자 없는 색 점(2026-11-02: 번호 원이 대기 인원 숫자와 나란히 있어 헷갈렸다). 설정 ‘노선 번호 표시’를 켜면 번호가 다시 나온다 */
+        var nums = root.PB.Names && root.PB.Names.showNumbers();
+        svgEl('circle', { cx: c.x, cy: c.y, r: nums ? T.cap : Math.round(T.cap * 0.7), fill: c.color }, g);
+        if (nums) { var t = svgEl('text', { x: c.x, y: c.y + 4, 'text-anchor': 'middle', fill: lum(c.color) > 0.35 ? '#1A1D24' : '#FFFFFF' }, g); t.textContent = String(c.num); }
         var w = T.cap * 2;
         var s = null; if (c.start && c.buses != null) { s = svgEl('text', { 'class': 'cap-count', x: c.x + T.cap + 3, y: c.y + 4 }, g); s.textContent = String(c.buses); w += 12; }
         // 시작 쪽은 예전에 계획 화면의 노선 손잡이(번호 원 24px + 버스 수 pill)가 그 위에 놓였어서 그 크기(56×30)만큼 비워 뒀다. 지금 손잡이는 선 옆 빈자리로 가므로(ui-map-plan positionBadges)

@@ -174,7 +174,7 @@
         // 휴대폰처럼 좁은 지도(≤520px)에서는 버스를 25% 크게(2026-11-01 사용자)
         if (narrow) g.setAttribute('transform', 'translate(' + x + ' ' + y + ') scale(1.25) translate(' + (-x) + ' ' + (-y) + ')');
         // 버스 = 작은 버스 모양(몸체 흰색 — 직행 7호차는 자두색, 띠는 노선색). 번호·인원 숫자 대신 정원 대비 차오르는 막대, 숫자는 마우스를 올렸을 때(title)
-        var cap = b.regional ? 24 : b.express ? 18 : 12, fill = Math.min(1, (b.riders || 0) / cap), label = b.id + '호차' + (b.regional ? ' 광역 · 정원 24명' : b.express ? ' 직행 · 정원 18명' : '') + ' · 탑승 ' + (b.riders || 0) + '/' + cap + '명' + (b.names && b.names.length ? ' (' + b.names.join('·') + ')' : '');
+        var cap = b.regional ? 24 : b.express ? 18 : 12, fill = Math.min(1, (b.riders || 0) / cap), label = (root.PB && root.PB.Names ? root.PB.Names.bus(b.id, null, b.num) : b.id + '호차') + (b.regional ? ' 광역 · 정원 24명' : b.express ? ' 직행 · 정원 18명' : '') + ' · 탑승 ' + (b.riders || 0) + '/' + cap + '명' + (b.names && b.names.length ? ' (' + b.names.join('·') + ')' : '');
         el('rect', { x: x - 14, y: y - 9, width: 28, height: 18, rx: 5, fill: b.express ? '#4B2E5C' : '#fff', stroke: '#1A1D24', 'stroke-width': 1.5 }, g);
         el('rect', { x: x - 14, y: y + 1, width: 28, height: 5, fill: b.color }, g);
         el('rect', { x: x - 10, y: y - 6, width: 20, height: 5, rx: 1.5, fill: '#9FB7CC' }, g);

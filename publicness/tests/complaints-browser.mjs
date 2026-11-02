@@ -18,7 +18,7 @@ try{
     assert.ok((await page.locator('.bubble[data-kind="noLink"]').first().innerText()).includes('노선 없음'));
     await page.clock.runFor(60);
     const full=page.locator('.bubble[data-kind="full"]').first();await full.waitFor({timeout:20000});
-    assert.ok(await full.evaluate(b=>PB.App.s.current.result.log.some(e=>e.type==='full'&&e.node===b.dataset.node&&b.textContent.includes(e.bus+'호차가 만차라 '+e.data.left+'명이 못 탔어요'))));
+    assert.ok(await full.evaluate(b=>PB.App.s.current.result.log.some(e=>e.type==='full'&&e.node===b.dataset.node&&b.textContent.includes(' 버스가 만차라 '+e.data.left+'명이 못 탔어요')&&!/\d+호차/.test(b.textContent)/* 2026-11-02 버스는 색 이름 */)));
     assert.equal(await full.evaluate(b=>getComputedStyle(b).borderTopColor),'rgb(198, 40, 40)');
     assert.equal(await full.evaluate(b=>getComputedStyle(b).borderTopWidth),'2px');
     assert.equal(await page.locator('#panel #speed-2').count(),0);

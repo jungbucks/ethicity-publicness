@@ -86,7 +86,7 @@
     var s=App.s,sec=el('section',{id:'route-report','aria-labelledby':'route-report-title'});
     sec.appendChild(el('h3',{id:'route-report-title'},'오늘 노선은 얼마나 쓰였을까요?'));
     var rows=M.routeReport(s.current.result,S.routesInOrder(s),s.draft.buses);
-    sec.appendChild(table(['노선','배정 차량','승차','최종 도착','대당 승차','만차 발생'],rows.map(function(r){return [r.num+'번',r.buses+'대',r.boardings+'회',r.arrived+'건',r.perBus==null?'미배정':r.perBus+'회',r.fulls+'회'];})));
+    sec.appendChild(table(['노선','배정 차량','승차','최종 도착','대당 승차','만차 발생'],rows.map(function(r){return [PB.Names.color(r.num),r.buses+'대',r.boardings+'회',r.arrived+'건',r.perBus==null?'미배정':r.perBus+'회',r.fulls+'회'];})));
     sec.appendChild(el('p',{'class':'note'},'승차는 환승을 포함한 횟수예요. 최종 도착은 목적지에서 내린 마지막 노선에만 기록해요. 만차 발생은 정류장에서 승객을 남긴 횟수예요. 대당 승차가 적어도 누군가에게 꼭 필요한 노선일 수 있어요.'));
     return sec;
   }

@@ -71,7 +71,7 @@ try {
       assert.match(await page.locator('#emergency-advice').textContent(), /모든 노선에 버스가 1대뿐이라.*변경 없이 계속/);
       await page.selectOption('#emergency-bus', '2'); await page.waitForTimeout(400);
       const warn = await page.locator('#emergency-warn').textContent();
-      assert.ok(await page.locator('#emergency-warn').isVisible()); assert.match(warn, /^2번 노선 버스가 0대가 돼요\./); assert.match(warn, /준\(기차역→산업·일자리\)/);
+      assert.ok(await page.locator('#emergency-warn').isVisible()); assert.match(warn, /^초록 노선 버스가 0대가 돼요\./); /* 2026-11-02 노선은 색 이름(2번 = 초록) */ assert.match(warn, /준\(기차역→산업·일자리\)/);
       assert.match(await page.locator('#emergency-impact').textContent(), /^옮기면: 하루 도착 예상 \d+ → \d+건 · 주요 인물 기준 충족 \d → \d명$/);
       await page.screenshot({ path: `${SHOT}/_shot-p0-2-warn-1148.png` });
       await page.locator('#emergency-continue').click(); await page.waitForTimeout(300);

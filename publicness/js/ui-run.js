@@ -37,7 +37,7 @@
     res.log.forEach(function (e) {
       if (e.type !== 'full' || fullSeen[e.node]) return;
       fullSeen[e.node] = true;
-      var complaint = e.bus + '호차가 만차라 ' + e.data.left + '명이 못 탔어요. 다음 버스를 기다려요.';
+      var complaint = runBusName(app(), res, e.bus, e.t) + '가 만차라 ' + e.data.left + '명이 못 탔어요. 다음 버스를 기다려요.';
       items.push({ t: e.t, cls: 'full', node: e.node, bubble: { kind: 'full', text: complaint }, text: app().clock(e.t) + ' · ' + app().nodeName(e.node) + '에서 ' + complaint });
     });
     PB.Narrative.bubbles(res, c, W).forEach(function (b) {
@@ -223,7 +223,7 @@
     if (!slowNow) {
       // 일반 사건(만차·대기 10명)은 멈추지 않고 지난 약 30분 동안 지도에 표시만(P1-2)
       var recent = (R.notables || []).filter(function (n) { return n.t <= tf && tf - n.t < 4; });
-      setAlerts(recent.map(function (n) { var name = App.nodeName(n.node); return n.kind === 'full' ? { node: n.node, kind: 'full', text: name + ' 만차 · ' + n.bus + '호차에 ' + n.n + '명 못 탐' } : { node: n.node, kind: 'wait', text: name + ' 대기 ' + n.n + '명' }; }));
+      setAlerts(recent.map(function (n) { var name = App.nodeName(n.node); return n.kind === 'full' ? { node: n.node, kind: 'full', text: name + ' · ' + runBusName(App, R.res, n.bus, n.t) + '가 만차라 ' + n.n + '명 못 탐' } : { node: n.node, kind: 'wait', text: name + ' 대기 ' + n.n + '명' }; }));
       return;
     }
     var cause = causeAt(cp), m = Math.floor(tf);
@@ -270,10 +270,10 @@
       // the adjacent notice tray instead of covering a stop or another message.
       var tray = $('#map-notice-overflow');
       if (!best) {
-        if (!tray) { tray = el('div', { id: 'map-notice-overflow', 'class': 'map-notice-overflow' }); $('#stage').after(tray); }
+        if (!tray) { tray = el('div', { id: 'map-notice-overflow', 'class': 'map-notice-overflow' }); var bc = document.body.classList; if ((bc.contains('phone-p') || bc.contains('phone-l')) && $('#map-strip')) $('#map-strip').appendChild(tray); else $('#stage').after(tray); } /* 휴대폰 배치는 알림 줄 안(지도 크기 그대로, 2026-11-02) */
         var item = box._overflow;
         if (!item) { item = el('div'); tray.appendChild(item); box._overflow = item; }
-        item.textContent = App.nodeName(box.dataset.node) + ' · ' + label.textContent;
+        var nm = App.nodeName(box.dataset.node); item.textContent = label.textContent.indexOf(nm) === 0 ? label.textContent : nm + ' · ' + label.textContent;
         label.style.visibility = 'hidden';
       } else {
         if (box._overflow) { box._overflow.remove(); box._overflow = null; }
@@ -304,13 +304,21 @@
   }
   function setStatus(text) { var st = $('#run-status'); if (st) st.textContent = text; }
 
+  /* 운행 중 버스 이름(2026-11-02): 번호(N호차) 대신 그 시각에 달리던 노선 색 — ‘초록 버스’, 쉬는 버스는 ‘대기 버스’(js/route-names.js) */
+  function runBusName(App, res, id, t) { var tl = res && res.timelines.filter(function (x) { return x.busId === id; })[0]; return PB.Names.bus(id, null, tl ? busAt(App, tl, t).num : undefined); }
+  // 같은 이름이 둘 이상이면 (첫째)·(둘째) — 긴급 조정 창처럼 버스를 하나씩 골라야 할 때
+  function runBusLabels(App, res, t) {
+    var tls = res.timelines.slice().sort(function (a, b) { return a.busId - b.busId; }), names = tls.map(function (tl) { return PB.Names.bus(tl.busId, null, busAt(App, tl, t).num); }), seen = {}, out = {}, ORD = ['첫째', '둘째', '셋째', '넷째', '다섯째', '여섯째', '일곱째', '여덟째', '아홉째'];
+    tls.forEach(function (tl, i) { var n = names[i], k = names.filter(function (x) { return x === n; }).length; seen[n] = (seen[n] || 0) + 1; out[tl.busId] = k > 1 ? n + '(' + (ORD[seen[n] - 1] || seen[n]) + ')' : n; });
+    return out;
+  }
   // 버스 한 대의 그 시각 노선 번호·위치
   function busAt(App, tl, t) {
     var changes = (tl.assignments || []).filter(function (a) { return a.t <= t; }), route = changes.length ? changes[changes.length - 1].route : tl.route;
     return { pos: PB.Schedule.positionAt(tl, cfg, t), num: route ? App.numForPlanRoute(route) : null };
   }
   function busWhere(App, b, riders) {
-    var p = b.pos, line = b.num ? b.num + '번 노선' : '노선 없음', text;
+    var p = b.pos, line = b.num ? PB.Names.route(b.num) : '노선 없음', text;
     if (p.node && p.parked) text = b.num ? line + ' · ' + App.nodeName(p.node) + '에서 출발 대기' : '쉬는 중 · ' + App.nodeName(p.node) + ' 차고';
     else if (p.node) text = line + ' · ' + App.nodeName(p.node) + ' 정류장';
     else text = line + ' · ' + App.nodeName(p.from) + ' → ' + App.nodeName(p.to) + ' 이동 중';
@@ -336,10 +344,11 @@
     d.appendChild(why);
     var occ = PB.Sim.occupancyAt(R.res, Math.floor(at)), list = el('ul', { id: 'emergency-buses', 'class': 'plain emergency-buses' });
     d.appendChild(el('h3', null, '버스 지금 위치'));
+    var labs = runBusLabels(App, R.res, at);
     R.res.timelines.slice().sort(function (a, b) { return a.busId - b.busId; }).forEach(function (tl) {
       var b = busAt(App, tl, at), li = el('li', { 'data-bus': tl.busId });
       var chip = el('span', { 'class': 'bus-chip', 'aria-hidden': 'true' }); chip.style.background = b.num ? App.routeStyle(b.num).color : '#6B7280';
-      li.appendChild(chip); li.appendChild(el('b', null, tl.busId + '호차 ')); li.appendChild(document.createTextNode(busWhere(App, b, occ[tl.busId])));
+      li.appendChild(chip); li.appendChild(el('b', null, labs[tl.busId] + ' ')); li.appendChild(document.createTextNode(busWhere(App, b, occ[tl.busId])));
       list.appendChild(li);
     });
     d.appendChild(list);
@@ -371,7 +380,7 @@
     var first = slack(unrelated.filter(safe)) || slack(pool.filter(safe)) || slack(movable.filter(safe));
     var bus=el('select',{id:'emergency-bus'}),route=el('select',{id:'emergency-route'});
     if (!first && movable.length) bus.appendChild(el('option', { value: '' }, '옮길 버스 고르기'));
-    movable.forEach(function(b){bus.appendChild(el('option',{value:b.id},b.id+'호차'+(cur[b.id]!=null?' · 지금 '+cur[b.id]+'번 노선':' · 대기 중')));});
+    movable.forEach(function(b){bus.appendChild(el('option',{value:b.id},(labs[b.id]||PB.Names.bus(b.id,null,cur[b.id]))+(cur[b.id]!=null?' · 지금 '+PB.Names.route(cur[b.id]):' · 대기 중')));});
     bus.value = first ? String(first.id) : '';
     var advice = el('p', { id: 'emergency-advice', 'class': 'emergency-advice' }); advice.hidden = !!first || !movable.length;
     advice.textContent = '모든 노선에 버스가 1대뿐이라 옮기면 한 노선이 멈춰요. ‘변경 없이 계속’을 추천해요.';
@@ -391,7 +400,7 @@
       var id = Number(bus.value), n = bus.value ? cur[id] : null;
       if (n == null || (count[n] || 0) !== 1) { warn.hidden = true; return; }
       var who = riders(n);
-      warn.textContent = n + '번 노선 버스가 0대가 돼요. ' + (who.length ? '이 노선을 쓰는 ' + who.map(function (rd) { return rd.name + '(' + App.nodeName(rd.o) + '→' + App.nodeName(rd.d) + ')'; }).join(', ') + '의 남은 이동이 끊길 수 있어요.' : '이 노선에서 기다리는 승객이 버스를 못 타요.');
+      warn.textContent = PB.Names.route(n) + ' 버스가 0대가 돼요. ' + (who.length ? '이 노선을 쓰는 ' + who.map(function (rd) { return rd.name + '(' + App.nodeName(rd.o) + '→' + App.nodeName(rd.d) + ')'; }).join(', ') + '의 남은 이동이 끊길 수 있어요.' : '이 노선에서 기다리는 승객이 버스를 못 타요.');
       warn.hidden = false;
     }
     function estimate() {
@@ -408,13 +417,14 @@
       if (!bus.value) { preview.textContent = ''; return; }
       if (!route.value) { preview.textContent = movable.length ? '이 버스가 옮겨 갈 수 있는 노선이 없어요.' : '지금은 옮길 수 있는 버스가 없어요.'; return; }
       var id = Number(bus.value), num = Number(route.value), p = S.emergencyPreview(R.s, at, id, num);
-      preview.textContent = !p || p.starts == null ? id + '호차는 운행이 끝날 때까지 ' + num + '번 노선에 들어가지 못해요.'
-        : id + '호차는 ' + (p.resting ? '차고에서 출발해 ' : '승객을 내린 뒤 ') + App.clock(p.starts) + '부터 ' + num + '번 노선에 들어가요.';
+      var who = labs[id] || PB.Names.bus(id, null, cur[id]);
+      preview.textContent = !p || p.starts == null ? who + '는 운행이 끝날 때까지 ' + PB.Names.route(num) + '에 들어가지 못해요.'
+        : who + '는 ' + (p.resting ? '차고에서 출발해 ' : '승객을 내린 뒤 ') + App.clock(p.starts) + '부터 ' + PB.Names.route(num) + '에 들어가요.';
     }
     var apply=el('button',{type:'button',id:'emergency-apply','class':'btn btn-primary',onclick:function(){if(route.value)finish(Number(bus.value),Number(route.value));}},'버스 한 대 옮기기');
     function options(keep) {
       var id = Number(bus.value), list = bus.value ? targets(id) : [], def = bus.value ? pickRoute(id) : null; route.textContent = '';
-      list.forEach(function (r) { route.appendChild(el('option', { value: r.num }, r.num + '번 · ' + r.nodes.map(App.nodeName).join(' → ') + (passes(r) ? ' · 원인 정류장에 서요' : ''))); });
+      list.forEach(function (r) { route.appendChild(el('option', { value: r.num }, PB.Names.route(r.num) + ' · ' + r.nodes.map(App.nodeName).join(' → ') + (passes(r) ? ' · 원인 정류장에 서요' : ''))); });
       route.value = keep && list.some(function (r) { return String(r.num) === keep; }) ? keep : def ? String(def.num) : '';
       apply.disabled = !route.value; describe();
     }
@@ -423,8 +433,8 @@
     options();
     d.appendChild(el('label',{'for':'emergency-bus'},'옮길 버스'));d.appendChild(bus);d.appendChild(el('label',{'for':'emergency-route'},'새 노선'));d.appendChild(route);d.appendChild(preview);d.appendChild(warn);d.appendChild(impact);d.appendChild(advice);
     // 결정이 끝나면 처음부터 다시 재생 상태를 만든다 — 배속은 플레이어가 마지막으로 고른 값(App.speed). 옮겼으면 완료 알림(aria-live)
-    function finish(id,num){if(!PB.Session.emergencyDecision(R.s,at,id,num))return;var s=R.s;s.runCursor=at;d.close();d.remove();stop();start(app());app().save();app().syncStage({keepBuses:true});setStatus('운행 중 · '+app().speed+'배속');
-      if (id != null) app().toast(id + '호차를 ' + num + '번 노선으로 옮겼어요.', { priority: true });}
+    function finish(id,num){var movedName=id!=null?(labs[id]||PB.Names.bus(id,null,cur[id])):'';if(!PB.Session.emergencyDecision(R.s,at,id,num))return;var s=R.s;s.runCursor=at;d.close();d.remove();stop();start(app());app().save();app().syncStage({keepBuses:true});setStatus('운행 중 · '+app().speed+'배속');
+      if (id != null) app().toast(movedName + '를 ' + PB.Names.route(num) + '으로 옮겼어요.', { priority: true });}
     var row = el('div', { 'class': 'row-actions' });
     row.appendChild(el('button',{type:'button',id:'emergency-continue','class':'btn',onclick:function(){finish(null,null);}},'변경 없이 계속'));
     row.appendChild(apply);
@@ -641,7 +651,7 @@
     panel.appendChild(live);
     panel.appendChild(el('h3', null, '운행 소식'));
     panel.appendChild(el('ul', { id: 'run-feed', 'class': 'feed', 'aria-live': 'polite' }));
-    panel.appendChild(el('p', { 'class': 'note' }, '일반 버스 정원은 ' + cfg.bus.capacity + '명이에요.' + (s.config.challengeApplied && s.phase >= 6 ? ' 7호차 직행버스는 정원 18명·주행 속도 1.5배예요.' : '') + (s.config.challengeApplied && s.phase >= 8 ? ' 9호차 광역버스는 정원 24명이에요.' : '') + (hasEmergency(s) ? ' 운행 중에는 오전·오후 한 번씩 멈춰 버스 한 대만 옮길 수 있어요. 노선 모양은 다음 단계에서 고쳐요. 조정 30분 전부터는 1배속으로 천천히 보여 주고 원인 정류장에 고리를 띄워요.' : ' 이번 단계는 출발하면 운행이 끝날 때까지 그대로 달려요. 3단계부터는 오전·오후 한 번씩 버스 한 대만 옮길 수 있어요.') + ' ‘⏭ 다음 멈춤까지’는 ' + (hasEmergency(s) ? '다음 긴급 조정이나 ' : '') + '주요 인물이 왕복을 마치거나 오늘 대기 기준을 넘긴 순간까지 빨리 간 뒤 멈춰요.' + ' 배속은 보는 속도만 바꾸고 결과는 같아요. 지나간 소식은 결과 화면의 ‘운행 기록’에서 다시 볼 수 있어요.'));
+    panel.appendChild(el('p', { 'class': 'note' }, '일반 버스 정원은 ' + cfg.bus.capacity + '명이에요.' + (s.config.challengeApplied && s.phase >= 6 ? ' 직행 버스는 정원 18명·주행 속도 1.5배예요.' : '') + (s.config.challengeApplied && s.phase >= 8 ? ' 광역 버스는 정원 24명이에요.' : '') + (hasEmergency(s) ? ' 운행 중에는 오전·오후 한 번씩 멈춰 버스 한 대만 옮길 수 있어요. 노선 모양은 다음 단계에서 고쳐요. 조정 30분 전부터는 1배속으로 천천히 보여 주고 원인 정류장에 고리를 띄워요.' : ' 이번 단계는 출발하면 운행이 끝날 때까지 그대로 달려요. 3단계부터는 오전·오후 한 번씩 버스 한 대만 옮길 수 있어요.') + ' ‘⏭ 다음 멈춤까지’는 ' + (hasEmergency(s) ? '다음 긴급 조정이나 ' : '') + '주요 인물이 왕복을 마치거나 오늘 대기 기준을 넘긴 순간까지 빨리 간 뒤 멈춰요.' + ' 배속은 보는 속도만 바꾸고 결과는 같아요. 지나간 소식은 결과 화면의 ‘운행 기록’에서 다시 볼 수 있어요.'));
     panel.appendChild(el('p', { id: 'node-info', 'class': 'note', 'aria-live': 'polite' }));
     App.onNodeClick = function (id) {
       var n = R && R.wait[id] ? R.wait[id][Math.max(0, R.minute)] : 0;

@@ -35,7 +35,7 @@ try{for(const view of (process.env.VIEWS||'2d,3d').split(',')){
  assert.deepEqual(await routes(page),[],view+' 더블클릭으로 철거');assert.deepEqual(await buses(page),[null,null],'버스는 대기로(보유 대수 그대로)');
  assert.equal(await page.evaluate(()=>PB.App.s.draft.buses.length),2);assert.match(await page.locator('#depot-count').innerText(),/^2대$/);
  assert.equal(await page.locator('#route-bus-1').count(),0);
- assert.match(await page.locator('#map-plan-message').innerText(),/외곽 마을–병원·공공서비스 구간을 없애 1번 노선이 없어졌어요 · 1호차는 대기로\. 잘못 지웠다면 ↶ 되돌리기/);
+ assert.match(await page.locator('#map-plan-message').innerText(),/외곽 마을–병원·공공서비스 구간을 없애 빨강 노선이 없어졌어요 · 버스 1대는 대기로\. 잘못 지웠다면 ↶ 되돌리기/);
  // 되돌리기 한 번 → 노선·버스 모두 복구
  await page.locator('#btn-undo').click();assert.deepEqual(await routes(page),[1]);assert.deepEqual(await buses(page),[1,null],'되돌리기로 노선과 배치 복구');
  // 터치 두 번 탭(합성 pointerType touch)
@@ -50,7 +50,7 @@ try{for(const view of (process.env.VIEWS||'2d,3d').split(',')){
  await page.locator('#btn-undo').click();assert.deepEqual(await nodes(page),['FCBA','']);
  // 가운데 구간: C–B를 없애면 1번 F→C(버스) + 빈 칸이던 2번 B→A(운행 대기)
  await cut(page,1,1);assert.deepEqual(await nodes(page),['FC','BA']);assert.deepEqual(await buses(page),[1,null]);
- assert.match(await page.locator('#map-plan-message').innerText(),/두 노선으로 나눴어요 · 1번 외곽 마을 → 대학교 \/ 2번 밀집 주거지 → 기차역\(운행 대기/);
+ assert.match(await page.locator('#map-plan-message').innerText(),/두 노선으로 나눴어요 · 빨강 노선 외곽 마을 → 대학교 \/ 초록 노선 밀집 주거지 → 기차역\(운행 대기/);
  assert.match(await page.locator('#route-bus-2').getAttribute('aria-label'),/운행 대기/);
  await page.locator('#btn-undo').click();assert.deepEqual(await nodes(page),['FCBA',''],'되돌리기 한 번으로 합쳐짐');
  // 칸이 없으면(노선 한도 2개 모두 사용) 짧은 쪽을 지우고 긴 쪽만 — F→C→B→A→G 의 B–A를 없애면 F→C→B가 남는다

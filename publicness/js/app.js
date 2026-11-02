@@ -77,10 +77,11 @@
   App.toast = function (text, opts) {
     opts = opts || {};
     var msg = text == null ? '' : String(text).trim(), n = $('#minimal-toast');
+    if (PB.Names) msg = PB.Names.text(msg); /* 남은 ‘N번 노선’·‘N호차’는 색 이름으로(2026-11-02) */
     if (!n) { n = el('div', { id: 'minimal-toast', 'class': 'minimal-toast', role: 'status', 'aria-live': 'polite' }); n.hidden = true; ($('#stage') || document.body).appendChild(n); }
     if (!msg) return false;
     // 좁은 화면(알림 줄 #map-strip이 있는 계획·운행)에서 단계 배너가 떠 있는 동안(자리 잡는 중 포함)은 일반 알림을 배너가 닫힌 뒤로 미룬다 — 줄이 두 칸으로 늘어 아래 조작부가 밀렸다 돌아오지 않게
-    var sb = $('#map-banner'), strip = $('#map-strip'); if (!opts.priority && sb && strip && strip.offsetParent !== null && root.innerWidth <= 700) { App._pendingToast = [msg, opts]; return true; }
+    var sb = $('#map-banner'), strip = $('#map-strip'); if (!opts.priority && sb && strip && strip.getClientRects().length > 0 /* 휴대폰 계획 화면은 position:fixed라 offsetParent가 null */ && (root.innerWidth <= 700 || document.body.classList.contains('phone-l'))) { App._pendingToast = [msg, opts]; return true; }
     var now = Date.now();
     if (!opts.priority && now < toastLockUntil) return false;
     if (!n.hidden && n.textContent === msg) return true;
@@ -144,16 +145,55 @@
   /* P1-1(2026-11-02): 계획 중에는 지도 틀 크기를 고정 — 금액·토스트·안내·배너·AI 패널 때문에 지도가 손 밑에서 움직이지 않게.
    * 단계·창 크기·텍스트 편집 열기·화면 모드가 같으면 처음 맞춘 크기를 그대로 쓴다(처음 0.8초는 위쪽 줄이 자리 잡도록 다시 맞춤) */
   var frameLock = null;
-  function frameKey() { var bc = document.body.classList; return document.body.dataset.screen === 'plan' && App.s ? [App.s.phase, root.innerWidth, root.innerHeight, bc.contains('plan-text-open'), bc.contains('minimal-text'), App.view && App.view === App.view3d ? 1 : 0].join('|') : null; }
+  function frameKey() { var bc = document.body.classList; return document.body.dataset.screen === 'plan' && App.s ? [App.s.phase, root.innerWidth, root.innerHeight, App.viewH(), bc.contains('plan-text-open'), bc.contains('minimal-text'), bc.contains('phone-p') ? 'p' : bc.contains('phone-l') ? 'l' : '', App.view && App.view === App.view3d ? 1 : 0].join('|') : null; }
+  /* 휴대폰 화면(2026-11-02 「모바일 화면 문제」): 스크롤 없이 지도 전체 + 조작부가 한 화면에.
+   *  · 세로(폭 ≤ 700, 세로가 더 김) body.phone-p — 위에서부터 얇은 머리말·시간/수지 줄·인물 카드 2열·지도(남는 높이 전부)·노선 칩·되돌리기 줄·대기 버스 줄·아래 고정 행동 줄(safe-area)
+   *  · 가로(높이 ≤ 500, 가로가 더 김) body.phone-l — 왼쪽 지도(화면 높이 꽉), 오른쪽 패널(머리말·시간/수지·인물 카드·노선 편집 전체)
+   * 계획·운행 화면, 미니멀(기본) 화면에서만. 텍스트로 편집·지도·텍스트 보기가 열리면 예전 배치(스크롤). 긴급 조정 창은 세로면 예전 배치, 가로면 오른쪽 패널 자리에 겹침. 높이는 브라우저 바를 뺀 실제 보이는 높이(visualViewport) */
+  App.viewH = function () { var vv = root.visualViewport; return Math.round(vv && Math.abs((vv.scale || 1) - 1) < 0.01 ? vv.height : root.innerHeight); };
+  App.phoneMode = function () {
+    var b = document.body, bc = b.classList, scr = b.dataset.screen;
+    if (!App.s || (scr !== 'plan' && scr !== 'run') || !bc.contains('minimal-ui') || bc.contains('minimal-text') || bc.contains('plan-text-open')) return null;
+    var w = root.innerWidth, h = App.viewH();
+    if (w <= 700 && h >= w) return bc.contains('minimal-emergency') ? null : 'portrait'; /* 세로 긴급 조정 = 예전 배치(지도 아래 조정 창, 스크롤) */
+    if (h <= 500 && w > h) return 'landscape';
+    return null;
+  };
+  function applyPhone() {
+    var m = App.phoneMode(), bc = document.body.classList, was = (bc.contains('phone-p') ? 'portrait' : bc.contains('phone-l') ? 'landscape' : null);
+    bc.toggle('phone-p', m === 'portrait'); bc.toggle('phone-l', m === 'landscape');
+    document.documentElement.style.setProperty('--app-h', App.viewH() + 'px');
+    return m !== was;
+  }
+  // 화면 모드가 바뀌었을 수 있을 때(텍스트 모드·긴급 조정 창·회전) — 바뀌었으면 지도 틀을 다시 맞춘다
+  App.syncLayout = function () { if (applyPhone() && App.s) { App.fitFrame(); if (App.view && App.view.refit) App.view.refit(); if (App.net) App.net.redraw(); } };
+  function fitPhone(st, m, a) {
+    var col = st.parentNode, H, W;
+    if (m === 'portrait') {
+      // 지도 높이 = 보이는 높이 − (지도 말고 나머지 줄 높이). 나머지 = 칸 아래끝(문서 좌표) − 지금 지도 높이
+      st.style.height = '160px'; st.style.width = ''; st.style.maxWidth = '';
+      var bottom = col.getBoundingClientRect().bottom + root.scrollY + parseFloat(getComputedStyle(document.body).paddingBottom || 0);
+      H = Math.max(160, Math.floor(App.viewH() - (bottom - 160)));
+      st.style.height = H + 'px'; return;
+    }
+    // 가로: 높이 = 보이는 높이 − 위아래 여백, 폭 = 지도 비율대로(오른쪽 패널 최소 340px, 지도 최소 화면 42%)
+    var cs = getComputedStyle(st), vw = root.innerWidth, pad = 8;
+    H = Math.max(200, App.viewH() - pad * 2);
+    var P = Math.min(80, Math.max(40, H * 0.1)), ideal = a ? (H - 2 * P - 24) * a + 2 * P + 40 : H * 1.2;
+    W = Math.round(Math.max(vw * 0.42, Math.min(ideal, vw - 340 - pad * 3)));
+    st.style.height = H + 'px'; st.style.width = W + 'px'; st.style.maxWidth = W + 'px'; document.documentElement.style.setProperty('--map-w', W + 'px');
+  }
   /* 2026-11-02 재검증 P1-5 ②④: 계획 화면 지도 틀이 이번 단계 크기로 굳었는가(fitFrame 잠금 0.8초가 지남). 단계 도착 직후에는 위아래 줄이 그려지며 틀이
    * 1240×470 → 509×396 → 475×371처럼 몇 번 바뀌어 이름표·배너가 크기마다 다시 놓였다 — 지도 네트워크층은 굳은 뒤에 한 번 배치한다. 계획 화면이 아니면 늘 true */
   App.frameReady = function () { var key = frameKey(); return !key || !App.view || !App.view.contentAspect || !App.view.contentAspect() || !!(frameLock && frameLock.key === key && Date.now() - frameLock.at > 800); };
   App.fitFrame = function () {
     var st = $('#stage'), screen = document.body.dataset.screen; if (!st) return;
+    applyPhone();
     var lockKey = frameKey();
-    if (lockKey && frameLock && frameLock.key === lockKey && Date.now() - frameLock.at > 800) { st.style.height = frameLock.h; st.style.maxWidth = frameLock.w; return; }
-    st.style.height = ''; st.style.maxWidth = '';
-    var a = App.view && App.view.contentAspect && App.view.contentAspect();
+    if (lockKey && frameLock && frameLock.key === lockKey && Date.now() - frameLock.at > 800 && !App.phoneMode()) { st.style.height = frameLock.h; st.style.maxWidth = frameLock.w; st.style.width = frameLock.ww || ''; return; }
+    st.style.height = ''; st.style.maxWidth = ''; st.style.width = '';
+    var a = App.view && App.view.contentAspect && App.view.contentAspect(), phone = App.phoneMode();
+    if (phone && (screen === 'plan' || screen === 'run')) { fitPhone(st, phone, a); if (lockKey) frameLock = { key: lockKey, h: st.style.height, w: st.style.maxWidth, ww: st.style.width, at: frameLock && frameLock.key === lockKey ? frameLock.at : Date.now() }; else frameLock = null; return; }
     if (!a || (screen !== 'plan' && screen !== 'run')) return;
     var col = st.parentNode, cs = getComputedStyle(col), W = col.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), availH = st.offsetHeight;
     // 계획 화면(넓은 화면): 지도·노선 버튼·대기 버스·출발 버튼이 스크롤 없이 한 화면에 들어오도록, 지도 높이 = 창 높이 − 지도 위쪽 − 아래 조작부(2026-11-01:
@@ -318,14 +358,13 @@
     S.routesInOrder(s).forEach(function (r) {
       var st = routeStyle(r.num), buses = s.draft.buses.filter(function (b) { return b.routeNum === r.num; });
       var ok = PB.Graph.validateRoute(g, r).length === 0;
-      var li = el('li', null, r.num + '번 노선(' + st.colorName + '): ' + App.describeRoute(r) +
+      var li = el('li', null, PB.Names.route(r.num) + '(' + PB.Names.patternName(PB.Names.pattern(r.num)) + '): ' + App.describeRoute(r) +
         (ok ? ' · 한 바퀴 ' + App.duration(PB.Graph.cycleMinutes(g, r)) : ' · 아직 완성되지 않음') +
-        ' · ' + (buses.length ? buses.map(function (b) { return b.id + '호차'; }).join(', ') : '배정된 버스 없음'));
+        ' · ' + (buses.length ? '버스 ' + buses.length + '대' : '배정된 버스 없음'));
       ul.appendChild(li);
     });
-    s.draft.buses.filter(function (b) { return b.routeNum == null; }).forEach(function (b) {
-      ul.appendChild(el('li', null, b.id + '호차: 미배정 — 기차역에 주차(보유비는 들어요)'));
-    });
+    var idle = s.draft.buses.filter(function (b) { return b.routeNum == null; });
+    if (idle.length) ul.appendChild(el('li', null, '대기 버스 ' + idle.length + '대: 미배정 — 기차역에 주차(보유비는 들어요)'));
     box.appendChild(ul);
   }
 
@@ -346,8 +385,8 @@
     out.buses = prog ? s.owned - prog.buses[p - 2] : 0;
     out.routes = prog ? limit - prog.routes[p - 2] : 0;
     out.newBusIds = s.draft.buses.filter(function (b) { return b.id > s.owned - out.buses && !b.leased; }).map(function (b) { return b.id; });
-    if (cfg.challengeApplied && p === 6) out.express = '5번 직행 신설 · 7호차 전용(정원 18명 · 1.5배 · 정류장 3곳까지)';
-    if (cfg.challengeApplied && p === 8) out.express = '6번 광역 신설 · 9호차 전용(정원 24명 · 마을 한 곳과 대도시)';
+    if (cfg.challengeApplied && p === 6) out.express = '직행 노선 신설 · 직행 버스 전용(정원 18명 · 1.5배 · 정류장 3곳까지)';
+    if (cfg.challengeApplied && p === 8) out.express = '광역 노선 신설 · 광역 버스 전용(정원 24명 · 마을 한 곳과 대도시)';
     return out;
   };
   // 지도 배너 한 줄: ‘3단계 · 변화기 · 신도시가 생겼어요 · 버스 +1’
@@ -514,7 +553,11 @@
       var before = st.style.height + '|' + st.style.maxWidth; App.fitFrame();
       if (st.style.height + '|' + st.style.maxWidth !== before) { if (App.view && App.view.refit) App.view.refit(); if (App.net) App.net.redraw(); }
     }, 60); }).observe(document.querySelector('.stage-col')); }
-    var fitT = null; root.addEventListener('resize', function () { clearTimeout(fitT); fitT = setTimeout(function () { if (App.s) { App.fitFrame(); if (App.view && App.view.refit) App.view.refit(); if (App.net) App.net.redraw(); } }, 80); });
+    var fitT = null; function onResize() { clearTimeout(fitT); fitT = setTimeout(function () { if (App.s) { App.fitFrame(); if (App.view && App.view.refit) App.view.refit(); if (App.net) App.net.redraw(); } }, 80); }
+    root.addEventListener('resize', onResize); root.addEventListener('orientationchange', onResize);
+    if (root.visualViewport) root.visualViewport.addEventListener('resize', onResize); /* 휴대폰 브라우저 주소창·아래 바가 나타나고 사라질 때도 다시 맞춤 */
+    // 노선 번호 표시(설정, 기본 끔) — 지도 끝 점·노선 칩·문구에 번호를 함께(js/route-names.js)
+    var rn = $('#opt-route-numbers'); if (rn && PB.Names) { rn.checked = PB.Names.showNumbers(); document.body.classList.toggle('route-numbers', rn.checked); rn.addEventListener('change', function (e) { PB.Names.setShowNumbers(e.target.checked); if (App.s) { App.keepFocus = true; App.render(); if (App.net) App.net.redraw(); } }); }
     App.motion = !!root.__pbReduceMotion;
     $('#opt-motion').checked = App.reducedMotion();
     $('#opt-motion').addEventListener('change', function (e) { App.motion = e.target.checked; App.view.setReducedMotion(App.reducedMotion()); });

@@ -17,7 +17,7 @@
   function onFirst(e) { if (e.type === 'keydown' && (e.key === 'Tab' || e.key === 'Shift')) return; dismissBanner(); }
   function netReady(A) { return !A.net || !A.net.ready || A.net.ready(); }
   // 좁은 화면(≤700px) 계획·운행: 지도 바로 아래 늘 비워 둔 알림 줄(#map-strip, index.html). 지도 틀 크기와 무관(좁은 화면 지도 높이는 CSS)
-  function narrowStrip() { var s = $('#map-strip'); return s && root.innerWidth <= 700 && s.offsetParent !== null ? s : null; }
+  function narrowStrip() { var s = $('#map-strip'), bc = document.body.classList; if (s && (bc.contains('phone-p') || bc.contains('phone-l'))) return s; /* 휴대폰 배치(2026-11-02): 계획 = 맨 위 머리말(단계·설정·도움말) 위에 겹치는 알림 줄(조작부를 밀지 않고 시간·수지·인물 카드·지도를 가리지 않음), 운행 = 지도 아래(세로)·오른쪽 패널(가로) 줄 — css/mobile.css */ return s && root.innerWidth <= 700 && s.offsetParent !== null ? s : null; }
   function banner(A) {
     var a = arrivalNow(A), old = $('#map-banner');
     if (!a || a.done) { if (old) old.remove(); return; }

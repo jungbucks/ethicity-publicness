@@ -16,8 +16,8 @@ try{
   assert.ok((await page.locator('#route-allocation').innerText()).includes('운행 버스 없음'));
   await page.locator('#btn-depart').click();assert.equal(await page.locator('#confirm-depart-h').innerText(),'이대로 출발할까요?');/* 2026-11-02: 출발 확인은 질문만 — 운행 구성 목록 없음 */await page.locator('#confirm-no').click();
   await page.locator('#assign-route-1').click();assert.equal(await page.evaluate(()=>PB.App.s.draft.buses[0].routeNum),4);
-  assert.ok((await page.locator('#route-allocation').innerText()).includes('운행 버스: 1호차'));
-  assert.ok((await page.locator('#unassigned-warning').innerText()).includes('1번'));
+  assert.ok((await page.locator('#route-allocation').innerText()).includes('운행 버스 1대'));/* 2026-11-02 버스 번호 대신 대수 */
+  assert.ok((await page.locator('#unassigned-warning').innerText()).includes('빨강'));
   const fixedStage=await page.locator('#stage').boundingBox();assert.equal(Math.round(stage.y),Math.round(fixedStage.y),'editor scrolling keeps map fixed');
   await page.locator('#btn-depart').click();await page.locator('#confirm-yes').click();await page.evaluate(()=>window.__pbFast=true);await page.locator('#resident-summary').waitFor();
   const reason=page.locator('.reason-location').first();const origin=await reason.getAttribute('data-origin');await reason.click();

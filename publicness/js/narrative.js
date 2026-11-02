@@ -317,7 +317,7 @@
     function routeText(p) {
       var leg = p.journey && p.journey[Math.min(p.legIndex || 0, p.journey.length - 1)], info = leg && routeInfo ? routeInfo(leg.routeId) : null;
       if (!info) return '';
-      return ' (' + info.num + '번 노선 버스 ' + info.buses + '대' + (info.headway != null ? ', 간격 ' + dur(info.headway) : '') + ')';
+      return ' (' + (root.PB && root.PB.Names ? root.PB.Names.route(info.num) : info.num + '번 노선') + ' 버스 ' + info.buses + '대' + (info.headway != null ? ', 간격 ' + dur(info.headway) : '') + ')';
     }
     function legText(p, label) {
       if (p.fail === 'NO_LINK') return label + ', 잇는 노선이 없었어요';

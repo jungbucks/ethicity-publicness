@@ -49,20 +49,20 @@ try {
       return { at, cause, rows };
     });
     for (const r of info.rows) assert.ok(!r.routes.includes(r.cur), `${r.id}호차 목록에 지금 노선(${r.cur}번)이 없음`);
-    assert.ok(info.rows.every(r => /^\d+호차는 (승객을 내린 뒤|차고에서 출발해) \d\d:\d\d부터 \d+번 노선에 들어가요\.$|운행이 끝날 때까지/.test(r.preview)), '미리 보기 한 줄: ' + info.rows.map(r => r.preview).join(' / '));
+    assert.ok(info.rows.every(r => /^\S+ 버스(\([^)]*\))?는 (승객을 내린 뒤|차고에서 출발해) \d\d:\d\d부터 \S+ 노선에 들어가요\.$|운행이 끝날 때까지/.test(r.preview) && !/\d+호차|\d+번 노선/.test(r.preview)) /* 2026-11-02 버스·노선은 색 이름 */, '미리 보기 한 줄: ' + info.rows.map(r => r.preview).join(' / '));
     ok(q + ' P0-1 새 노선 목록에 지금 달리는 노선 없음 · 미리 보기 한 줄');
     // 기본값 다시 그리기(패널을 다시 열면 기본 규칙대로)
     await page.evaluate(() => PB.App.render()); await page.locator('#emergency-dialog[open]').waitFor();
     const def = await page.evaluate(() => { const s = PB.App.s, S = PB.Session, at = PB.UI.runState().pendingEmergency;
       return { bus: Number(document.querySelector('#emergency-bus').value), route: Number(document.querySelector('#emergency-route').value), cur: S.busRouteAt(s, Number(document.querySelector('#emergency-bus').value), at), preview: document.querySelector('#emergency-preview').textContent, live: document.querySelector('#emergency-preview').getAttribute('aria-live') }; });
     assert.notEqual(def.route, def.cur, '기본값이 효과 없는 이동이 아님'); assert.equal(def.live, 'polite');
-    assert.equal(def.bus, 4, '기본 버스 = 원인과 무관한 쉬는 4호차'); assert.ok(def.preview.startsWith('4호차는 차고에서 출발해 '), def.preview);
+    assert.equal(def.bus, 4, '기본 버스 = 원인과 무관한 쉬는 4호차'); assert.ok(def.preview.startsWith('대기 버스는 차고에서 출발해 '), def.preview);
     // 같은 노선 이동은 엔진도 받지 않는다(조정권 그대로)
     assert.equal(await page.evaluate(() => { const s = PB.App.s, at = PB.UI.runState().pendingEmergency; return PB.Session.emergencyDecision(s, at, 1, PB.Session.busRouteAt(s, 1, at)); }), false);
     if (!q.includes('textmode')) await page.screenshot({ path: `${SHOT}/_shot-playtest-p0-1-after-window.png` });
     await page.locator('#emergency-apply').click();
     const t = await page.evaluate(() => ({ text: document.querySelector('#minimal-toast').textContent, hidden: document.querySelector('#minimal-toast').hidden, role: document.querySelector('#minimal-toast').getAttribute('role'), live: document.querySelector('#minimal-toast').getAttribute('aria-live'), log: PB.App.s.emergencyLog.length }));
-    assert.equal(t.text, `${def.bus}호차를 ${def.route}번 노선으로 옮겼어요.`); assert.equal(t.hidden, false); assert.equal(t.role, 'status'); assert.equal(t.live, 'polite'); assert.equal(t.log, 1);
+    assert.equal(t.text, `대기 버스를 ${await page.evaluate(n => PB.Names.route(n), def.route)}으로 옮겼어요.`); assert.equal(t.hidden, false); assert.equal(t.role, 'status'); assert.equal(t.live, 'polite'); assert.equal(t.log, 1);
     if (!q.includes('textmode')) await page.screenshot({ path: `${SHOT}/_shot-playtest-p0-1-after-toast.png` });
     ok(q + ' P0-1 기본값 = 4호차(대기) → 원인 노선, 옮긴 뒤 aria-live 알림');
     // ── P0-2 확인창이 열리면 멈춤 ───────────────

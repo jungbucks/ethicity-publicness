@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>이번 정류장은… — AI 마을버스 운영단</title>
 <meta name="description" content="AI 자율주행 마을버스를 위탁 운영하며 누구의 이동을 책임질지 고르는 공공성 시뮬레이션 게임">
 <link rel="stylesheet" href="css/tokens.css">
@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="css/scores.css">
 <link rel="stylesheet" href="css/minimal.css">
 <link rel="stylesheet" href="css/prestage.css">
+<link rel="stylesheet" href="css/mobile.css">
 </head>
 <body data-screen="title">
 <a class="skip-link" href="#panel">오른쪽 안내로 건너뛰기</a>
@@ -111,8 +112,9 @@
     <summary>자세히 보기</summary>
     <h3>어떻게 하나요?</h3>
     <ul>
-      <li>정류장 두 곳 이상을 이어 노선을 만들면 대기 버스 1대가 바로 운행해요. 지도 아래 대기 버스를 노선으로 끌어 놓으면 증차, 노선 위 ‘버스 ×N’을 대기로 끌면 회수, 다른 노선에 놓으면 이동이에요(누르고 고르기·키보드로도 돼요). 같은 노선의 버스는 자동으로 간격을 두고 출발해요. AI 제안은 지도에서 미리 보고 적용할 수 있어요.</li>
+      <li>정류장 두 곳 이상을 이어 노선을 만들면 대기 버스 1대가 바로 운행해요. 지도 아래 대기 버스를 노선으로 끌어 놓으면 증차, 노선 끝 색 점(옆 숫자 = 그 노선 버스 수)을 대기로 끌면 회수, 다른 노선에 놓으면 이동이에요(누르고 고르기·키보드로도 돼요). 같은 노선의 버스는 자동으로 간격을 두고 출발해요. AI 제안은 지도에서 미리 보고 적용할 수 있어요.</li>
       <li>지도에서 정류장을 누르거나 드래그해서 자유롭게 연결해요. 선 중간을 정류장으로 당기면 경유지가 추가되고, 선을 두 번 누르면(더블클릭·두 번 탭) 그 구간(두 정류장 사이 길)만 없어져요(↶ 되돌리기로 복구). 시작점으로 연결하면 순환하고, 열린 노선은 왕복해요.</li>
+      <li>노선은 번호 대신 색과 선 모양으로 구분해요 — 빨강 실선, 초록 이중선, 주황 점선, 하늘 동글 점선. 번호가 필요하면 설정에서 ‘노선 번호 표시’를 켜요.</li>
       <li>두 노선이 <b>모두 정차하는</b> 정류장에서만 한 번 갈아탈 수 있어요. 지도에서 선이 겹치기만 하는 곳은 환승 정류장이 아니에요.</li>
       <li>출발한 뒤에는 3단계부터 오전·오후 한 번씩 버스 한 대만 옮길 수 있어요. 노선 모양은 다음 단계에서 고쳐요.</li>
     </ul>
@@ -132,6 +134,7 @@
   <label class="check"><input type="checkbox" id="opt-sound" checked> 효과음(승객 등장·정류장 안내 차임)</label>
   <label class="check"><input type="checkbox" id="opt-bgm" checked> 배경음악(이어폰을 쓸 때 추천)</label>
   <label class="check"><input type="checkbox" id="opt-motion"> 움직임 줄이기</label>
+  <label class="check"><input type="checkbox" id="opt-route-numbers"> 노선 번호 표시(지도·노선 버튼에 번호를 함께 보여요. 노선은 색과 선 모양 — 실선·이중선·점선·동글 점선 — 으로도 구분해요)</label>
   <form method="dialog"><button class="btn btn-primary" type="submit">닫기</button></form>
 </dialog>
 
@@ -163,6 +166,7 @@
 </dialog>
 
 <script src="js/config.js"></script>
+<script src="js/route-names.js"></script>
 <script src="js/rng.js"></script>
 <script src="js/graph.js"></script>
 <script src="js/demand.js"></script>

@@ -30,8 +30,8 @@
   E.routeLine = function (s, num) {
     var len = E.routeKm(s, num); if (len == null) return '';
     var n = s.draft.buses.filter(function (b) { return b.routeNum === num; }).length, row = E.plan(s).econ.rows.filter(function (r) { return r.num === num; })[0];
-    if (!n) return num + '번 · 한 바퀴 ' + km(len) + ' · 운행 대기(버스 0대) — 버스를 옮기면 비용과 운임이 생겨요.';
-    return num + '번 · 한 바퀴 ' + km(len) + ' · 버스 ' + n + '대 · 약 ' + app().duration(E.headway(s, num, n)) + ' 간격 · 운영·연료 약 ' + won(row ? row.cost : 0) +
+    if (!n) return PB.Names.route(num) + ' · 한 바퀴 ' + km(len) + ' · 운행 대기(버스 0대) — 버스를 옮기면 비용과 운임이 생겨요.';
+    return PB.Names.route(num) + ' · 한 바퀴 ' + km(len) + ' · 버스 ' + n + '대 · 약 ' + app().duration(E.headway(s, num, n)) + ' 간격 · 운영·연료 약 ' + won(row ? row.cost : 0) +
       ' · 운임 약 ' + won(row ? row.fare : 0) + ' → 손익 ' + signed(row ? row.profit : 0) + ' (기본 수요 기준 예상)';
   };
   // 공공서비스 수행 조건 목록(달성 여부·정차 횟수·금액)
@@ -71,7 +71,7 @@
   E.routeTable = function (econ, opts) {
     opts = opts || {};
     var rows = econ.rows.map(function (r) {
-      return [r.num != null ? r.num + '번' : '기타', r.buses + '대', won(r.fare), won(-r.cost), signed(r.profit), r.arrived + '건',
+      return [r.num != null ? PB.Names.color(r.num) : '기타', r.buses + '대', won(r.fare), won(-r.cost), signed(r.profit), r.arrived + '건',
         r.service.length ? r.service.map(function (x) { return x.label + ' ' + x.stops + '회'; }).join(', ') : '-'];
     });
     var wrap = el('div', { 'class': 'route-economy' }), c = econ.common, sum = econ.rows.reduce(function (a, r) { return a + r.profit; }, 0);

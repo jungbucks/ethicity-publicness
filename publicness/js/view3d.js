@@ -670,7 +670,7 @@
         // 탑승 인원은 버스 위 작은 막대가 정원만큼 차오르는 정도로(숫자 배지 대신). 숫자·주요 인물 이름은 마우스를 올렸을 때(title)·aria-label로
         if(b.riders>0){var cap=b.regional?24:b.express?18:12,count=document.createElement('span');count.className='rider-count rider-fill';count.dataset.riders=b.riders;
           count.style.setProperty('--fill',Math.min(100,Math.round(b.riders/cap*100))+'%');count.title=(b.names&&b.names.length?b.names.join('·')+' 포함 ':'')+b.riders+'/'+cap+'명';labelEls.bus[b.id].appendChild(count);}
-        labelEls.bus[b.id].setAttribute('aria-label',b.id+'호차'+(b.regional?' 광역 · 정원 24명':b.express?' 직행 · 정원 18명':'')+' · 탑승 '+(b.riders||0)+'명');
+        labelEls.bus[b.id].setAttribute('aria-label',(root.PB&&root.PB.Names?root.PB.Names.bus(b.id,null,b.num):b.id+'호차')+(b.regional?' 광역 · 정원 24명':b.express?' 직행 · 정원 18명':'')+' · 탑승 '+(b.riders||0)+'명');
       });
       Object.keys(busMesh).forEach(function (id) { if (!seen[id]) { busMesh[id].visible = false; if (labelEls.bus[id]) {labelEls.bus[id].remove();delete labelEls.bus[id];} } else if (labelEls.bus[id]) labelEls.bus[id].style.display = ''; });
       dirty = true;

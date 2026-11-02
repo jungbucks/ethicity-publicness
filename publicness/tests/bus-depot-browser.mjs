@@ -45,10 +45,10 @@ try{for(const view of (process.env.VIEWS||'2d,3d').split(',')){
  await conserve(page,'시작');assert.deepEqual(await buses(page),[null,null]);
 
  // 1) 노선 생성 → 정확히 1대 자동 배치, 고치기·다시 완성에도 추가 배치 없음
- assert.match(await page.locator('#map-plan-message').innerText(),/이으면 대기 중인 1호차가 바로 운행해요\(운영·연료 약 [\d,]+원\)/,'배치 전에 비용 안내');
+ assert.match(await page.locator('#map-plan-message').innerText(),/이으면 대기 중인 버스 한 대가 바로 운행해요\(운영·연료 약 [\d,]+원\)/,'배치 전에 비용 안내');
  await page.evaluate(()=>{PB.App.onNodeClick('F');PB.App.onNodeClick('D');});
  assert.deepEqual(await buses(page),[1,null],'노선 1 완성 → 1호차 1대만');
- assert.match(await page.locator('#map-plan-message').innerText(),/1호차가 대기에서 나와 1번 운행을 시작해요 · 운영·연료 약 [\d,]+원/);
+ assert.match(await page.locator('#map-plan-message').innerText(),/대기 버스 한 대가 나와 빨강 노선 운행을 시작해요 · 운영·연료 약 [\d,]+원/); /* 2026-11-02 노선·버스는 색 이름 */
  await page.evaluate(()=>PB.App.onNodeClick('E'));assert.deepEqual(await buses(page),[1,null],'정류장 추가는 추가 배치 없음');
  await page.evaluate(()=>{PB.App.onNodeClick('C');});assert.deepEqual(await buses(page),[1,null]);
  await page.locator('#btn-undo').click();await page.locator('#btn-undo').click();await page.locator('#btn-undo').click();
@@ -58,13 +58,13 @@ try{for(const view of (process.env.VIEWS||'2d,3d').split(',')){
 
  // 2) 끌어 놓기 증차 — 실제 마우스, 놓기 전 강조 = 실제 배치 대상
  let pt=await linePoint(page,1,0,.35,20),s=await dragTo(page,'#bus-token-2',pt);
- assert.deepEqual(s.during,[1,null],'끄는 동안은 차감 없음');assert.equal(s.hl,'1');assert.match(s.label,/놓으면 1번 1→2대 · 간격 .+ → .+ · 운영·연료 \+약 [\d,]+원 \(기본 수요 기준\)/);
+ assert.deepEqual(s.during,[1,null],'끄는 동안은 차감 없음');assert.equal(s.hl,'1');assert.match(s.label,/놓으면 빨강 노선 1→2대 · 간격 .+ → .+ · 운영·연료 \+약 [\d,]+원 \(기본 수요 기준\)/);
  assert.deepEqual(await buses(page),[1,1],'놓으면 1대 추가');await conserve(page,'증차');
  log(view,'증차 안내:',s.label);
 
  // 3) 회수·이동 — ‘버스 ×N’에서 끌기
  s=await dragTo(page,'#route-bus-1',await page.locator('#bus-depot').boundingBox().then(b=>({x:b.x+b.width-40,y:b.y+b.height/2})));
- assert.ok(s.depot&&s.ok);assert.match(s.label,/놓으면 대기로 · 1번 2→1대 · 간격 .+ → .+ · 운영·연료 −약 [\d,]+원/);assert.deepEqual(await buses(page),[1,null],'번호 큰 2호차 회수');await conserve(page,'회수');
+ assert.ok(s.depot&&s.ok);assert.match(s.label,/놓으면 대기로 · 빨강 노선 2→1대 · 간격 .+ → .+ · 운영·연료 −약 [\d,]+원/);assert.deepEqual(await buses(page),[1,null],'번호 큰 2호차 회수');await conserve(page,'회수');
  // 노선 2 만들기(지도에서 실제로 끌어 잇기 — 기존 노선 그리기와 충돌 없음)
  await page.locator('#route-2').click();
  const nodePt=id=>page.evaluate(id=>{const A=PB.App,n=A.nodeXY(id),q=A.view.project(n.x,n.y),b=document.querySelector('#stage').getBoundingClientRect();return {x:b.left+q.left,y:b.top+q.top};},id);
@@ -72,7 +72,7 @@ try{for(const view of (process.env.VIEWS||'2d,3d').split(',')){
  assert.deepEqual(await page.evaluate(()=>PB.Session.routeByNum(PB.App.s,2).nodes),['B','E'],'지도 끌기로 노선 그리기');
  assert.deepEqual(await buses(page),[1,2],'노선 2 완성 → 2호차 자동');await conserve(page,'노선2');
  // 다른 노선으로 이동: 2번의 2호차 → 1번 선 위
- s=await dragTo(page,'#route-bus-2',await linePoint(page,1,0,.2,-15));assert.equal(s.hl,'1');assert.match(s.label,/놓으면 1번 1→2대 .*2번 1→0대 · 운행 대기/);
+ s=await dragTo(page,'#route-bus-2',await linePoint(page,1,0,.2,-15));assert.equal(s.hl,'1');assert.match(s.label,/놓으면 빨강 노선 1→2대 .*초록 노선 1→0대 · 운행 대기/);
  assert.deepEqual(await buses(page),[1,1]);await conserve(page,'이동');
  assert.ok(await page.locator('#route-bus-2.idle').count(),'마지막 버스가 떠난 노선은 남고 운행 대기');assert.match(await page.locator('#route-bus-2').getAttribute('aria-label'),/운행 대기/);assert.equal(await page.locator('#route-bus-2 .route-count').innerText(),'0');
  assert.equal(await page.evaluate(()=>PB.Session.routeByNum(PB.App.s,2).nodes.length),2,'노선 유지');

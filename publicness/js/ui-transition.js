@@ -16,7 +16,7 @@
   var out=[];
   if(h.event&&h.event.type==='demand'){var od=PB.Demand.directional(s.config,h.phase)[h.event.odIndex];if(od)out.push({t:h.event.t,text:App.clock(h.event.t)+' · '+App.nodeName(od.o)+'→'+App.nodeName(od.d)+' 요청이 12건 늘었어요(추가 수요).'});}
   if(h.petition)out.push({t:h.petition.t,text:App.clock(h.petition.t)+' · '+App.nodeName(h.petition.zone)+' 주민 청원: 그때까지 요청 '+h.petition.total+'건 중 '+h.petition.count+'건이 아직 도착하지 못했어요.'});
-  (s.emergencyLog||[]).filter(function(a){return a.phase===s.phase;}).forEach(function(a){out.push({t:a.at,text:App.clock(a.at)+' · 긴급 조정 · '+(a.busId==null?'변경 없이 계속':a.busId+'호차 → '+a.routeNum+'번 노선')});});
+  (s.emergencyLog||[]).filter(function(a){return a.phase===s.phase;}).forEach(function(a){out.push({t:a.at,text:App.clock(a.at)+' · 긴급 조정 · '+(a.busId==null?'변경 없이 계속':'버스 한 대 → '+PB.Names.route(a.routeNum))});});
   return out.sort(function(a,b){return a.t-b.t;});
  }
  // 운행 중 들린 말: 같은 사람(주민)·같은 문장이 연속이면 한 줄로 ×N
@@ -84,7 +84,7 @@
   key.appendChild(el('p',{'class':'note'},'미도착자의 운행 종료까지 기다린 시간도 포함해요. 잇는 노선이 없는 요청은 대기 시간과 별도로 상세 기록에서 확인해요.'));put(key);
   put(summary);
   var decisions=(s.emergencyLog||[]).filter(function(a){return a.phase===s.phase;});
-  if(decisions.length){var report=el('section',{id:'emergency-report'});report.appendChild(el('h3',null,'운행 중 바꾼 것'));decisions.forEach(function(a){var applied=res.log.filter(function(e){return e.type==='reassign'&&e.bus===a.busId&&e.t>=a.at;})[0];report.appendChild(el('p',null,App.clock(a.at)+' · '+(a.busId==null?'변경 없이 계속':a.busId+'호차 → '+a.routeNum+'번 노선'+(applied?' · '+App.clock(applied.data.starts)+'부터 투입':' · 운행 종료까지 안전하게 옮길 기회가 없었어요.'))));});
+  if(decisions.length){var report=el('section',{id:'emergency-report'});report.appendChild(el('h3',null,'운행 중 바꾼 것'));decisions.forEach(function(a){var applied=res.log.filter(function(e){return e.type==='reassign'&&e.bus===a.busId&&e.t>=a.at;})[0];report.appendChild(el('p',null,App.clock(a.at)+' · '+(a.busId==null?'변경 없이 계속':'버스 한 대 → '+PB.Names.route(a.routeNum)+(applied?' · '+App.clock(applied.data.starts)+'부터 투입':' · 운행 종료까지 안전하게 옮길 기회가 없었어요.'))));});
    if(s.current.baseline)report.appendChild(el('p',{'class':'note'},'같은 사건에서 조정하지 않았다면 도착 '+s.current.baseline.arrived+'건 → 조정 후 '+m.arrived+'건. 출발 전 예상과는 돌발 수요 조건이 달라요.'));put(report);}
   callouts.forEach(put);
   ['#route-report','#run-log'].forEach(function(id){put(q(panel,id));});

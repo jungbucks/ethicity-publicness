@@ -141,7 +141,7 @@
     else { var a = P(rd.o), b = P(rd.d); svg('line', { x1: a.left, y1: a.top, x2: b.left, y2: b.top, 'class': 'pp-missing' }, o); }
     [rd.o, rd.d].forEach(function (id, i) { var p = P(id); svg('circle', { cx: p.left, cy: p.top, r: 17, 'class': 'pp-ring ' + (i ? 'to' : 'from') }, o); });
     if (!timer) timer = setInterval(function () { if (!document.querySelector('#person-path')) { clearInterval(timer); timer = null; return; } drawPath(false); }, 400);
-    if (announce) A.toast(rd.name + ' · ' + A.nodeName(rd.o) + '에서 ' + A.nodeName(rd.d) + '까지 · ' + (path ? path.legs.map(function (l) { return l.num + '번'; }).join('에서 ') + (path.transfer ? '(' + A.nodeName(path.transfer) + '에서 갈아타기)' : '') + ' 노선으로 이어져요' : '잇는 노선이 없어요'), { ms: 3200 });
+    if (announce) A.toast(rd.name + ' · ' + A.nodeName(rd.o) + '에서 ' + A.nodeName(rd.d) + '까지 · ' + (path ? path.legs.map(function (l) { return PB.Names.color(l.num); }).join('에서 ') + (path.transfer ? '(' + A.nodeName(path.transfer) + '에서 갈아타기)' : '') + ' 노선으로 이어져요' : '잇는 노선이 없어요'), { ms: 3200 });
   }
 
   // 결과 화면 인물 카드의 작은 지도: 이번 단계 정류장·운행 노선(옅게) + 그 사람의 문제 구간(굵게, 깜빡임)
