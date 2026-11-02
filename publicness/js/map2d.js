@@ -219,6 +219,7 @@
       setBuses: setBuses, setWaiting: setWaiting, flash: flash, project: project, laneOffset: laneOffset,
       setReducedMotion: function (v) { reduced = !!v; },
       contentAspect: function () { return fullAspect; },
+      moving: function () { return !!boxAnim; }, // 단계 전환 0.6초 동안 true(이름표·얼굴·배너는 끝난 뒤 한 번 배치)
       show: function (v) { svg.style.display = v ? '' : 'none'; top.style.display = v ? '' : 'none'; if (v) fitReserved(); },
       dispose: function () { svg.innerHTML = ''; }
     };

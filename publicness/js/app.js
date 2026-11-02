@@ -79,12 +79,14 @@
     var msg = text == null ? '' : String(text).trim(), n = $('#minimal-toast');
     if (!n) { n = el('div', { id: 'minimal-toast', 'class': 'minimal-toast', role: 'status', 'aria-live': 'polite' }); n.hidden = true; ($('#stage') || document.body).appendChild(n); }
     if (!msg) return false;
+    // 좁은 화면(알림 줄 #map-strip이 있는 계획·운행)에서 단계 배너가 떠 있는 동안(자리 잡는 중 포함)은 일반 알림을 배너가 닫힌 뒤로 미룬다 — 줄이 두 칸으로 늘어 아래 조작부가 밀렸다 돌아오지 않게
+    var sb = $('#map-banner'), strip = $('#map-strip'); if (!opts.priority && sb && strip && strip.offsetParent !== null && root.innerWidth <= 700) { App._pendingToast = [msg, opts]; return true; }
     var now = Date.now();
     if (!opts.priority && now < toastLockUntil) return false;
     if (!n.hidden && n.textContent === msg) return true;
     if (opts.priority) toastLockUntil = now + (opts.ms || 2600);
     n.textContent = msg; n.hidden = false;
-    if (PB.Arrival && $('#map-banner')) PB.Arrival.layout(); /* 단계 배너가 알림 자리를 비켜 가게(P1-5 ④) */
+    if (PB.Arrival && PB.Arrival.placeToast) PB.Arrival.placeToast(); /* 2026-11-02 재검증 P1-5 ③: 알림이 이름표·정류장·얼굴·배너를 가리지 않는 자리로(좁은 화면은 지도 아래 알림 줄) */
     clearTimeout(toastTimer); toastTimer = setTimeout(function () { n.hidden = true; n.textContent = ''; }, opts.ms || (opts.priority ? 2600 : 2000));
     return true;
   };
@@ -142,9 +144,13 @@
   /* P1-1(2026-11-02): 계획 중에는 지도 틀 크기를 고정 — 금액·토스트·안내·배너·AI 패널 때문에 지도가 손 밑에서 움직이지 않게.
    * 단계·창 크기·텍스트 편집 열기·화면 모드가 같으면 처음 맞춘 크기를 그대로 쓴다(처음 0.8초는 위쪽 줄이 자리 잡도록 다시 맞춤) */
   var frameLock = null;
+  function frameKey() { var bc = document.body.classList; return document.body.dataset.screen === 'plan' && App.s ? [App.s.phase, root.innerWidth, root.innerHeight, bc.contains('plan-text-open'), bc.contains('minimal-text'), App.view && App.view === App.view3d ? 1 : 0].join('|') : null; }
+  /* 2026-11-02 재검증 P1-5 ②④: 계획 화면 지도 틀이 이번 단계 크기로 굳었는가(fitFrame 잠금 0.8초가 지남). 단계 도착 직후에는 위아래 줄이 그려지며 틀이
+   * 1240×470 → 509×396 → 475×371처럼 몇 번 바뀌어 이름표·배너가 크기마다 다시 놓였다 — 지도 네트워크층은 굳은 뒤에 한 번 배치한다. 계획 화면이 아니면 늘 true */
+  App.frameReady = function () { var key = frameKey(); return !key || !App.view || !App.view.contentAspect || !App.view.contentAspect() || !!(frameLock && frameLock.key === key && Date.now() - frameLock.at > 800); };
   App.fitFrame = function () {
     var st = $('#stage'), screen = document.body.dataset.screen; if (!st) return;
-    var bc = document.body.classList, lockKey = screen === 'plan' && App.s ? [App.s.phase, root.innerWidth, root.innerHeight, bc.contains('plan-text-open'), bc.contains('minimal-text'), App.view && App.view === App.view3d ? 1 : 0].join('|') : null;
+    var lockKey = frameKey();
     if (lockKey && frameLock && frameLock.key === lockKey && Date.now() - frameLock.at > 800) { st.style.height = frameLock.h; st.style.maxWidth = frameLock.w; return; }
     st.style.height = ''; st.style.maxWidth = '';
     var a = App.view && App.view.contentAspect && App.view.contentAspect();
@@ -493,7 +499,7 @@
       } else { note3d.hidden = false; note3d.textContent = '이 기기에서는 3D 화면을 쓸 수 없어 지도로 보여 드려요. 모든 기능은 그대로예요.'; }
     } else if (!want3d) { note3d.hidden = false; note3d.textContent = '지도 보기로 시작했어요.'; }
     // 네트워크·상태층(map-network.js): 지금 보이는 뷰의 장면·노선·대기·선택을 받아 같은 그림 체계로 그린다
-    App.net = PB.MapNetwork.create($('#stage'), function () { return App.view; }, { onLayout: function () { /* 얼굴·노선 손잡이도 이름표와 같은 그림에서 바로 자리 잡기(150ms 주기만 기다리면 카메라·무대 크기 전환 중 옛 자리에 남음) */ if (PB.UI.mapLayout) PB.UI.mapLayout(); if (PB.UI.placeRunNotices) PB.UI.placeRunNotices(); if (PB.Arrival) PB.Arrival.layout(); if (PB.Hud) PB.Hud.layout(); }, reserved: function () { return controls.reserved(); }, tokens: function () { var m = cfg.ui.map, w = cfg.ui.wait; return { line: m.line, lineActive: m.lineActive, casing: m.casing, stop: m.stop, cap: m.cap, waitCaution: w.caution, waitDanger: w.danger }; } });
+    App.net = PB.MapNetwork.create($('#stage'), function () { return App.view; }, { frameReady: function () { return App.frameReady(); }, onLayout: function () { /* 얼굴·노선 손잡이도 이름표와 같은 그림에서 바로 자리 잡기(150ms 주기만 기다리면 카메라·무대 크기 전환 중 옛 자리에 남음) */ if (PB.UI.mapLayout) PB.UI.mapLayout(); if (PB.UI.placeRunNotices) PB.UI.placeRunNotices(); if (PB.Arrival) PB.Arrival.layout(); if (PB.Hud) PB.Hud.layout(); }, reserved: function () { return controls.reserved(); }, tokens: function () { var m = cfg.ui.map, w = cfg.ui.wait; return { line: m.line, lineActive: m.lineActive, casing: m.casing, stop: m.stop, cap: m.cap, waitCaution: w.caution, waitDanger: w.danger }; } });
     [App.map2d, App.view3d].forEach(function (v) {
       if (!v) return;
       ['setScene', 'setRoutes', 'setWaiting', 'setSelected', 'setSelectable', 'flash'].forEach(function (fn) {

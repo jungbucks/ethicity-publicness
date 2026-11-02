@@ -755,8 +755,12 @@
       /* P1-5 ②(2026-11-02 재수정): 옮겨 가는 0.6초 사이에 다시 맞추면(지도 틀이 자리 잡으며 크기가 바뀜) 진행 중인 이동의 끝을 새 맞춤으로 바꾼다.
        * 예전에는 이동이 옛 끝(옛 틀 크기 기준)으로 끝나 그대로 남았다가, 단계 도착 뒤 첫 클릭(다시 그리기)에 지도 전체 투영이 바뀌어 얼굴·이름표가 한꺼번에 움직였다 */
       else if (camAnim && target) { camAnim.to = target; setCam(camAnim.from); }
-      animateNext = false; camStart = target; dirty = true; if (opts.onCamera) opts.onCamera();
+      animateNext = false; camStart = target; fitSize = Math.round(wdt) + 'x' + Math.round(hgt); dirty = true; if (opts.onCamera) opts.onCamera();
     }
+    /* 2026-11-02 재검증 P1-5 ②: 카메라가 아직 자리 잡는 중인가 — 단계 전환 이동(0.6초) 중이거나, 마지막 맞춤 뒤 지도 틀 크기가 바뀌어 다시 맞춰야 할 때.
+     * 그동안 이름표·얼굴·배너는 배치하지 않는다(map-network ready) — 예전에는 틀 밖으로 투영된 자리로 모두 오른쪽 아래 구석에 몰려 그려졌다가 다시 배치됐다 */
+    var fitSize = '';
+    function moving() { if (camAnim) return true; if (!bounds) return false; var r = container.getBoundingClientRect(); return !!r.width && Math.round(r.width) + 'x' + Math.round(r.height) !== fitSize; }
 
     var camStart = null;
     function setCam(c) { camera.left = c.l; camera.right = c.r; camera.top = c.t; camera.bottom = c.b; camera.updateProjectionMatrix(); }
@@ -822,7 +826,7 @@
       kind: '3d', ok: true, setScene: setScene, setRoutes: setRoutes, setSelectable: setSelectable, setSelected: setSelected,
       zoneInfo: function () { return Object.keys(zoneGroups).map(function (id) { return { id: id, model: !!zoneGroups[id].userData.model, offset: {x:zoneGroups[id].position.x-wp(id).x,z:zoneGroups[id].position.z-wp(id).z} }; }); },
       busInfo: function () { return Object.keys(busMesh).filter(function (id) { return busMesh[id].visible; }).map(function (id) { var u = busMesh[id].userData; return { id: Number(id), model: !!u.model, color: u.color || null }; }); },
-      refit: function () { fit(); }, contentAspect: contentAspect, setBuses: setBuses, setWaiting: setWaiting, setCrowd: setCrowd, flash: flash, project: project, setDrivingSegments: setDrivingSegments,
+      refit: function () { fit(); }, moving: moving, contentAspect: contentAspect, setBuses: setBuses, setWaiting: setWaiting, setCrowd: setCrowd, flash: flash, project: project, setDrivingSegments: setDrivingSegments,
       projectRoad: function (x, y) { return toScreen(x * K, .18, y * K); }, laneOffset: laneOffset,
       setReducedMotion: function (v) { reduced = !!v; },
       show: function (v) { container.hidden = !v; if (v) { fit(); dirty = true; frame(); } },

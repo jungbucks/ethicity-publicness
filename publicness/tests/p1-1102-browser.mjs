@@ -7,7 +7,7 @@
 //       기본 모드 1~4단계 결과에 ‘N점’ 없음(기준 예비비의 N% · 아직 평가 전)
 //  P1-5 출발 확인 요약(접지 않음), 계획 중 노선을 더해도 얼굴·이름표 자리 그대로, 사건 고리보다 이름표가 위, 단계 배너·새 정류장 배지가 정류장과 안 겹침
 //  재수정(검증 뒤): 안내 상자는 1148·1280·390 모두 정류장·이름표·얼굴을 가리지 않음, 운행 안내문 ‘다음 멈춤까지’ 한 이름·멈춘 동안 소리 버튼도 옅게,
-//       3D 단계 도착 뒤 첫 클릭에 투영이 바뀌지 않음, 계획·운행 중 이름표(이름 글자)·얼굴 고정, 단계 배너는 2D 1280에서도 보이고 아무것도 안 가림(390은 지도 바로 위)
+//       3D 단계 도착 뒤 첫 클릭에 투영이 바뀌지 않음, 계획·운행 중 이름표(이름 글자)·얼굴 고정, 단계 배너는 2D 1280에서도 보이고 아무것도 안 가림(390은 지도 아래 알림 줄 — 11-02 재검증: 지도 바로 위는 인물 칩을 덮었음)
 //  P2   제목 ‘첫 운행 예정 이동’, 이동 단위 ‘건’, ‘운행이 끝났어요.’, 1단계 ‘소외 지역 연결’ 설명, 넓은 화면 제목 그림 cover, 결과 ‘자세히’ 소제목 접기, 컷신 중 스크롤 잠금
 import { createRequire } from 'node:module'; import assert from 'node:assert/strict'; import { startServer } from './serve.mjs';
 const require = createRequire(import.meta.url), { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'D:/Works/token_economy/node_modules/playwright');
@@ -200,18 +200,18 @@ try {
     assert.deepEqual(shifts, [], '3단계 4번 노선을 이어도 이름표·얼굴 그대로');
     assert.deepEqual(page.errors, []); ok('P1-5 ② 3D 1148 3단계 도착 뒤 첫 클릭·I·A 잇기: 투영·이름표·얼굴 그대로'); await page.close();
   }
-  // ── P1-5 ④ 단계 시작 배너: 보이고(2D 1280에서 지도 밖으로 접히지 않음), 정류장·이름표·얼굴을 가리지 않음. 지도에 빈자리가 없으면(390·알림과 함께) 지도 바로 위 ──
+  // ── P1-5 ④ 단계 시작 배너: 보이고(2D 1280에서 지도 밖으로 접히지 않음), 정류장·이름표·얼굴을 가리지 않음. 지도에 빈자리가 없으면(390) 지도 아래 알림 줄(#map-strip) ──
   for (const [q, w, h, dpr, phases] of [['no3d=1', 1280, 800, 1, [2, 3]], ['', 1280, 800, 1, [3]], ['', 390, 844, 3, [2]]]) {
     for (const phase of phases) {
       const page = await fresh(q, { width: w, height: h }, dpr);
       await arrive(page, phase); await page.waitForTimeout(700);
       const c = await covered(page, '#map-banner'); assert.ok(c, '배너 있음');
-      const geo = await page.evaluate(() => { const b = document.querySelector('#map-banner').getBoundingClientRect(), s = document.querySelector('#stage').getBoundingClientRect(); return { w: b.width, h: b.height, inStage: b.left >= s.left - 1 && b.right <= s.right + 1 && b.top >= s.top - 1 && b.bottom <= s.bottom + 1, above: b.bottom <= s.top + 1 && b.left >= s.left - 1 && b.right <= s.right + 1 }; });
-      assert.ok(geo.w > 100 && geo.h < 90, '배너가 접히지 않음 ' + JSON.stringify(geo)); assert.ok(geo.inStage || geo.above, '배너가 지도 안 또는 지도 바로 위(빈자리가 없을 때) ' + JSON.stringify(geo));
+      const geo = await page.evaluate(() => { const b = document.querySelector('#map-banner').getBoundingClientRect(), s = document.querySelector('#stage').getBoundingClientRect(); return { w: b.width, h: b.height, inStage: b.left >= s.left - 1 && b.right <= s.right + 1 && b.top >= s.top - 1 && b.bottom <= s.bottom + 1, above: b.bottom <= s.top + 1 && b.left >= s.left - 1 && b.right <= s.right + 1, strip: document.querySelector('#map-banner').parentNode.id === 'map-strip' && b.top >= s.bottom - 1 }; });
+      assert.ok(geo.w > 100 && geo.h < 90, '배너가 접히지 않음 ' + JSON.stringify(geo)); assert.ok(geo.inStage || geo.strip, '배너가 지도 안 또는 지도 아래 알림 줄(빈자리가 없을 때) ' + JSON.stringify(geo));
       assert.deepEqual(c.hits, [], `${q || '3D'} ${w} ${phase}단계 배너가 가리는 것`);
       if (w === 1280 && q) await page.screenshot({ path: `${SHOT}/_shot-p1-5-banner-2d1280-p${phase}.png` });
       if (w === 390) await page.screenshot({ path: `${SHOT}/_shot-p1-5-banner-390-p${phase}.png` });
-      assert.deepEqual(page.errors, []); ok(`P1-5 ④ ${q ? '2D' : '3D'} ${w}×${h} ${phase}단계 배너 ${c.r}(${geo.inStage ? '지도 안' : '지도 바로 위'}) 아무것도 안 가림`);
+      assert.deepEqual(page.errors, []); ok(`P1-5 ④ ${q ? '2D' : '3D'} ${w}×${h} ${phase}단계 배너 ${c.r}(${geo.inStage ? '지도 안' : '알림 줄'}) 아무것도 안 가림`);
       await page.close();
     }
   }

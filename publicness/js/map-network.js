@@ -29,6 +29,7 @@
     var labels = document.createElement('div'); labels.className = 'net-labels'; layer.appendChild(labels);
     stage.appendChild(layer);
     var st = { nodes: {}, routes: [], waiting: {}, selected: [], selectable: [], show: true, faces: [], newNodes: [], newAt: 0, service: {} }, placed = [], flashT = {}, facePos = {}, keep = { key: null, lab: {}, face: {}, svc: {} }, keeps = {};
+    var ready = true, waitSince = 0, waitTimer = null; // 카메라가 자리 잡은 뒤에만 이름표·얼굴을 배치(아래 draw)
 
     function project(x, y) { var v = getView(); return v.project(x, y); }
     function lanePoint(a, b, num, f) {
@@ -122,6 +123,21 @@
       // 카메라가 아직 자리 잡기 전(정류장이 틀 밖에 투영됨)의 배치는 기억하지 않는다 — 틀 안으로 끌어온 자리가 고정되면 이름표가 엉뚱한 곳에 남는다
       var settled = ids.every(function (id) { return P[id].left >= 0 && P[id].left <= box.width && P[id].top >= 0 && P[id].top <= box.height; });
       var frozen = settled && ids.length > 0 && ids.every(function (id) { return keep.lab[id]; }), pillW = 0;
+      /* 2026-11-02 재검증 P1-5 ②: 단계 도착 직후에는 카메라(3D)·viewBox(2D)가 아직 새 틀에 맞춰지지 않아 정류장이 틀 밖으로 투영된다.
+       * 예전에는 그 자리로 이름표를 모두 그려(틀 안으로 끌어와 오른쪽 아래 구석에 28~36쌍이 겹침) 몇 프레임 뒤 다시 배치했다 — 이름표가 두 번 놓였다.
+       * 이제 뷰가 자리 잡는 중(moving: 전환 이동 0.6초 · 맞춤 뒤 틀 크기 바뀜)이거나 정류장이 틀 밖이면 이름표·얼굴을 그리지 않고(#stage.net-settling으로 얼굴층도 숨김)
+       * 자리 잡은 뒤 한 번 배치한다 — 처음 보이는 배치가 마지막 배치. 계획 화면 지도 틀이 아직 굳기 전(App.frameReady, opts.frameReady)도 자리 잡는 중으로 본다.
+       * 지도가 안 보이면(텍스트 모드 등, 폭 0) 기다리지 않는다. 카메라·틀은 멈췄는데 정류장이 틀 밖이면 1.2초, 계속 움직이면 6초 뒤에는(예외 상황) 예전처럼 그린다 */
+      var vw = getView(), moving = !!(vw.moving && vw.moving()) || !!(opts.frameReady && !opts.frameReady()), now = performance.now();
+      if (settled && !moving) waitSince = 0; else if (!waitSince) waitSince = now;
+      ready = !ids.length || !box.width || (settled && !moving) || now - waitSince > (moving ? 6000 : 1200);
+      stage.classList.toggle('net-settling', !ready);
+      if (!ready) {
+        facePos = {};
+        if (!waitTimer) waitTimer = root.setTimeout(function () { waitTimer = null; redraw(); }, 120); // 틀이 굳는 순간엔 따로 알림이 없어 잠깐마다 다시 본다
+        if (opts.onLayout) opts.onLayout();
+        return;
+      }
       function rightAnchored(dir) { return dir === 'W' || dir === 'SW' || dir === 'NW' || /-L$/.test(dir); }
       function inBox(r) { return r.x >= 2 && r.y >= 2 && r.x + r.w <= box.width - 2 && r.y + r.h <= box.height - 2; }
       ids.forEach(function (id) {
@@ -302,6 +318,7 @@
         redraw();
       },
       redraw: redraw, draw: draw,
+      ready: function () { return ready; }, // 이름표·얼굴이 이번 틀에 배치됐는가(자리 잡는 중이면 false) — 배너·알림 자리 찾기는 이걸 기다린다
       rects: function () { return placed.slice(); },
       caps: function () { return (st.caps || []).slice(); }
     };

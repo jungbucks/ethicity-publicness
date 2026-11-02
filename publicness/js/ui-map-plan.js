@@ -171,10 +171,12 @@
   function positionPeople(){
     var scr=document.body.dataset.screen;if(!app()||!app().s||(scr!=='plan'&&scr!=='run'))return;
     var layer=document.querySelector('#map-people');if(!layer)return;
-    positionBadges();
     // 인물 얼굴 자리는 지도 네트워크층이 이름표보다 먼저 정한다(net.facePos) — 이름표·번호 원·노선 선과 겹치지 않게. 층이 없을 때만 아래 방식
-    if(app().net){PB.Demand.residents(app().s.config,app().s.phase).forEach(function(rd){var el=document.querySelector('#resident-map-'+rd.id),q=app().net.facePos(rd.id);if(el&&q){el.style.left=q.x+'px';el.style.top=q.y+'px';}});}
+    /* 2026-11-02 재검증 P1-5 ④: 얼굴을 먼저 옮기고 노선 손잡이를 놓는다 — 손잡이는 얼굴 자리를 피하는데, 예전엔 옛 얼굴 자리로 한 번 놓였다가
+     * 150ms 뒤 다시 옮겨 가서 그 사이 자리를 잡은 단계 배너 밑으로 들어갔다(2D 1148·3D 1440 2단계 route-bus-1) */
+    if(app().net){PB.Demand.residents(app().s.config,app().s.phase).forEach(function(rd){var el=document.querySelector('#resident-map-'+rd.id),q=app().net.facePos(rd.id);if(el&&q){el.style.left=q.x+'px';el.style.top=q.y+'px';}});positionBadges();}
     else{
+    positionBadges();
     var taken=(app().net?app().net.rects():[]).concat([].map.call(document.querySelectorAll('#route-buses .route-bus:not([hidden])'),function(b){var r=b.getBoundingClientRect(),s=document.querySelector('#stage').getBoundingClientRect();return {x:r.left-s.left,y:r.top-s.top,w:r.width,h:r.height};})),F=40;
     PB.Demand.residents(app().s.config,app().s.phase).forEach(function(rd){var el=document.querySelector('#resident-map-'+rd.id);if(!el)return;var n=app().nodeXY(rd.o),p=app().view.project(n.x,n.y),best=null;
       [[-F/2,-F-14],[-F-10,-F-6],[10,-F-6],[-F-16,-F/2],[16,-F/2],[-F/2,18]].some(function(o){var r={x:p.left+o[0],y:p.top+o[1],w:F,h:F};if(taken.some(function(q){return r.x<q.x+q.w&&q.x<r.x+r.w&&r.y<q.y+q.h&&q.y<r.y+r.h;}))return false;best=r;return true;});
@@ -252,7 +254,7 @@
     text.setAttribute('aria-expanded',String(state.text));text.setAttribute('aria-controls','panel');ai.setAttribute('aria-expanded',String(state.ai));ai.setAttribute('aria-controls','plan-ai-popover');actions.appendChild(text);actions.appendChild(ai);actions.appendChild(panel.querySelector('#btn-depart'));bar.appendChild(actions);
     var message=panel.querySelector('#plan-message');bar.appendChild(App.el('p',{id:'map-plan-message',role:'status'},state.bus!=null?(state.from!=null?state.from+'번의 '+state.bus+'호차를 골랐어요. 다른 노선을 누르면 옮기고, ‘대기로 돌리기’로 회수해요.':state.bus+'호차를 보낼 노선을 누르세요 — 지도의 선, ‘버스 ×N’ 표시, 위 노선 버튼 모두 돼요.'):message.textContent));
     var issues=panel.querySelector('#plan-errors');if(issues.textContent)bar.appendChild(issues);
-    stage.parentNode.insertBefore(bar,stage.nextSibling);
+    var after=document.getElementById('map-strip')||stage;after.parentNode.insertBefore(bar,after.nextSibling); /* 좁은 화면 알림 줄(#map-strip) 다음 */
     document.body.classList.toggle('plan-text-open',state.text);document.body.classList.toggle('bus-picked',state.bus!=null);
     /* AI 제안 패널(2026-11-01 플레이테스트: 지도 오른쪽 절반을 덮어 제안 노선이 밑에 깔리고, 버튼은 스크롤해야 보이고, 닫기·제목이 없었다).
      * 넓은 화면 = 지도 밖 오른쪽 사이드바(그리드 한 칸 — 지도 틀이 그만큼 줄어 제안 노선 전체가 보임), 좁은 화면 = 아래 시트.
@@ -284,7 +286,7 @@
   }
   /* P1-1(2026-11-02): 넓은 화면의 AI 제안 패널은 지도를 줄이지 않고 지도 오른쪽 가장자리에 겹쳐 띄운다(지도 틀 안, 위·오른쪽 8px) */
   function placeAi(){var pop=document.querySelector('#plan-ai-popover'),st=document.querySelector('#stage');if(!pop||pop.hidden||!st)return;
-    if(root.innerWidth<=850){pop.style.top=pop.style.right=pop.style.width='';return;}
+    if(root.innerWidth<=850){pop.style.top=pop.style.right=pop.style.width=pop.style.maxHeight='';return;}
     var r=st.getBoundingClientRect(),w=Math.min(360,Math.max(280,Math.round(r.width*0.42)));pop.style.top=Math.max(8,Math.round(r.top)+8)+'px';pop.style.right=Math.max(8,Math.round(root.innerWidth-r.right)+8)+'px';pop.style.width=w+'px';pop.style.maxHeight=Math.max(300,Math.round(Math.min(r.bottom,root.innerHeight)-Math.max(8,r.top+8)-8))+'px';}
   root.addEventListener('resize',function(){root.requestAnimationFrame(placeAi);});
   PB.UI.mapLayout=positionPeople;

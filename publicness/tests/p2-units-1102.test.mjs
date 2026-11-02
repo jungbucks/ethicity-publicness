@@ -30,3 +30,16 @@ test('운행 안내문: 단계와 무관하게 ‘⏭ 다음 멈춤까지’, �
   assert.doesNotMatch(run, /‘⏭ 다음 결정까지’는|‘⏭ 다음 사건까지’는/);
   assert.match(run, /' ‘⏭ 다음 멈춤까지’는 ' \+ \(hasEmergency\(s\) \? '다음 긴급 조정이나 ' : ''\) \+ '주요 인물이 왕복을 마치거나 오늘 대기 기준을 넘긴 순간까지 빨리 간 뒤 멈춰요\.'/);
 });
+
+test('재검증(11-02): AI에게 예상 물어보기의 미도착 지역·결과 첫 줄도 이동 요청은 건(사람 수 명과 섞지 않음)', () => {
+  const plan = read('js/ui-plan.js'), result = read('js/ui-result.js');
+  assert.match(plan, /'에서 출발하는 이동 요청 '\+\(z\.N-z\.arrived\)\+'건은 아직 도착하기 어려워요\.'/);
+  assert.doesNotMatch(plan, /\(z\.N-z\.arrived\)\+'명/);
+  assert.match(result, /'이동 요청 '\+m\.N\+'건 중 '\+m\.arrived\+'건이 목적지에 도착했어요\.'/);
+  assert.doesNotMatch(result, /m\.N\+'명 중/);
+});
+
+test('재검증(11-02): 그날 마지막 멈춤 안내는 꺼진 ⏭ 대신 ▶·⏩', () => {
+  const run = read('js/ui-run.js');
+  assert.match(run, /\(stopsLeft\(\) \? '▶ 재개하면 ' \+ App\.speed \+ '배속, ⏭ 누르면 ' \+ nextLabel\(R\.s\) \+ ' 빨리 가요\.' : '남은 멈춤이 없어요\. ▶ 재개하거나 ⏩ 끝까지 가요\.'\)/);
+});

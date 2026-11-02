@@ -526,7 +526,7 @@ body[data-screen="plan"] #plan-ai-popover { position:fixed; top:72px; right:12px
 #rec-people.rec-people-warn { color:var(--sem-caution-ink); background:#FFF4E5; border-left:3px solid var(--sem-caution); padding:6px 10px; border-radius:var(--radius-in); }
 @media (max-width:850px) {
   body[data-screen="plan"].ai-open .game, body[data-screen="plan"].ai-open.plan-text-open .game { grid-template-columns:minmax(0,1fr); }
-  body[data-screen="plan"] #plan-ai-popover { position:fixed; left:0; right:0; bottom:0; top:auto; z-index:60; max-height:46dvh; border-left:0; border-top:1px solid var(--border); border-radius:16px 16px 0 0; box-shadow:0 -6px 24px #17233529; }
+  body[data-screen="plan"] #plan-ai-popover { position:fixed; left:0; right:0; bottom:0; top:auto; width:auto; z-index:60; max-height:46dvh; border-left:0; border-top:1px solid var(--border); border-radius:16px 16px 0 0; box-shadow:0 -6px 24px #17233529; }
 }
 #map-people,#resident-destination { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
 #map-people { z-index:8; }
@@ -626,6 +626,8 @@ body[data-screen="result"] .resident-cards>li { animation:resident-reveal .35s e
 .net-cap text { font: 700 var(--fs-label)/1 var(--font); }
 .net-cap .cap-count { fill: var(--map-label-ink); paint-order: stroke; stroke: #fff; stroke-width: 3px; }
 .net-labels { position: absolute; inset: 0; }
+/* 2026-11-02 재검증 P1-5 ②: 카메라가 자리 잡는 동안(map-network ready=false)은 이름표·얼굴을 숨긴다 — 처음 보이는 배치가 마지막 배치 */
+#stage.net-settling .net-labels, #stage.net-settling #map-people { visibility: hidden; }
 .net-label { position: absolute; display: flex; align-items: center; gap: 4px; padding: 1px 7px; border-radius: 10px; background: var(--map-label-bg); color: var(--map-label-ink); font: 600 var(--fs-label)/1.5 var(--font); white-space: nowrap; box-shadow: 0 1px 3px rgba(23,35,53,.25); }
 /* 서쪽(왼쪽)에 놓인 이름표는 오른쪽 끝을 고정하므로 대기 pill·‘새 정류장’ 배지를 앞에 — 이름 글자가 정류장 옆에 그대로(P1-5 ②) */
 .net-label[data-anchor="right"] .net-wait, .net-label[data-anchor="right"] .net-new { order: -1; }
@@ -760,3 +762,13 @@ html:has(#goal-intro[open]), body:has(#goal-intro[open]) { overflow: hidden; }
 #help #help-more { margin: 4px 0 12px; }
 #help #help-more > summary { cursor: pointer; font-weight: 700; padding: 6px 0; }
 @media (max-width: 420px) { #help .help-quick li { grid-template-columns: 32px 1fr; } #help .help-quick span { grid-column: 2; } }
+
+/* 2026-11-02 재검증 P1-5 ③④: 좁은 화면(≤700px) 계획·운행의 알림 줄 — 지도 바로 아래 늘 같은 높이로 비워 둔다(지도 틀 크기와 무관).
+   지도 안에 빈자리가 거의 없는 휴대폰에서 짧은 알림(#minimal-toast)과 빈자리를 못 찾은 단계 배너가 여기에 뜬다 — 이름표·정류장·얼굴·인물 칩을 가리지 않음 */
+.map-strip { display: none; }
+@media (max-width: 700px) {
+  body[data-screen="plan"] .map-strip, body[data-screen="run"] .map-strip { display: flex; flex-direction: column; align-items: stretch; gap: 4px; min-height: 48px; margin: 6px 0 2px; }
+}
+.map-strip > .in-strip { position: static; transform: none; left: auto; right: auto; top: auto; bottom: auto; margin: 0; max-width: none; width: auto; }
+.minimal-toast.in-strip { font-size: 12.5px; line-height: 1.45; padding: 6px 10px; border-radius: 10px; }
+.minimal-toast.is-outside { z-index: 45; }

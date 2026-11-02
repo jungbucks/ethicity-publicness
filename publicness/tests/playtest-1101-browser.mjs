@@ -216,7 +216,7 @@ try {
     assert.equal(await page.locator('#run-next').getAttribute('aria-label'), '다음 멈춤까지');
     await page.locator('#run-next').click(); await page.waitForFunction(() => PB.UI.runState().hold, null, { timeout: 20000 });
     const why = await page.locator('#run-status').textContent();
-    assert.match(why, /^.+(왕복 완료|오늘 기준 초과).* \d\d:\d\d 멈춤\. ▶ 재개하면 \d배속, ⏭ 누르면 다음 멈춤까지 빨리 가요\.$/, why); assert.doesNotMatch(why, /만차|대기 10명/);
+    assert.match(why, /^.+(왕복 완료|오늘 기준 초과).* \d\d:\d\d 멈춤\. (▶ 재개하면 \d배속, ⏭ 누르면 다음 멈춤까지 빨리 가요\.|남은 멈춤이 없어요\. ▶ 재개하거나 ⏩ 끝까지 가요\.)$/, why); assert.doesNotMatch(why, /만차|대기 10명/);
     ok('P1-12 멈춘 이유 먼저: ' + why); }
     await page.evaluate(() => { PB.UI.stopRun(); PB.App.s.runCursor = 110; PB.App.go('run'); }); await page.waitForTimeout(1500);
     const row = await page.evaluate(() => { const dts = [...document.querySelectorAll('#run-live dt')]; const i = dts.findIndex(d => d.textContent === '만차로 남겨짐'); return document.querySelectorAll('#run-live dd')[i].textContent; });

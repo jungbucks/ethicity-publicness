@@ -128,7 +128,7 @@
     if (UI.phaseScores) panel.appendChild(UI.phaseScores(App, h, M.routeReport(s.current.result, S.routesInOrder(s), s.draft.buses)));
     if(m.families&&m.families.total)panel.appendChild(el('p',{id:'family-result','class':'callout'},'호수공원 가족 나들이 · '+m.families.total+'팀 중 '+m.families.complete+'팀이 전원 방문·귀가를 마쳤어요. 가족 중 한 명이라도 이동을 마치지 못하면 그 팀의 일정은 미완료예요.'));
     var summary=el('section',{id:'resident-summary'});
-    summary.appendChild(el('p',{'class':'outcome-lead'},m.N+'명 중 '+m.arrived+'명이 목적지에 도착했어요.'));
+    summary.appendChild(el('p',{'class':'outcome-lead'},'이동 요청 '+m.N+'건 중 '+m.arrived+'건이 목적지에 도착했어요.'));
     if(s.config.day){
       summary.firstChild.textContent='발생한 이동 요청 '+m.N+'건('+requestParts(m.requests)+') 중 '+m.arrived+'건이 목적지에 도착했어요.';
       summary.appendChild(el('h3',null,'오늘, 주민들의 이동은'));

@@ -299,7 +299,7 @@
   function outlookContent(panel){var m=S.expected(st()),sec=el('section',{id:'plan-outlook'});sec.appendChild(el('h3',null,'이 노선으로 이동하면'));
     sec.appendChild(el('p',{id:'expected-arrivals'},'이동 요청 '+m.N+'건('+PB.UI.requestParts(m.requests)+') 중 '+m.arrived+'건이 도착할 것으로 예상돼요.'));
     var missing=Object.keys(m.zones).filter(function(id){return m.zones[id].N>m.zones[id].arrived;}).sort(function(a,b){return(m.zones[b].N-m.zones[b].arrived)-(m.zones[a].N-m.zones[a].arrived);});
-    var ul=el('ul',{'class':'resident-outcomes'});missing.slice(0,3).forEach(function(id){var z=m.zones[id];ul.appendChild(el('li',null,app().nodeName(id)+'에서 출발하는 '+(z.N-z.arrived)+'명은 아직 도착하기 어려워요.'));});
+    var ul=el('ul',{'class':'resident-outcomes'});missing.slice(0,3).forEach(function(id){var z=m.zones[id];ul.appendChild(el('li',null,app().nodeName(id)+'에서 출발하는 이동 요청 '+(z.N-z.arrived)+'건은 아직 도착하기 어려워요.'));});
     if(!missing.length)ul.appendChild(el('li',null,'모든 지역의 요청이 운행 시간 안에 도착할 것으로 예상돼요.'));sec.appendChild(ul);if(st().config.day)people(sec,m);sec.appendChild(el('p',{'class':'note'},'돌발 수요 없는 예상 · '+PB.UI.waitLine(app(),m)));panel.appendChild(sec);
   }
   // 이번 단계 주요 인물의 첫 이동과 학기 누적 기록. 누르면 출발·목적 정류장을 지도에 표시한다

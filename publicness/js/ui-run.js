@@ -209,7 +209,8 @@
       // 멈춘 이유를 맨 앞에(예: ‘하늘 왕복 완료’)
       var why = stopAt.items.map(said).join(', ');
       if (PB.Hud && PB.Hud.render) PB.Hud.render(App);
-      setStatus(why + ' · ' + App.clock(stopAt.t) + ' 멈춤. ▶ 재개하면 ' + App.speed + '배속, ⏭ 누르면 ' + nextLabel(R.s) + ' 빨리 가요.');
+      /* 2026-11-02 재검증 P1-2: 그날 마지막 멈춤(예: 20:45 하늘 왕복 완료)이면 ⏭는 꺼져 있다(‘남은 멈춤 없음’) — 안내문도 ⏭ 대신 ▶·⏩를 말한다 */
+      setStatus(why + ' · ' + App.clock(stopAt.t) + ' 멈춤. ' + (stopsLeft() ? '▶ 재개하면 ' + App.speed + '배속, ⏭ 누르면 ' + nextLabel(R.s) + ' 빨리 가요.' : '남은 멈춤이 없어요. ▶ 재개하거나 ⏩ 끝까지 가요.'));
     }
     syncControls();
   }

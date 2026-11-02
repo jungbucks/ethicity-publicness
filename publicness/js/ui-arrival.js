@@ -12,66 +12,118 @@
   function $(s) { return document.querySelector(s); }
 
   function arrivalNow(A) { var a = A.arrival, s = A.s; return a && s && a.phase === s.phase && s.stage === 'plan' ? a : null; }
-  function dismissBanner() { var A = app(), a = A.arrival; if (a) a.done = true; var b = $('#map-banner'); if (b) b.remove(); clearTimeout(bannerTimer); document.removeEventListener('pointerdown', onFirst, true); document.removeEventListener('keydown', onFirst, true); }
+  function dismissBanner() { var A = app(), a = A.arrival; if (a) a.done = true; var b = $('#map-banner'); if (b) b.remove(); clearTimeout(bannerTimer); document.removeEventListener('pointerdown', onFirst, true); document.removeEventListener('keydown', onFirst, true);
+    var p = A._pendingToast; A._pendingToast = null; if (p && ['plan', 'run'].indexOf(document.body.dataset.screen) >= 0) A.toast(p[0], p[1]); } // 배너가 알림 줄에 있는 동안 미룬 알림
   function onFirst(e) { if (e.type === 'keydown' && (e.key === 'Tab' || e.key === 'Shift')) return; dismissBanner(); }
+  function netReady(A) { return !A.net || !A.net.ready || A.net.ready(); }
+  // 좁은 화면(≤700px) 계획·운행: 지도 바로 아래 늘 비워 둔 알림 줄(#map-strip, index.html). 지도 틀 크기와 무관(좁은 화면 지도 높이는 CSS)
+  function narrowStrip() { var s = $('#map-strip'); return s && root.innerWidth <= 700 && s.offsetParent !== null ? s : null; }
   function banner(A) {
     var a = arrivalNow(A), old = $('#map-banner');
     if (!a || a.done) { if (old) old.remove(); return; }
     if (!a.perf) a.perf = performance.now();
     if (!old) {
+      /* 2026-11-02 재검증 P1-5 ④: 배너는 카메라가 자리 잡고 이름표가 배치된 뒤(net ready) 한 번만 놓고, 그때부터 3초 보인다.
+       * 예전에는 이름표가 구석에 몰린 상태로 첫 자리를 잡아 자리 잡은 뒤 1~2번 옮겨 갔다(3D 1280 3단계 381,202 → 421,202 → 661,484) */
       old = el('p', { id: 'map-banner', 'class': 'map-banner', role: 'status', 'aria-live': 'polite' }, a.line);
-      $('#stage').appendChild(old); placeBanner(A);
-      var left = Math.max(400, 3000 - (performance.now() - a.perf));
-      bannerTimer = setTimeout(dismissBanner, left);
+      old.style.visibility = 'hidden';
+      $('#stage').appendChild(old);
       // 배너를 띄운 바로 그 클릭(다음 단계 버튼·컷 버튼)에 닫히지 않게 한 박자 뒤부터 첫 클릭을 기다린다
       setTimeout(function () { if (!a.done) { document.addEventListener('pointerdown', onFirst, true); document.addEventListener('keydown', onFirst, true); } }, 250);
     }
+    if (netReady(A)) placeBanner(A);
+    else if (!a.bannerFallback) a.bannerFallback = setTimeout(function () { var b = $('#map-banner'); if (b && b.style.visibility && !a.done) placeBanner(app()); }, 5000); // 예외: 5초가 지나도 지도가 자리 잡지 못하면 그때 자리로
   }
-  /* 지도 위에 띄우는 상자(배너·첫 노선 안내)가 피할 것: 정류장 원(반지름 + 6px, ×10⁶) · 이름표·얼굴·번호 원(×1000) · 정류장 여백 햇살(×20) */
+  function showBanner(b) { if (!b.style.visibility) return; b.style.visibility = ''; clearTimeout(bannerTimer); bannerTimer = setTimeout(dismissBanner, 3000); }
+  /* 지도 위에 띄우는 상자(배너·첫 노선 안내·알림)가 피할 것: 정류장 원(반지름 + 6px, ×10⁶) · 이름표·얼굴·번호 원·시계 묶음(×1000) · 정류장 여백 햇살(×20) */
   function mapRects(A) {
     var SR = (((A.s && A.s.config.ui) || {}).map || { stop: 9 }).stop + 6, rects = [];
     (A.net && A.net.rects ? A.net.rects() : []).forEach(function (r) {
       if (r.kind === 'stop') { var cx = r.x + r.w / 2, cy = r.y + r.h / 2; rects.push({ x: cx - SR, y: cy - SR, w: SR * 2, h: SR * 2, k: 1e6 }); rects.push({ x: r.x, y: r.y, w: r.w, h: r.h, k: 20 }); }
-      else if (r.kind === 'label' || r.kind === 'face' || r.kind === 'cap') rects.push({ x: r.x, y: r.y, w: r.w, h: r.h, k: 1000 });
+      else if (r.kind === 'label' || r.kind === 'face' || r.kind === 'cap' || r.kind === 'hud') rects.push({ x: r.x, y: r.y, w: r.w, h: r.h, k: 1000 });
     });
     return rects;
   }
+  // 지도 위 DOM 표시(노선 손잡이 ‘버스 ×N’·인물 얼굴·첫 노선 안내·손가락·운행 경고 문구·말풍선·배너)도 가리지 않는다 — 덮으면 끌거나 누를 수 없다
+  function domRects(stage, sels) {
+    var sr = stage.getBoundingClientRect(), out = [];
+    [].forEach.call(document.querySelectorAll(sels), function (h) { if (h.hidden || h.style.visibility === 'hidden') return; var r = h.getBoundingClientRect(); if (r.width && r.height) out.push({ x: r.left - sr.left - 6, y: r.top - sr.top - 6, w: r.width + 12, h: r.height + 12, k: 1000 }); });
+    return out;
+  }
   function coverCost(rects, c, bw, bh) { return rects.reduce(function (sum, r) { return sum + Math.max(0, Math.min(c.x + bw, r.x + r.w) - Math.max(c.x, r.x)) * Math.max(0, Math.min(c.y + bh, r.y + r.h) - Math.max(c.y, r.y)) * r.k; }, 0); }
-  /* P1-5 ④(2026-11-02, 검증 뒤 재수정): 단계 시작 배너가 정류장·이름표·얼굴을 가리거나(1280·390·1440), 2D 1280에서는 예전 자리(left 632px)에 남아
-   * 폭 40px·높이 896px로 접혀 지도 밖에 놓였다(후보가 없으면 자리를 안 고쳤음). 이제
-   *  ① 잴 때마다 자리·폭 제한을 처음으로 되돌린 뒤 잰다(지도 폭 − 16px를 넘으면 줄바꿈)
-   *  ② 폭을 좁혀 가며(한 줄 → 지도 폭 62% → 45%, 그다음 작은 글씨) 아무것도 안 가리는 자리가 있는 첫 모양을 쓴다. 없으면 가장 덜 가리는 자리
-   *  ②′ 지도 아래 가운데 알림(#minimal-toast)이 떠 있으면 그 자리도 피한다
-   *  ③ 이미 놓인 자리가 지금도 아무것도 안 가리면 그대로 둔다(카메라가 자리 잡는 동안 이리저리 옮겨 다니지 않게)
-   *  ④ 어떤 모양도 빈자리가 없으면(휴대폰 지도, 알림이 함께 뜬 작은 지도) 지도 바로 위(인물 칩 줄)에 띄운다 — 지도 안의 정류장·이름표·얼굴은 가리지 않는다 */
-  function placeBanner(A) {
-    var b = $('#map-banner'), stage = $('#stage'); if (!b || !stage) return;
-    var W = stage.clientWidth, H = stage.clientHeight, rects = mapRects(A), sizeKey = W + 'x' + H;
-    var M = 6, toast = $('#minimal-toast');
-    // 지도 아래 가운데 알림(#minimal-toast, 도착과 함께 ‘버스 칩을…’ 팁이 뜸)이 떠 있으면 그 자리도 피한다(알림이 뜰 때 App.toast가 다시 맞춤)
-    if (toast && !toast.hidden && toast.offsetWidth) { var tr = toast.getBoundingClientRect(), sr0 = stage.getBoundingClientRect(); rects.push({ x: tr.left - sr0.left - 4, y: tr.top - sr0.top - 4, w: tr.width + 8, h: tr.height + 8, k: 1000 }); }
-    function outside() { var sr = stage.getBoundingClientRect(); b.style.left = Math.round(sr.left + root.scrollX + (sr.width - b.offsetWidth) / 2) + 'px'; b.style.top = Math.max(4, Math.round(sr.top + root.scrollY - b.offsetHeight - 4)) + 'px'; }
-    if (b.parentNode !== stage) { if (b.dataset.placed === 'out:' + sizeKey) { outside(); return; } b.classList.remove('is-outside'); stage.appendChild(b); delete b.dataset.placed; }
-    if (b.dataset.placed === sizeKey && coverCost(rects, { x: b.offsetLeft, y: b.offsetTop }, b.offsetWidth, b.offsetHeight) < 1000) return;
-    var variants = [[W - 2 * M, false], [Math.round(W * 0.62), false], [Math.round(W * 0.45), false], [W - 2 * M, true], [Math.round(W * 0.55), true]], pick = null;
+  /* 지도 안 빈자리 찾기(배너·알림 공용): 폭을 좁혀 가며(variants: [최대 폭, 작은 글씨 class]) 아무것도 안 가리는 자리가 있는 첫 모양.
+   * pref(c, bw, bh) = 같은 비용일 때 고르는 순서(작을수록 먼저). 반환 { v, c, a } — a < 1000이면 빈자리, 아니면 가장 덜 가리는 자리 */
+  function findSpot(box, W, H, rects, variants, compactCls, pref) {
+    var M = 6, pick = null;
     variants.some(function (v) {
-      b.classList.toggle('is-compact', v[1]);
-      b.style.left = '0px'; b.style.top = '0px'; b.style.right = 'auto'; b.style.margin = '0'; b.style.maxWidth = Math.max(120, v[0]) + 'px';
-      var bw = b.offsetWidth, bh = b.offsetHeight, best = null;
-      for (var gx = M; gx <= W - bw - M; gx += 8) for (var gy = M; gy <= H - bh - M + 7; gy += 6) {
-        var c = { x: gx, y: Math.min(gy, H - bh - M) }, a = coverCost(rects, c, bw, bh), k = a + Math.abs(c.x + bw / 2 - W / 2) * 0.02 + c.y * 0.05;
+      if (compactCls) box.classList.toggle(compactCls, !!v[1]);
+      box.style.left = '0px'; box.style.top = '0px'; box.style.right = 'auto'; box.style.bottom = 'auto'; box.style.transform = 'none'; box.style.margin = '0'; box.style.maxWidth = Math.max(120, v[0]) + 'px';
+      var bw = box.offsetWidth, bh = box.offsetHeight, best = null;
+      for (var gx = M; gx <= W - bw - M + 9; gx += 10) for (var gy = M; gy <= H - bh - M + 7; gy += 8) { // 10×8px 격자(오른쪽·아래 가장자리 자리 포함)
+        var c = { x: Math.min(gx, W - bw - M), y: Math.min(gy, H - bh - M) }, a = coverCost(rects, c, bw, bh), k = a + pref(c, bw, bh);
         if (!best || k < best.k) best = { c: c, k: k, a: a };
       }
       if (!best) return false;
       if (!pick || best.a < pick.a) pick = { v: v, c: best.c, a: best.a };
       return best.a < 1000;
     });
+    return pick;
+  }
+  // 넓은 화면에서 지도 틀이 칸보다 좁으면(지도 양옆 빈 칸) 그 칸에 — 지도도 위아래 인물 칩·조작부도 가리지 않는다. 칸이 좁으면 null
+  function gutterSpot(stage, box, alignBottom) {
+    var sr = stage.getBoundingClientRect(), col = stage.parentNode, cr = col.getBoundingClientRect(), cs = getComputedStyle(col);
+    var left = sr.left - cr.left - parseFloat(cs.paddingLeft || 0) - 12, right = cr.right - parseFloat(cs.paddingRight || 0) - sr.right - 12, gap = Math.max(left, right);
+    if (gap < 170) return null;
+    box.style.maxWidth = Math.min(gap, 320) + 'px'; box.style.transform = 'none'; box.style.margin = '0'; box.style.right = 'auto'; box.style.bottom = 'auto';
+    var bw = box.offsetWidth, bh = box.offsetHeight;
+    return { left: Math.round((left >= right ? sr.left - 12 - bw : sr.right + 12) + root.scrollX), top: Math.round((alignBottom ? sr.bottom - bh - 8 : sr.top + 8) + root.scrollY) };
+  }
+  function resetInto(box, parent) { if (box.parentNode !== parent) parent.appendChild(box); box.classList.remove('is-outside', 'in-strip'); ['left', 'top', 'right', 'bottom', 'transform', 'margin', 'maxWidth'].forEach(function (k) { box.style[k] = ''; }); }
+  /* P1-5 ④(2026-11-02 재검증 뒤 재수정): 단계 시작 배너 자리 — 카메라가 자리 잡은 뒤(net ready) 한 번만 정하고 같은 틀 크기 동안 옮기지 않는다.
+   *  ① 지도 안: 폭을 좁혀 가며(한 줄 → 지도 폭 62% → 45%, 그다음 작은 글씨) 정류장·이름표·얼굴·번호 원·노선 손잡이를 안 가리는 첫 모양
+   *  ② 지도 안에 빈자리가 없으면: 좁은 화면(≤700px)은 지도 바로 아래 알림 줄(#map-strip), 넓은 화면은 지도 옆 빈 칸(지도 틀이 칸보다 좁을 때)
+   *     — 예전 ‘지도 바로 위’는 인물 칩·예상 수지 상자를 덮었다(2D 1280, 390)
+   *  ③ 그것도 없으면 지도 안에서 가장 덜 가리는 자리. 알림(#minimal-toast)은 배너를 피해 놓이므로 배너는 알림을 보고 옮기지 않는다 */
+  function placeBanner(A) {
+    var b = $('#map-banner'), stage = $('#stage'); if (!b || !stage) return;
+    var W = stage.clientWidth, H = stage.clientHeight, strip = narrowStrip(), key = W + 'x' + H + (strip ? ':strip' : '');
+    if (b.dataset.placed === key) { if (b.classList.contains('is-outside') && b._gutter) { var g0 = gutterSpot(stage, b, false); if (g0) { b.style.left = g0.left + 'px'; b.style.top = g0.top + 'px'; } } return; }
+    resetInto(b, stage); b._gutter = false;
+    var rects = mapRects(A).concat(domRects(stage, '#route-buses .route-bus, #first-coach, #coach-finger'));
+    var pick = findSpot(b, W, H, rects, [[W - 12, false], [Math.round(W * 0.62), false], [Math.round(W * 0.45), false], [W - 12, true], [Math.round(W * 0.55), true]], 'is-compact', function (c, bw) { return Math.abs(c.x + bw / 2 - W / 2) * 0.02 + c.y * 0.05; });
     if (!pick || pick.a >= 1000) {
-      b.classList.remove('is-compact'); b.classList.add('is-outside'); document.body.appendChild(b);
-      b.style.maxWidth = (W - 2 * M) + 'px'; b.style.left = '0px'; b.style.top = '0px'; outside(); b.dataset.placed = 'out:' + sizeKey; return;
+      if (strip) { b.classList.remove('is-compact'); resetInto(b, strip); b.classList.add('in-strip'); strip.insertBefore(b, strip.firstChild); b.dataset.placed = key; showBanner(b); return; }
+      b.classList.remove('is-compact'); document.body.appendChild(b); b.classList.add('is-outside');
+      var g = gutterSpot(stage, b, false);
+      if (g) { b.style.left = g.left + 'px'; b.style.top = g.top + 'px'; b._gutter = true; b.dataset.placed = key; showBanner(b); return; }
+      resetInto(b, stage);
     }
-    b.classList.toggle('is-compact', pick.v[1]); b.style.maxWidth = Math.max(120, pick.v[0]) + 'px';
-    b.style.left = pick.c.x + 'px'; b.style.top = pick.c.y + 'px'; b.style.right = 'auto'; b.style.margin = '0'; b.dataset.placed = sizeKey;
+    if (pick) { b.classList.toggle('is-compact', !!pick.v[1]); b.style.maxWidth = Math.max(120, pick.v[0]) + 'px'; b.style.left = pick.c.x + 'px'; b.style.top = pick.c.y + 'px'; b.style.right = 'auto'; b.style.margin = '0'; }
+    b.dataset.placed = key; showBanner(b);
+  }
+  /* 2026-11-02 재검증 P1-5 ③: 짧은 알림(#minimal-toast)이 지도 아래 가운데에 고정돼 정류장 이름표·말풍선을 덮었다(3D 390 ‘강을 건너는 구간은…’ → 외곽 마을,
+   * 2D 1280 긴급 조정 안내 → 외곽 마을, 2단계 ‘예상 수지가 달라졌어요’ → 대학교·외곽 마을). 지도 틀 크기는 그대로 두고 자리만 고른다:
+   *  · 좁은 화면(≤700px): 지도 바로 아래 알림 줄(#map-strip) — 지도 안 빈자리가 거의 없어서 늘 같은 곳
+   *  · 넓은 화면: 지도 안에서 정류장·이름표·얼굴·번호 원·노선 손잡이·배너·안내 상자·경고 문구를 안 가리는 자리(아래 가운데에 가까운 곳부터, 폭을 좁혀 가며)
+   *    → 없으면 지도 옆 빈 칸 → 그것도 없으면 가장 덜 가리는 자리. 떠 있는 동안 지금 자리가 계속 비어 있으면 옮기지 않는다 */
+  function placeToast() {
+    var A = app(), n = $('#minimal-toast'), stage = $('#stage'); if (!n || !stage || n.hidden || !n.textContent) return;
+    var strip = narrowStrip();
+    if (strip) { if (!n.classList.contains('in-strip') || n.parentNode !== strip) { resetInto(n, strip); n.classList.add('in-strip'); } return; }
+    var W = stage.clientWidth, H = stage.clientHeight, key = W + 'x' + H + '|' + n.textContent;
+    var rects = mapRects(A).concat(domRects(stage, '#route-buses .route-bus, #first-coach, #coach-finger, #stage > #map-banner, #map-people .map-person, #stage-overlay .run-alert-label, #stage-overlay .bubble, .map-notice-overflow'));
+    if (n.dataset.placed === key && n.parentNode === stage && coverCost(rects, { x: n.offsetLeft, y: n.offsetTop }, n.offsetWidth, n.offsetHeight) < 1000) return;
+    if (n.dataset.placed === key && n.classList.contains('is-outside')) { var g1 = gutterSpot(stage, n, true); if (g1) { n.style.left = g1.left + 'px'; n.style.top = g1.top + 'px'; return; } }
+    resetInto(n, stage);
+    var pick = findSpot(n, W, H, rects, [[W - 28], [Math.round(W * 0.7)], [Math.round(W * 0.5)], [Math.round(W * 0.38)]], null, function (c, bw, bh) { return Math.abs(c.x + bw / 2 - W / 2) * 0.05 + (H - c.y - bh) * 0.08; });
+    if (!pick || pick.a >= 1000) {
+      document.body.appendChild(n); n.classList.add('is-outside');
+      var g = gutterSpot(stage, n, true);
+      if (g) { n.style.left = g.left + 'px'; n.style.top = g.top + 'px'; n.dataset.placed = key; return; }
+      resetInto(n, stage);
+    }
+    if (pick) { n.style.maxWidth = Math.max(120, pick.v[0]) + 'px'; n.style.left = pick.c.x + 'px'; n.style.top = pick.c.y + 'px'; n.style.right = 'auto'; n.style.bottom = 'auto'; n.style.transform = 'none'; n.style.margin = '0'; }
+    n.dataset.placed = key;
   }
   function newMarks(A) {
     var a = arrivalNow(A);
@@ -200,10 +252,13 @@
 
   function render(A) {
     var screen = document.body.dataset.screen;
+    // 계획·운행이 아닌 화면: 지도 밖(알림 줄·지도 옆 칸)에 놓였던 알림은 지도 안으로 돌려놓는다(지도와 함께 숨음)
+    var tn = $('#minimal-toast'), st0 = $('#stage'); if (tn && st0 && screen !== 'plan' && screen !== 'run' && tn.parentNode !== st0) { resetInto(tn, st0); delete tn.dataset.placed; }
     if (screen !== 'plan') { ['#map-banner', '#first-coach', '#coach-finger'].forEach(function (q) { var n = $(q); if (n) n.remove(); }); clearInterval(coachTimer); coachTimer = null; if (A.net) A.net.setOptions({ newNodes: [] }); return; }
     banner(A); newMarks(A); coach(A); brief(A);
   }
   // 지도를 다시 그릴 때마다(틀 크기·카메라가 바뀐 뒤) 손가락·말풍선 자리를 다시 맞춘다
-  function layout() { var A = app(); if ($('#first-coach') && A.s) place(A, step(A)); if ($('#map-banner') && A.s) placeBanner(A); }
-  PB.Arrival = { render: render, layout: layout, fillHelp: fillHelp, dismissBanner: dismissBanner, closeCoach: closeCoach };
+  // 카메라가 자리 잡는 중(net ready=false)에는 배너·알림 자리를 정하지 않는다 — 이름표가 배치된 뒤 한 번
+  function layout() { var A = app(); if (!A.s) return; if ($('#first-coach')) place(A, step(A)); if (!netReady(A)) return; if ($('#map-banner')) placeBanner(A); placeToast(); }
+  PB.Arrival = { render: render, layout: layout, fillHelp: fillHelp, dismissBanner: dismissBanner, closeCoach: closeCoach, placeToast: placeToast };
 })(window);
