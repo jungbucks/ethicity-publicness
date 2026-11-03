@@ -99,7 +99,8 @@
         svgEl('circle', { cx: c.x, cy: c.y, r: nums ? T.cap : Math.round(T.cap * 0.7), fill: c.color }, g);
         if (nums) { var t = svgEl('text', { x: c.x, y: c.y + 4, 'text-anchor': 'middle', fill: lum(c.color) > 0.35 ? '#1A1D24' : '#FFFFFF' }, g); t.textContent = String(c.num); }
         var w = T.cap * 2;
-        var s = null; if (c.start && c.buses != null) { s = svgEl('text', { 'class': 'cap-count', x: c.x + T.cap + 3, y: c.y + 4 }, g); s.textContent = String(c.buses); w += 12; }
+        /* 버스 수는 ‘N대’(2026-11-03: 숫자만이면 노선 번호로 읽혔다). 정류장 반대쪽으로 뒤집어 붙여 봤더니 375px 3D 운행에서 이름표끼리 겹쳐서 늘 오른쪽 */
+        var s = null; if (c.start && c.buses != null) { s = svgEl('text', { 'class': 'cap-count', x: c.x + T.cap + 3, y: c.y + 4 }, g); s.textContent = c.buses + '대'; w += 24; }
         // 시작 쪽은 예전에 계획 화면의 노선 손잡이(번호 원 24px + 버스 수 pill)가 그 위에 놓였어서 그 크기(56×30)만큼 비워 뒀다. 지금 손잡이는 선 옆 빈자리로 가므로(ui-map-plan positionBadges)
         // 좁은 지도(≤ 520px)에서는 실제 그린 크기(번호 원 + 버스 수 글자)만 막는다 — 남는 56px 칸 때문에 이름표·손잡이가 갈 바로 옆 자리가 없어지던 것(2026-11-01). 넓은 지도는 그대로
         if (c.start && c.buses != null && s) w = T.cap + 3 + s.getComputedTextLength() + T.cap + 1;
