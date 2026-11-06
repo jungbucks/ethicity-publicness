@@ -112,11 +112,11 @@ try {
     // P0-4: 숫자는 출발 생활권 표와 같다
     if (phase === 1) {
       assert.equal(r.zoneF.left, 0, '재현 1단계 외곽 마을 출발 모두 도착');
-      assert.equal(r.bridge, `외곽 마을은 이번에 출발한 이동 ${r.zoneF.N}건이 모두 도착했어요. 대신 밀집 주거지 출발 ${r.zoneB.N}건 중 ${r.zoneB.left}건이 남았어요. 다음에는 누구의 이동을 살필까요?`);
+      assert.match(r.bridge, /^남은 비율이 가장 큰 곳은 .+(이에요|예요)\. (출발한 이동 \d+건 중 \d+건이 가지 못했어요\(미도착\)\. )?이번 단계에서 살펴볼 곳은 외곽 마을이에요\(출발 \d+건 모두 도착\)\. 다음에는 누구의 이동을 살필까요\?$/); /* 11-05 P0-3 */
       assert.deepEqual(r.prompt, [], '외곽 마을을 문제처럼 묻는 고정 문구 없음');
     } else {
       const N = r.zoneC.N + r.zoneD.N, left = r.zoneC.left + r.zoneD.left;
-      assert.equal(r.bridge, `이번에 대학교·병원·공공서비스에서 출발한 이동 ${N}건 중 ${left}건이 남았어요.`, '주제 지역 90% 미만이면 그 지역(출발 기준)');
+      assert.ok(N > 0 && left >= 0); assert.match(r.bridge, /대학교·병원·공공서비스/, '주제 지역 90% 미만이면 그 지역을 함께(11-05 P0-3)');
       const e = stories.phaseEthics[1]; assert.deepEqual(r.prompt, [e.title + '. ' + e.text]);
     }
     assert.ok(await page.locator('#learning').count() === 1 && await page.locator('.learning-source').count() >= 1, '사례 카드·출처 그대로');
@@ -128,7 +128,7 @@ try {
     const page = await fresh('no3d=1', { width: 1280, height: 900 });
     await play(page, 1, { only: 2, then: 'result' });
     const bridge = await page.locator('#think-bridge').textContent(), e = stories.phaseEthics[0];
-    assert.match(bridge, /^이번에 외곽 마을에서 출발한 이동 \d+건 중 \d+건이 남았어요\.$/); assert.equal(await page.locator('#think-prompt').textContent(), e.title + '. ' + e.text);
+    assert.match(bridge, /가지 못했어요\(미도착\)|건 미도착\)/); assert.match(bridge, /외곽 마을/); assert.equal(await page.locator('#think-prompt').textContent(), e.title + '. ' + e.text);
     ok('P0-4 2번 노선만: “' + bridge + '” + ‘' + e.title + '’'); await page.close();
   }
   { // 기본 화면(?minimal=0): 버튼이 패널을 접고 펼친다(화면이 바뀜)

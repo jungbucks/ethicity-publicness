@@ -9,7 +9,7 @@ const buses=p=>p.evaluate(()=>PB.App.s.draft.buses.map(b=>b.routeNum));
 // 보존 검사: 버스 수 = 보유 대수, 대기 표시 숫자 = 쉬는 버스 수, 노선 표시 ×N 합 + 대기 = 전체
 async function conserve(p,label){
  const r=await p.evaluate(()=>{const s=PB.App.s,rest=s.draft.buses.filter(b=>b.routeNum==null).length,shown=Number((document.querySelector('#depot-count')||{}).textContent.replace('대','')),
-  badge=[...document.querySelectorAll('.route-bus')].reduce((a,b)=>a+(parseInt((b.querySelector('.route-count')||{}).textContent,10)||0),0),onDrawn=s.draft.buses.filter(b=>b.routeNum!=null&&document.querySelector('#route-bus-'+b.routeNum)).length;
+  badge=[...document.querySelectorAll('.route-bus')].reduce((a,b)=>a+(parseInt(b.dataset.buses,10)||0),0),onDrawn=s.draft.buses.filter(b=>b.routeNum!=null&&document.querySelector('#route-bus-'+b.routeNum)).length;
   return {n:s.draft.buses.length,owned:s.owned,rest,shown,badge,onDrawn,neg:s.draft.buses.some(b=>b.routeNum!=null&&b.routeNum<0)};});
  assert.equal(r.n,r.owned,label+': 버스 수 = 보유');assert.equal(r.shown,r.rest,label+': 대기 숫자');assert.equal(r.badge,r.onDrawn,label+': ×N 합');assert.ok(r.rest>=0&&!r.neg,label+': 음수 없음');
  return r;
@@ -74,7 +74,7 @@ try{for(const view of (process.env.VIEWS||'2d,3d').split(',')){
  // 다른 노선으로 이동: 2번의 2호차 → 1번 선 위
  s=await dragTo(page,'#route-bus-2',await linePoint(page,1,0,.2,-15));assert.equal(s.hl,'1');assert.match(s.label,/놓으면 빨강 노선 1→2대 .*초록 노선 1→0대 · 운행 대기/);
  assert.deepEqual(await buses(page),[1,1]);await conserve(page,'이동');
- assert.ok(await page.locator('#route-bus-2.idle').count(),'마지막 버스가 떠난 노선은 남고 운행 대기');assert.match(await page.locator('#route-bus-2').getAttribute('aria-label'),/운행 대기/);assert.equal(await page.locator('#route-bus-2 .route-count').innerText(),'0대');
+ assert.ok(await page.locator('#route-bus-2.idle').count(),'마지막 버스가 떠난 노선은 남고 운행 대기');assert.match(await page.locator('#route-bus-2').getAttribute('aria-label'),/운행 대기/);assert.equal(await page.locator('#route-bus-2 .route-count').innerText(),'버스 없음');
  assert.equal(await page.evaluate(()=>PB.Session.routeByNum(PB.App.s,2).nodes.length),2,'노선 유지');
  assert.match(await page.locator('#depot-count').innerText(),/^0대$/);assert.ok(await page.locator('.depot-empty').count());
 

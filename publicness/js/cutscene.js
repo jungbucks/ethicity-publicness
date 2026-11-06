@@ -18,7 +18,7 @@
   var STAGE_MS=1600,auto=null,IGNORE=['Tab','Shift','Control','Alt','Meta','CapsLock'];
   function $(id){return document.getElementById(id);}
   function clear(){if(timer!==null){clearInterval(timer);timer=null;}if(auto!==null){clearTimeout(auto);auto=null;}}
-  function finish(){if(!active)return;var done=active.done;active=null;clear();$('goal-intro').close();document.body.classList.remove('story-open');done();}
+  function finish(how){if(!active)return;var done=active.done;active=null;clear();$('goal-intro').close();document.body.classList.remove('story-open');done(how==='skip'?'skip':null);}
   function reveal(){clear();if(!active)return;active.typed=active.text.length;$('story-typed').textContent=active.text;}
   // Stage card: shown before the story cuts, without a skip button. Any key, a click or the timer moves on.
   function drawStage(){
@@ -68,9 +68,9 @@
     active.cuts.forEach(function(c){var img=new Image();img.src='assets/art/'+c.image;});
   }
   function init(){
-    $('story-next').addEventListener('click',next);$('btn-goal-start').addEventListener('click',finish);
+    $('story-next').addEventListener('click',next);$('btn-goal-start').addEventListener('click',function(){finish('skip');});
     $('story-image').addEventListener('click',next);$('goal-intro-text').addEventListener('click',next);$('story-stage').addEventListener('click',next);
-    $('goal-intro').addEventListener('cancel',function(e){e.preventDefault();if(active&&active.onStage)next();else finish();});
+    $('goal-intro').addEventListener('cancel',function(e){e.preventDefault();if(active&&active.onStage)next();else finish('skip');});
     $('goal-intro').addEventListener('keydown',function(e){
       if(active&&active.onStage){if(IGNORE.indexOf(e.key)<0){e.preventDefault();if(!e.repeat)next();}return;}
       if(e.key==='ArrowRight'){e.preventDefault();if(!e.repeat)next();}

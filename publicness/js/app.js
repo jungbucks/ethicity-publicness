@@ -27,7 +27,7 @@
   };
   App.resume = function (saved) {
     App.s = S.restore(saved.session, cfg);
-    App._sceneKey = null;
+    App._sceneKey = null; App.arrival = { phase: App.s.phase, at: 0, changes: App.phaseChanges(App.s), line: '', done: true }; /* 이어하기: 배너는 다시 안 띄우고 ‘새’ 표시만(P1-3) */
     var st = App.s.stage;
     App.go(st === 'run' ? 'run' : st === 'reveal' ? 'reveal' : st === 'result' ? 'result' : st === 'ending' ? 'ending' : 'plan');
   };
@@ -113,6 +113,7 @@
     var stageOpts = fn ? fn(App, panel) : null;
     // 단계 질문(stories.phaseEthics)은 그 단계 결과 화면 ‘생각해 보기’에 있다(2026-11-01)
     App.syncStage(stageOpts || {});
+    if (PB.UI.syncInert) PB.UI.syncInert();
     if (PB.Hud) PB.Hud.render(App);
     if (PB.Arrival) PB.Arrival.render(App);
     // 화면이 바뀌면(운행 조작 묶음이 생기는 등) 지도 맞춤을 다시 — 정류장이 조작 버튼 밑에 깔리지 않게
@@ -155,26 +156,49 @@
     var b = document.body, bc = b.classList, scr = b.dataset.screen;
     if (!App.s || (scr !== 'plan' && scr !== 'run') || !bc.contains('minimal-ui') || bc.contains('minimal-text') || bc.contains('plan-text-open')) return null;
     var w = root.innerWidth, h = App.viewH();
-    if (w <= 700 && h >= w) return bc.contains('minimal-emergency') ? null : 'portrait'; /* 세로 긴급 조정 = 예전 배치(지도 아래 조정 창, 스크롤) */
+    if (w <= 700 && h >= w) return 'portrait'; /* 세로 긴급 조정 = 아래 시트(2026-11-05 P1-1, 지도 크기 그대로) */
     if (h <= 500 && w > h) return 'landscape';
     return null;
   };
+  /* 지도 틀 = 화면 크기로만(2026-11-05 P1-1: 지도가 계획 843px·운행 990px·2단계 794px·긴급 조정 674px·엔딩 637px로 계속 바뀌었다).
+   *  · rail(폭 960 이상): 지도 왼쪽, 오른쪽에 늘 비워 둔 고정 폭 칸(시각·수지·인물 칩 + 긴급 조정·AI 제안·운행 상황). 지도 아래 띠는 계획 = 노선 칩·대기 버스, 운행 = 상태 줄
+   *  · sheet(폭 701~959): 위쪽에 시각·인물 칩, 패널은 아래 시트(지도 크기 그대로)
+   *  · phone: 아래 fitPhone(세로는 같은 단계 안에서 계획·운행 높이가 같다 — 인물 칩 줄 수만큼 단계마다 달라질 수 있음)
+   * 넓이·높이는 창 크기로만 계산하고 화면 상태·내용을 재지 않는다. 텍스트 모드·?minimal=0(패널이 옆에 있는 예전 배치)은 빼고 */
+  var RAIL_MIN = 960, RAIL_TOP = 52, RAIL_PAD = 12, RAIL_BAND = 128, RAIL_GAP = 8;
+  App.layoutKind = function () {
+    var bc = document.body.classList; if (!App.s || !bc.contains('minimal-ui') || bc.contains('minimal-text') || bc.contains('plan-text-open')) return null;
+    var w = root.innerWidth, h = App.viewH();
+    if ((w <= 700 && h >= w) || (h <= 500 && w > h)) return 'phone';
+    return w >= RAIL_MIN ? 'rail' : 'sheet';
+  };
+  function fixedFrame(k) {
+    var w = root.innerWidth, h = App.viewH(), W, H;
+    if (k === 'rail') { W = w - Math.round(Math.max(300, Math.min(360, w * 0.24))) - RAIL_PAD * 3 - 16; H = Math.max(300, Math.min(Math.round(W * 1.15), h - RAIL_TOP - RAIL_PAD * 2 - RAIL_BAND - RAIL_GAP)); return { w: W, h: H }; }
+    if (k === 'sheet') { W = w - 32; H = Math.max(280, Math.min(Math.round(W / 1.1), h - 56 - 72 - 100 - 188 - 80 - 36)); return { w: W, h: H }; }
+    return null;
+  }
   function applyPhone() {
-    var m = App.phoneMode(), bc = document.body.classList, was = (bc.contains('phone-p') ? 'portrait' : bc.contains('phone-l') ? 'landscape' : null);
-    bc.toggle('phone-p', m === 'portrait'); bc.toggle('phone-l', m === 'landscape');
+    var m = App.phoneMode(), bc = document.body.classList, was = (bc.contains('phone-p') ? 'portrait' : bc.contains('phone-l') ? 'landscape' : null), wasK = bc.contains('rail') ? 'rail' : bc.contains('sheet') ? 'sheet' : null;
+    var scr = document.body.dataset.screen, k = scr === 'plan' || scr === 'run' ? App.layoutKind() : null;
+    bc.toggle('phone-p', m === 'portrait'); bc.toggle('phone-l', m === 'landscape'); bc.toggle('rail', k === 'rail'); bc.toggle('sheet', k === 'sheet');
     document.documentElement.style.setProperty('--app-h', App.viewH() + 'px');
-    return m !== was;
+    return m !== was || (k === 'rail' || k === 'sheet' ? k : null) !== wasK;
   }
   // 화면 모드가 바뀌었을 수 있을 때(텍스트 모드·긴급 조정 창·회전) — 바뀌었으면 지도 틀을 다시 맞춘다
   App.syncLayout = function () { if (applyPhone() && App.s) { App.fitFrame(); if (App.view && App.view.refit) App.view.refit(); if (App.net) App.net.redraw(); } };
+  var phoneFrame = null; // 세로 휴대폰: 이번 단계 계획 화면에서 잰 지도 높이 — 운행·결과도 같은 높이(P1-1)
   function fitPhone(st, m, a) {
     var col = st.parentNode, H, W;
     if (m === 'portrait') {
+      var pk = [App.s.phase, root.innerWidth, App.viewH()].join('|'), planning = document.body.dataset.screen === 'plan';
+      if (!planning && phoneFrame && phoneFrame.key === pk) { st.style.width = ''; st.style.maxWidth = ''; st.style.height = phoneFrame.h + 'px'; return; }
       // 지도 높이 = 보이는 높이 − (지도 말고 나머지 줄 높이). 나머지 = 칸 아래끝(문서 좌표) − 지금 지도 높이
       st.style.height = '160px'; st.style.width = ''; st.style.maxWidth = '';
       var bottom = col.getBoundingClientRect().bottom + root.scrollY + parseFloat(getComputedStyle(document.body).paddingBottom || 0);
       H = Math.max(160, Math.floor(App.viewH() - (bottom - 160)));
-      st.style.height = H + 'px'; return;
+      if (!planning) H = Math.max(160, H - 114); /* 운행으로 바로 들어옴(새로고침 이어보기): 계획 조작부 몫 212 − 알림 줄 52 − 운행 조작 줄 46 */
+      st.style.height = H + 'px'; if (planning) phoneFrame = { key: pk, h: H }; return;
     }
     // 가로: 높이 = 보이는 높이 − 위아래 여백, 폭 = 지도 비율대로(오른쪽 패널 최소 340px, 지도 최소 화면 42%)
     var cs = getComputedStyle(st), vw = root.innerWidth, pad = 8;
@@ -185,10 +209,14 @@
   }
   /* 2026-11-02 재검증 P1-5 ②④: 계획 화면 지도 틀이 이번 단계 크기로 굳었는가(fitFrame 잠금 0.8초가 지남). 단계 도착 직후에는 위아래 줄이 그려지며 틀이
    * 1240×470 → 509×396 → 475×371처럼 몇 번 바뀌어 이름표·배너가 크기마다 다시 놓였다 — 지도 네트워크층은 굳은 뒤에 한 번 배치한다. 계획 화면이 아니면 늘 true */
-  App.frameReady = function () { var key = frameKey(); return !key || !App.view || !App.view.contentAspect || !App.view.contentAspect() || !!(frameLock && frameLock.key === key && Date.now() - frameLock.at > 800); };
+  App.frameReady = function () { var key = frameKey(), k = App.layoutKind(); if (k === 'rail' || k === 'sheet') return true; return !key || !App.view || !App.view.contentAspect || !App.view.contentAspect() || !!(frameLock && frameLock.key === key && Date.now() - frameLock.at > 800); };
   App.fitFrame = function () {
     var st = $('#stage'), screen = document.body.dataset.screen; if (!st) return;
     applyPhone();
+    /* 창 크기로만 정하는 틀(P1-1): 계획·운행·결과 지도·엔딩이 같은 크기 */
+    var fixed = fixedFrame(App.layoutKind());
+    if (fixed) { st.style.width = fixed.w + 'px'; st.style.maxWidth = fixed.w + 'px'; st.style.height = fixed.h + 'px'; document.documentElement.style.setProperty('--map-w', fixed.w + 'px'); frameLock = null; return; }
+    if (phoneFrame && screen !== 'plan' && screen !== 'run' && App.layoutKind() === 'phone' && phoneFrame.key === [App.s.phase, root.innerWidth, App.viewH()].join('|')) { st.style.height = phoneFrame.h + 'px'; st.style.width = ''; st.style.maxWidth = ''; return; }
     var lockKey = frameKey();
     if (lockKey && frameLock && frameLock.key === lockKey && Date.now() - frameLock.at > 800 && !App.phoneMode()) { st.style.height = frameLock.h; st.style.maxWidth = frameLock.w; st.style.width = frameLock.ww || ''; return; }
     st.style.height = ''; st.style.maxWidth = ''; st.style.width = '';
@@ -378,26 +406,32 @@
   // 이번 단계에 새로 생긴 것: 정류장·인물·버스·노선 칸(지난 단계 대비). 1단계는 처음 주어진 버스·노선
   App.phaseChanges = function (s) {
     var cfg = s.config, p = s.phase, prog = cfg.progression, limit = S.routeLimit(s);
-    var out = { phase: p, name: cfg.phases[p - 1], places: [], people: [], buses: 0, routes: 0, newBusIds: [], owned: s.owned, limit: limit, express: null };
+    var out = { phase: p, name: cfg.phases[p - 1], places: [], people: [], buses: 0, routes: 0, newBusIds: [], newRouteNums: [], owned: s.owned, limit: limit, express: null, demand: PB.Demand.requestPlan(cfg, p, s.seed).planned, demandDiff: 0 };
     if (p === 1) return out;
+    out.demandDiff = out.demand - PB.Demand.requestPlan(cfg, p - 1, s.seed).planned;
     out.places = cfg.nodes.filter(function (n) { return n.fromPhase === p; });
     out.people = cfg.residents.filter(function (r) { return r.fromPhase === p; });
     out.buses = prog ? s.owned - prog.buses[p - 2] : 0;
     out.routes = prog ? limit - prog.routes[p - 2] : 0;
     out.newBusIds = s.draft.buses.filter(function (b) { return b.id > s.owned - out.buses && !b.leased; }).map(function (b) { return b.id; });
+    out.newRouteNums = out.routes > 0 ? s.draft.routes.map(function (r) { return r.num; }).filter(function (n) { return n > prog.routes[p - 2]; }) : [];
     if (cfg.challengeApplied && p === 6) out.express = '직행 노선 신설 · 직행 버스 전용(정원 18명 · 1.5배 · 정류장 3곳까지)';
     if (cfg.challengeApplied && p === 8) out.express = '광역 노선 신설 · 광역 버스 전용(정원 24명 · 마을 한 곳과 대도시)';
     return out;
   };
-  // 지도 배너 한 줄: ‘3단계 · 변화기 · 신도시가 생겼어요 · 버스 +1’
+  /* 지도 배너 한 줄(2026-11-05 P1-3: 모든 단계 같은 형식 — 새 정류장 · 새 인물 · 버스 증감과 보유비 · 노선 증감 · 이동 요청 변화. 바뀌지 않은 버스·노선도 ‘그대로’로 적는다)
+   * ‘2단계 · 적응기 · 종합운동장이 생겼어요 · 버스 +1 (보유비 단계당 20,000원) · 노선 +1 · 이동 요청 +29건’ */
   function cfg0(s) { return s.config; }
   App.changeLine = function (s) {
     var c = App.phaseChanges(s), parts = [c.phase + '단계 · ' + c.name];
-    if (c.phase === 1) parts.push('버스 ' + c.owned + '대 · 노선 최대 ' + c.limit + '개');
+    if (c.phase === 1) parts.push('버스 ' + c.owned + '대 · 노선 최대 ' + c.limit + '개 · 오늘 이동 요청 ' + c.demand + '건');
     c.places.forEach(function (n) { parts.push(PB.Narrative.josa(n.name, '이가') + ' 생겼어요'); });
     if (c.people.length) parts.push(c.people.map(function (r) { return r.name; }).join('·') + ' 등장');
-    if (c.buses) parts.push('버스 ' + signed(c.buses) + ' (보유비 ' + (c.buses > 1 ? '1대당 ' : '') + '단계당 ' + PB.Narrative.won(cfg0(s).finance.holding) + ')'); /* P1-4: 새 버스는 선물이 아니라 보유비가 든다 */
-    if (c.routes) parts.push('노선 ' + signed(c.routes));
+    if (c.phase > 1) {
+      parts.push(c.buses ? '버스 ' + signed(c.buses) + ' (보유비 ' + (c.buses > 1 ? '1대당 ' : '') + '단계당 ' + PB.Narrative.won(cfg0(s).finance.holding) + ')' : '버스 그대로'); /* P1-4: 새 버스는 선물이 아니라 보유비가 든다 */
+      parts.push(c.routes ? '노선 ' + signed(c.routes) : '노선 그대로');
+      parts.push(c.demandDiff ? '이동 요청 ' + signed(c.demandDiff) + '건' : '이동 요청 그대로');
+    }
     if (c.express) parts.push(c.express.split(' · ')[0]);
     return parts.join(' · ');
   };

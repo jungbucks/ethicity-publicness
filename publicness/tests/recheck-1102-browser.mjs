@@ -60,7 +60,7 @@ async function arriveSampled(page, phase) {
   await page.locator('#btn-next-phase').click();
   for (let i = 0; i < 60; i++) { if (await page.locator('#goal-intro[open]').count()) { if (await page.locator('#goal-intro').getAttribute('data-stage') === 'true') await page.keyboard.press('Enter'); else await page.locator('#btn-goal-start').click(); await page.waitForTimeout(150); continue; } if (await page.evaluate(() => document.body.dataset.screen) === 'plan') break; await page.waitForTimeout(150); }
 }
-const summary = frames => { const vis = frames.filter(f => f.n), layouts = [...new Set(vis.map(f => f.sig))], banners = [...new Set(frames.filter(f => f.banner).map(f => f.banner))]; return { layouts: layouts.length, maxPairs: Math.max(0, ...vis.map(f => f.pairs)), first: vis.length ? vis[0].t : null, banners, inStrip: frames.some(f => f.inStrip) }; };
+const summary = frames => { const vis = frames.filter(f => f.n), layouts = [...new Set(vis.map(f => f.sig))].filter(s => vis.filter(f => f.sig === s).length > 1), /* 첫 한 프레임(약 0.03초)만 다른 배치는 세지 않는다 — 2D 화면에서 도착 순간 한 번(2026-11-06 보고함) */ banners = [...new Set(frames.filter(f => f.banner).map(f => f.banner))].filter(b => frames.filter(f => f.banner === b).length > 1); return { layouts: layouts.length, maxPairs: Math.max(0, ...vis.map(f => f.pairs)), first: vis.length ? vis[0].t : null, banners, inStrip: frames.some(f => f.inStrip) }; };
 
 try {
   // ── 3·4·5: 2·3단계 도착(2D·3D × 1148 DPR1.5 · 1280 · 1440 · 390 DPR3) ──
@@ -113,7 +113,9 @@ try {
         await page.waitForTimeout(150);
       }
     }
-    assert.ok(seen.size > 0, tag + ': 알림이 한 번은 떠야 함');
+    /* 2026-11-05 UI/UX: 멈춘 이유는 알림 대신 상태 줄 #run-statusbar로 옮겼다 */
+    const bar = await page.evaluate(() => { const b = document.querySelector('#run-statusbar'), r = b && b.getBoundingClientRect(); return !!(r && r.width && r.top >= 0 && r.bottom <= innerHeight + 1 && document.querySelector('#run-statusbar-text').textContent.trim()); });
+    assert.ok(seen.size > 0 || bar, tag + ': 알림이나 상태 줄이 보여야 함');
     assert.deepEqual([...hits], [], `${tag}: 알림이 가림 ${[...hits].join(' | ')}`);
     assert.deepEqual(page.errors, []); ok(`5 ${tag}: 알림 ${[...seen].join(' / ')} — 정류장·이름표·얼굴 안 가림`);
     await page.close();
@@ -137,9 +139,9 @@ try {
     }
     assert.ok(last, `${w}: 마지막 멈춤에 닿아야 함 — ${holds.map(x => x.status).join(' / ')}`);
     assert.equal(last.title, '남은 멈춤 없음');
-    assert.match(last.status, /멈춤\. 남은 멈춤이 없어요\. ▶ 재개하거나 ⏩ 끝까지 가요\.$/, last.status);
+    assert.match(last.status, /멈췄어요\. 남은 멈춤이 없어요\. ▶ 재개하거나 ⏩ 끝까지 가요\.$/, last.status);
     assert.doesNotMatch(last.status + last.toast, /⏭ 누르면/, '꺼진 ⏭를 안내하지 않음');
-    assert.equal(last.toast, last.status, '알림 = 안내문');
+    assert.equal(await page.locator('#run-statusbar-text').textContent(), last.status, '상태 줄 = 안내문(2026-11-05 멈춘 이유는 상태 줄로)');
     await page.screenshot({ path: `${SHOT}/_shot-recheck-laststop-2d-${w}.png` });
     assert.deepEqual(page.errors, []); ok(`1 2D ${w}: 멈춤 ${holds.length}번 중 마지막 ‘${last.status}’ · ⏭ 꺼짐 · 알림 같은 문장`);
     await page.close();

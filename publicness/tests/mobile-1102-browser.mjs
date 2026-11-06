@@ -43,7 +43,7 @@ const CHECK = () => {
   });
   const row = document.querySelector('#people-hud .people-hud-row'); if (row && row.scrollWidth > row.clientWidth + 1) bad.push('인물 카드 줄 옆으로 넘침');
   // 지도 위 노선 번호 숫자
-  document.querySelectorAll('#net-layer .net-cap text:not(.cap-count)').forEach(t => { if (t.textContent.trim()) bad.push('노선 끝 번호 ' + t.textContent); });
+  document.querySelectorAll('#net-layer .net-cap text').forEach(t => { if (t.textContent.trim()) bad.push('노선 끝 번호 ' + t.textContent); });
   document.querySelectorAll('#route-buses .route-num').forEach(t => { if (t.textContent.trim()) bad.push('노선 손잡이 번호 ' + t.textContent); });
   const stageText = document.querySelector('#stage').innerText || ''; if (/\d+\s*번(?!\s*이상)|\d+호차/.test(stageText)) bad.push('지도 글자에 번호: ' + stageText.match(/.{0,8}(\d+\s*번|\d+호차).{0,8}/)[0]);
   const scr = document.body.dataset.screen;

@@ -76,6 +76,9 @@
     return app().nodeName(p.o) + '에서 기다리는 중 · ' + app().duration(m - p.t) + '째';
   }
 
+  // 주요 인물의 이동 이름(기준 초과 문구): 첫 이동 = 가는 길, 다음 이동 = 돌아오는 길(집이 아닌 곳으로 이어지면 다음 이동)
+  UI.legName = function (rd, leg) { return leg === 'return' ? (rd && rd.returnTo ? '다음 이동' : '돌아오는 길') : '가는 길'; };
+
   function start(App) {
     var s = App.s;
     cfg = s.config;
@@ -204,15 +207,26 @@
       showEmergency(stopAt.t);
     } else {
       var who = function (n) { var r = R.s.config.residents.filter(function (x) { return x.id === n.resident; })[0]; return r ? r.name : n.resident; };
-      var said = function (n) { return n.what === 'done' ? who(n) + ' 왕복 완료' : who(n) + ' 오늘 기준 초과(한 번 이동 대기 ' + App.duration(R.s.config.service.maxWait) + ' 넘음)'; };
-      setAlerts(stopAt.items.filter(function (n) { return n.node; }).map(function (n) { return { node: n.node, kind: n.what === 'done' ? 'wait' : 'full', text: said(n) }; }));
+      var rdOf = function (n) { return R.s.config.residents.filter(function (x) { return x.id === n.resident; })[0]; };
+      /* 2026-11-05 P1-5: 기준 초과는 어느 길인지 구분. 정류장을 모르면(예외) 그 사람의 출발 정류장에 말풍선 */
+      var said = function (n) { return n.what === 'done' ? who(n) + ' 왕복 완료' : who(n) + ' ' + UI.legName(rdOf(n), n.leg) + ' 기준 초과(한 번 이동 대기 ' + App.duration(R.s.config.service.maxWait) + ' 넘음)'; };
+      setAlerts(stopAt.items.map(function (n) { var rd = rdOf(n); return { node: n.node || (rd && rd.o), kind: n.what === 'done' ? 'wait' : 'full', text: said(n) }; }).filter(function (a) { return a.node; }));
       // 멈춘 이유를 맨 앞에(예: ‘하늘 왕복 완료’)
-      var why = stopAt.items.map(said).join(', ');
+      /* 2026-11-06 P2-5: 멈춘 이유를 문장으로(‘하늘이 왕복을 마쳐서 멈췄어요’). 지도 말풍선은 짧은 said 그대로 */
+      var because = function (n) { return n.what === 'done' ? PB.Narrative.josa(who(n), '이가') + ' 왕복을 마쳐서' : who(n) + '의 ' + UI.legName(rdOf(n), n.leg) + ' 기다림이 기준(' + App.duration(R.s.config.service.maxWait) + ')을 넘어서'; };
+      var why = stopAt.items.map(because).join(', ') + ' 멈췄어요.';
       if (PB.Hud && PB.Hud.render) PB.Hud.render(App);
       /* 2026-11-02 재검증 P1-2: 그날 마지막 멈춤(예: 20:45 하늘 왕복 완료)이면 ⏭는 꺼져 있다(‘남은 멈춤 없음’) — 안내문도 ⏭ 대신 ▶·⏩를 말한다 */
-      setStatus(why + ' · ' + App.clock(stopAt.t) + ' 멈춤. ' + (stopsLeft() ? '▶ 재개하면 ' + App.speed + '배속, ⏭ 누르면 ' + nextLabel(R.s) + ' 빨리 가요.' : '남은 멈춤이 없어요. ▶ 재개하거나 ⏩ 끝까지 가요.'));
+      var cp = nextCheckpoint();
+      setStatus(App.clock(stopAt.t) + ' ' + why + ' ' + (stopsLeft() ? '▶ 재개하면 ' + App.speed + '배속, ⏭ 누르면 ' + nextLabel(R.s) + ' 빨리 가요.' : '남은 멈춤이 없어요. ▶ 재개하거나 ⏩ 끝까지 가요.') + (cp != null ? ' 다음 긴급 조정은 ' + App.clock(cp) + '이에요.' : ''), true);
     }
     syncControls();
+  }
+  /* 멈춤 중 ‘긴급 조정 열기’(P1-5): 긴급 조정은 정해진 시각(EMERGENCY_AT)에만 쓸 수 있어 그 시각으로 재생을 옮겨 창을 연다(기록·결과는 같은 엔진 값) */
+  function openEmergency() {
+    var cp = nextCheckpoint(), App = app(); if (!R || R.done || R.finishing || cp == null || R.pendingEmergency != null) return;
+    R.tf = cp; var m = Math.floor(cp); drawBuses(App, cp); R.minute = m; R.s.runCursor = m; onMinute(App, m); syncNext(); if (PB.Hud && PB.Hud.live) PB.Hud.live(R.res, cp);
+    holdAt(App, { t: cp, kind: 'emergency', items: [] });
   }
 
   // 긴급 조정 30분 전부터: 1×로 감속하고 원인 정류장에 고리와 예고 문구
@@ -270,7 +284,7 @@
       // the adjacent notice tray instead of covering a stop or another message.
       var tray = $('#map-notice-overflow');
       if (!best) {
-        if (!tray) { tray = el('div', { id: 'map-notice-overflow', 'class': 'map-notice-overflow' }); var bc = document.body.classList; if ((bc.contains('phone-p') || bc.contains('phone-l')) && $('#map-strip')) $('#map-strip').appendChild(tray); else $('#stage').after(tray); } /* 휴대폰 배치는 알림 줄 안(지도 크기 그대로, 2026-11-02) */
+        if (!tray) { tray = el('div', { id: 'map-notice-overflow', 'class': 'map-notice-overflow' }); var bc = document.body.classList; if ((bc.contains('phone-p') || bc.contains('phone-l') || bc.contains('rail') || bc.contains('sheet')) && $('#map-strip')) $('#map-strip').appendChild(tray); else $('#stage').after(tray); } /* 휴대폰 배치는 알림 줄 안(지도 크기 그대로, 2026-11-02) */
         var item = box._overflow;
         if (!item) { item = el('div'); tray.appendChild(item); box._overflow = item; }
         var nm = App.nodeName(box.dataset.node); item.textContent = label.textContent.indexOf(nm) === 0 ? label.textContent : nm + ' · ' + label.textContent;
@@ -302,7 +316,22 @@
     if (layer) Array.prototype.slice.call(layer.querySelectorAll('.run-alert')).forEach(function (n) { n.remove(); });
     placeAlerts(app());
   }
-  function setStatus(text) { var st = $('#run-status'); if (st) st.textContent = text; }
+  /* 상태 줄(2026-11-05 P1-5): #run-status는 미니멀 화면에서 패널과 함께 숨어 있어 멈춘 이유가 2초 알림으로만 스쳐 갔다. 지도 아래 #run-statusbar에 멈춘 동안 그대로 남긴다 */
+  function statusBar() {
+    var strip = $('#map-strip'), bar = $('#run-statusbar'); if (!strip) return null;
+    if (!bar) {
+      bar = el('div', { id: 'run-statusbar', 'class': 'run-statusbar' }); bar.appendChild(el('p', { id: 'run-statusbar-text', role: 'status' }));
+      var b = el('button', { type: 'button', id: 'run-open-emergency', 'class': 'btn', onclick: openEmergency }, '긴급 조정 열기'); b.hidden = true; bar.appendChild(b);
+      strip.insertBefore(bar, strip.firstChild);
+    }
+    return bar;
+  }
+  function setStatus(text, held) {
+    var st = $('#run-status'); if (st) st.textContent = text;
+    var bar = statusBar(); if (!bar) return;
+    $('#run-statusbar-text').textContent = text; bar.classList.toggle('is-hold', !!held);
+    var left = held && R && R.pendingEmergency == null && nextCheckpoint() != null; $('#run-open-emergency').hidden = !left;
+  }
 
   /* 운행 중 버스 이름(2026-11-02): 번호(N호차) 대신 그 시각에 달리던 노선 색 — ‘초록 버스’, 쉬는 버스는 ‘대기 버스’(js/route-names.js) */
   function runBusName(App, res, id, t) { var tl = res && res.timelines.filter(function (x) { return x.busId === id; })[0]; return PB.Names.bus(id, null, tl ? busAt(App, tl, t).num : undefined); }
@@ -325,6 +354,9 @@
     return text + (riders ? ' · ' + riders + '명 탑승' : '');
   }
 
+  /* 긴급 조정 창은 지도를 보며 고르는 비모달 창이라 브라우저가 뒤쪽을 막아 주지 않는다(2026-11-05 P2) — 뒤쪽 화면을 inert로. 확인창·컷신은 showModal이 이미 막는다 */
+  function syncInert() { var on = !!document.querySelector('#emergency-dialog[open]'); document.body.classList.toggle('minimal-emergency', on); ['#topbar', '.stage-col'].forEach(function (q) { var n = $(q); if (n) n.inert = on; }); }
+  UI.syncInert = syncInert;
   // 긴급 조정 창 — 오른쪽 패널 맨 위(지도를 가리지 않음). 원인 정류장과 버스마다 지금 위치를 함께 보여 준다
   function showEmergency(at) {
     var App = app(), panel = $('#panel');
@@ -333,7 +365,7 @@
     // 결정하는 동안 지도에는 원인 고리와 버스만 — 지나간 말풍선이 버스를 가리지 않게 걷는다(소식은 목록에 남아 있음)
     Array.prototype.slice.call(document.querySelectorAll('#stage-overlay .bubble')).forEach(function (b) { b.remove(); });
     setAlerts(cause ? [{ node: cause.node, kind: 'emergency', text: '긴급 조정 · ' + App.nodeName(cause.node) + ' 대기 ' + cause.n + '명' }] : []);
-    setStatus(App.clock(at) + ' 긴급 조정 — 오른쪽 창에서 결정하면 ' + App.speed + '배속으로 이어져요.');
+    setStatus(App.clock(at) + ' 긴급 조정 · 조정 창에서 결정하면 ' + App.speed + '배속으로 이어져요.', true);
     var d=$('#emergency-dialog');if(!d){d=el('dialog',{id:'emergency-dialog','class':'emergency-window','aria-labelledby':'emergency-title'});}
     if (panel && d.parentNode !== panel) panel.insertBefore(d, panel.firstChild);
     d.textContent='';d.oncancel=function(e){e.preventDefault();};
@@ -411,9 +443,9 @@
       impact.hidden = false;
     }
     // 고르면 바로 한 줄로: ‘1호차는 승객을 내린 뒤 11:45부터 3번 노선에 들어가요’(엔진으로 미리 계산할 뿐 결과는 바뀌지 않는다)
-    var preview = el('div', { id: 'emergency-preview', 'class': 'emergency-preview', 'aria-live': 'polite' });
+    var preview = el('div', { id: 'emergency-preview', 'class': 'emergency-preview', 'aria-live': 'polite' }), note = el('p', { id: 'emergency-route-note', 'class': 'emergency-route-note' });
     function describe() {
-      caution(); estimate();
+      caution(); estimate(); routeNote();
       if (!bus.value) { preview.textContent = ''; return; }
       if (!route.value) { preview.textContent = movable.length ? '이 버스가 옮겨 갈 수 있는 노선이 없어요.' : '지금은 옮길 수 있는 버스가 없어요.'; return; }
       var id = Number(bus.value), num = Number(route.value), p = S.emergencyPreview(R.s, at, id, num);
@@ -424,16 +456,18 @@
     var apply=el('button',{type:'button',id:'emergency-apply','class':'btn btn-primary',onclick:function(){if(route.value)finish(Number(bus.value),Number(route.value));}},'버스 한 대 옮기기');
     function options(keep) {
       var id = Number(bus.value), list = bus.value ? targets(id) : [], def = bus.value ? pickRoute(id) : null; route.textContent = '';
-      list.forEach(function (r) { route.appendChild(el('option', { value: r.num }, PB.Names.route(r.num) + ' · ' + r.nodes.map(App.nodeName).join(' → ') + (passes(r) ? ' · 원인 정류장에 서요' : ''))); });
+      /* 선택칸 글자가 잘려 앞 정류장만 보였다(P2) — 칸에는 ‘빨강 노선 · 외곽 마을~병원 · 4곳’만, 전체 경로와 원인 정류장 여부는 칸 아래 한 줄 */
+      list.forEach(function (r) { var ns = PB.Graph.isLoop(r) ? r.nodes.slice(0, -1) : r.nodes, end = PB.Graph.isLoop(r) ? App.nodeName(ns[0]) + ' 순환' : App.nodeName(ns[0]) + '~' + App.nodeName(ns[ns.length - 1]); route.appendChild(el('option', { value: r.num, title: r.nodes.map(App.nodeName).join(' → ') }, PB.Names.route(r.num) + ' · ' + end + ' · ' + ns.length + '곳')); });
       route.value = keep && list.some(function (r) { return String(r.num) === keep; }) ? keep : def ? String(def.num) : '';
       apply.disabled = !route.value; describe();
     }
+    function routeNote() { var r = route.value ? S.routeByNum(R.s, Number(route.value)) : null; note.hidden = !r; note.textContent = r ? r.nodes.map(App.nodeName).join(' → ') + (passes(r) ? ' · 대기가 많은 정류장(' + App.nodeName(cause.node) + ')에 서요' : '') : ''; }
     bus.addEventListener('change', function () { options(route.value); });
     route.addEventListener('change', function () { apply.disabled = !route.value; describe(); });
     options();
-    d.appendChild(el('label',{'for':'emergency-bus'},'옮길 버스'));d.appendChild(bus);d.appendChild(el('label',{'for':'emergency-route'},'새 노선'));d.appendChild(route);d.appendChild(preview);d.appendChild(warn);d.appendChild(impact);d.appendChild(advice);
+    d.appendChild(el('label',{'for':'emergency-bus'},'옮길 버스'));d.appendChild(bus);d.appendChild(el('label',{'for':'emergency-route'},'새 노선'));d.appendChild(route);d.appendChild(note);d.appendChild(preview);d.appendChild(warn);d.appendChild(impact);d.appendChild(advice);
     // 결정이 끝나면 처음부터 다시 재생 상태를 만든다 — 배속은 플레이어가 마지막으로 고른 값(App.speed). 옮겼으면 완료 알림(aria-live)
-    function finish(id,num){var movedName=id!=null?(labs[id]||PB.Names.bus(id,null,cur[id])):'';if(!PB.Session.emergencyDecision(R.s,at,id,num))return;var s=R.s;s.runCursor=at;d.close();d.remove();stop();start(app());app().save();app().syncStage({keepBuses:true});setStatus('운행 중 · '+app().speed+'배속');
+    function finish(id,num){var movedName=id!=null?(labs[id]||PB.Names.bus(id,null,cur[id])):'';if(!PB.Session.emergencyDecision(R.s,at,id,num))return;var s=R.s;s.runCursor=at;d.close();d.remove();syncInert();stop();start(app());app().save();app().syncStage({keepBuses:true});setStatus('운행 중 · '+app().speed+'배속');
       if (id != null) app().toast(movedName + '를 ' + PB.Names.route(num) + '으로 옮겼어요.', { priority: true });}
     var row = el('div', { 'class': 'row-actions' });
     row.appendChild(el('button',{type:'button',id:'emergency-continue','class':'btn',onclick:function(){finish(null,null);}},'변경 없이 계속'));
@@ -442,6 +476,7 @@
     if (document.body.classList.contains('panel-collapsed')) App.setPanelCollapsed(false); // 조정 창은 패널 안에 있다
     if (!d.open) d.show();
     if (panel) panel.scrollTop = 0;
+    syncInert();
     $('#emergency-title').focus({ preventScroll: true });
   }
 
@@ -535,6 +570,7 @@
     if (!important && R.lastBubbleAt[it.node] != null && it.t - R.lastBubbleAt[it.node] < 8) return;
     R.lastBubbleAt[it.node] = it.t;
     var old = layer.querySelector('.bubble[data-node="' + it.node + '"]'); if (old) old.remove();
+    var done = function () { if (b.parentNode) b.parentNode.removeChild(b); placeAlerts(app()); };
     while (layer.querySelectorAll('.bubble').length >= 2) layer.querySelector('.bubble').remove();
     var xy = App.nodeXY(it.node), p = App.view.project(xy.x, xy.y);
     var who = it.bubble.residentId ? cfg.residents.filter(function (r) { return r.id === it.bubble.residentId; })[0].name : '';
@@ -548,7 +584,10 @@
     layer.appendChild(b);
     placeAlerts(App);
     // 배속이 빨라도 말풍선은 같은 실제 시간(4.5초) 동안 남는다
-    root.setTimeout(function () { if (b.parentNode) b.parentNode.removeChild(b); placeAlerts(app()); }, 4500);
+    var gone = root.setTimeout(done, 4500);
+    /* ‘노선 없음’ 말풍선을 누르면 가장 가까운 연결 방법 한 줄(2026-11-05 P0-1 c) */
+    var who2 = it.bubble.pid != null && R.byId[it.bubble.pid];
+    if (it.bubble.kind === 'noLink' && who2 && PB.Hud) { b.title = '눌러서 연결 방법 보기'; b.addEventListener('click', function () { if (b.querySelector('.bubble-hint')) return; b.appendChild(el('span', { 'class': 'bubble-hint' }, PB.Hud.linkHint(PB.Hud.routesNow(), who2.o, who2.d))); placeAlerts(app()); root.clearTimeout(gone); gone = root.setTimeout(done, 6000); }); }
   }
 
   // 지금 보이는 배속: 멈춤·감속 중이면 1×, ‘다음 결정까지’ 중이면 ⏭, 아니면 고른 배속
@@ -573,7 +612,7 @@
   // 사건 멈춤에서 다시 달릴 때 — 플레이어가 마지막으로 고른 배속으로
   function release() {
     R.paused = false; R.hold = false; R.mode = 'normal'; R.speed = app().speed || 1; R.last = root.performance.now();
-    setAlerts([]);
+    setAlerts([]); var bar = $('#run-statusbar'); if (bar) { bar.classList.remove('is-hold'); $('#run-open-emergency').hidden = true; }
   }
 
   function setSpeed(speed) {
@@ -613,7 +652,7 @@
     if (!R || R.done || R.finishing) return;
     left.forEach(function (at) { PB.Session.emergencyDecision(R.s, at, null, null); });
     var d = $('#emergency-dialog'); if (d) { if (d.open) d.close(); d.remove(); }
-    R.pendingEmergency = null; R.hold = false; R.mode = 'normal'; R.paused = false;
+    syncInert(); R.pendingEmergency = null; R.hold = false; R.mode = 'normal'; R.paused = false;
     R.tf = W; R.last = root.performance.now();
     tick();
   }
@@ -643,6 +682,7 @@
     speeds.appendChild(iconLabel(el('button',{type:'button',id:'run-skip','class':'btn',title:'끝까지 건너뛰기',onclick:skipToEnd}),'⏩','끝까지'));
     speeds.appendChild(iconLabel(el('button', { type: 'button', id: 'run-sound', 'class': 'btn', 'aria-pressed': String(App.sound), title: '효과음 켜기/끄기', onclick: function () { App.setSound(!App.sound); if (App.sound) App.sfx('person'); } }), App.sound ? '🔊' : '🔇', '소리'));
     panel.appendChild(el('p', { id: 'run-status', 'class': 'h-small', role: 'status' }, '운행 시작'));
+    if (!$('#run-statusbar-text') || !$('#run-statusbar-text').textContent) { if (statusBar()) $('#run-statusbar-text').textContent = '운행 시작'; }
     var live = el('section', { id: 'run-live', 'aria-labelledby': 'run-live-h' });
     live.appendChild(el('h3', { id: 'run-live-h' }, '지금 운행 상황'));
     live.appendChild(el('dl', { 'class': 'kv run-counts' }));
@@ -671,4 +711,12 @@
   UI.runState = function () { return R ? { tf: R.tf, mode: R.mode, hold: R.hold, paused: !!R.paused, slowed: !!R.slowed, speed: R.speed, shown: shownSpeed(), pendingEmergency: R.pendingEmergency, alerts: R.alerts.slice(), notables: R.notables.slice() } : null; };
 
   document.addEventListener('visibilitychange', function () { if (R && !document.hidden) R.last = root.performance.now(); });
+  /* Space = 일시정지·재개(2026-11-05 P2). 입력칸·버튼 등에 초점이 있으면 그 요소 몫으로 둔다. 창이 떠 있으면 무시 */
+  document.addEventListener('keydown', function (e) {
+    if (e.code !== 'Space' && e.key !== ' ') return;
+    if (document.body.dataset.screen !== 'run' || e.repeat || e.ctrlKey || e.altKey || e.metaKey || document.querySelector('dialog[open]')) return;
+    var t = e.target, tag = t && t.tagName ? t.tagName.toLowerCase() : '';
+    if (/^(input|select|textarea|button|a|summary)$/.test(tag) || (t && t.isContentEditable) || (t && t.getAttribute && t.getAttribute('role') === 'button')) return;
+    var b = $('#run-pause'); if (b) { e.preventDefault(); b.click(); }
+  });
 })(window);

@@ -1,8 +1,9 @@
 /* 지도 네트워크·상태층(2026-10-27 시각 위계 정리) — 2D·3D 공통 SVG/DOM 오버레이.
  * 배경층(3D 캔버스·2D 지형)은 그림으로 두고, 그 위에 이 층이 노선·정류장 마커·노선 번호 원·이름표·대기 인원을 한 체계로 그린다.
  *  · 노선: 흰 테두리(casing) + 노선색, 같은 구간은 차선 간격으로 나란히(뷰의 laneOffset — 지도 클릭 판정과 같은 위치). 선택 노선은 굵게+빛, 다른 노선은 흐리게 하지 않는다
- *  · 정류장: 흰 원 하나 + 그곳에 서는 노선 색 작은 눈금. 노선은 이 마커에서 만난다
- *  · 노선 끝: 번호 원(시작 쪽은 옆에 운행 버스 수)
+ *  · 정류장: 흰 원 하나 + 그곳에 서는 노선 색 점(원 안). 점이 없으면 서지 않는 곳 — 그 노선은 지나가기만 하므로 정류장·이름표 근처를 흐리게 그린다(.pass, 마스크)
+ *  · 교차: 노선마다 자기 흰 테두리를 바로 아래에 깔아 위 노선이 아래 노선을 ‘넘어가게’ 그린다 — 교차점이 환승역처럼 보이지 않게
+ *  · 노선 끝: 색 점(번호 표시를 켜면 번호 원). 버스 수는 지도에 글자로 쓰지 않는다(2026-11-05 — 계획 화면 손잡이만 ×N)
  *  · 이름표: 한 스타일(흰 pill), 기본은 마커 아래. 운행·결과에서는 대기 인원 pill ‘👤 N’을 이름표 오른쪽에(주의 주황·위험 빨강)
  *  · 겹침 피하기: 마커·번호 원·이름표를 차례로 놓으며 빈 자리를 고른다. rects()로 다른 층(인물 얼굴·버스 손잡이)도 피할 수 있게 내보낸다
  * 클릭은 아래 지도가 받는다(이 층은 pointer-events: none). 좌표는 뷰의 project(지도 좌표 → 무대 px). */
@@ -20,6 +21,10 @@
     for (var i = 0; i < 4; i++) { if (p[i] === 0) { if (q[i] < 0) return false; } else { var t = q[i] / p[i]; if (p[i] < 0) { if (t > t1) return false; if (t > t0) t0 = t; } else { if (t < t0) return false; if (t < t1) t1 = t; } } }
     return true;
   }
+
+  // 점과 선분 사이 거리(지나가는 노선 판정)
+  function segDist(x, y, s) { var dx = s.x2 - s.x1, dy = s.y2 - s.y1, l = dx * dx + dy * dy, t = l ? Math.max(0, Math.min(1, ((x - s.x1) * dx + (y - s.y1) * dy) / l)) : 0; return Math.hypot(x - s.x1 - t * dx, y - s.y1 - t * dy); }
+  var DIM = '#4a4a4a'; // 흐림 마스크 밝기(약 30%만 보임)
 
   function create(stage, getView, opts) {
     var layer = document.createElement('div'); layer.id = 'net-layer'; layer.setAttribute('aria-hidden', 'true');
@@ -39,19 +44,28 @@
     function draw() {
       routeSvg.textContent = ''; svg.textContent = ''; labels.textContent = ''; placed = [];
       if (!st.show || !getView()) return;
-      var T = opts.tokens(), box = stage.getBoundingClientRect(), narrow = box.width <= 520;
+      var T = opts.tokens(), box = stage.getBoundingClientRect(), narrow = box.width <= 520, faceSize = function (f) { return narrow ? 32 : f.size; };
+      stage.classList.toggle('net-narrow', narrow);
       svg.setAttribute('width', box.width); svg.setAttribute('height', box.height);
       routeSvg.setAttribute('width', box.width); routeSvg.setAttribute('height', box.height);
       // 지도 위 시계·운행 조작(opts.reserved)도 빈자리 찾기에서 막힌 곳으로 — 얼굴·이름표가 그 밑에 깔리지 않게
       (opts.reserved ? opts.reserved() : []).forEach(function (r) { placed.push({ x: r.left - box.left - 4, y: r.top - box.top - 4, w: r.width + 8, h: r.height + 8, kind: 'hud' }); });
-      var gLead, gCase = svgEl('g', { 'class': 'net-casing' }, routeSvg), gLine = svgEl('g', { 'class': 'net-lines' }, routeSvg), gStop = svgEl('g', { 'class': 'net-stops' }, svg), gCap = svgEl('g', { 'class': 'net-caps' }, svg); gLead = svgEl('g', { 'class': 'net-leaders' }, svg);
-      var at = {}, segs = []; // 정류장별 서는 노선 색, 이름표가 피할 노선 선
+      var gLead, gStop = svgEl('g', { 'class': 'net-stops' }, svg), gCap = svgEl('g', { 'class': 'net-caps' }, svg); gLead = svgEl('g', { 'class': 'net-leaders' }, svg);
+      var at = {}, segs = [], masks = {}, passing = {}; // 정류장별 서는 노선 색, 이름표가 피할 노선 선, 노선별 흐림 마스크, 지나가기만 하는 노선
+      var defs = svgEl('defs', {}, routeSvg);
+      /* 2026-11-05 P0-1: 지나가는 노선이 정차처럼 보이던 것 — 그 노선이 서지 않는 정류장의 원(반지름 + 여유)이나 이름표를 지나는 구간만 흐리게(마스크, 선 요소·클릭 판정은 그대로) */
+      function zoneMask(r, g) {
+        var id = 'net-dim-' + r.num + (r.preview ? 'p' : ''), m = svgEl('mask', { id: id, maskUnits: 'userSpaceOnUse', x: 0, y: 0, width: box.width, height: box.height }, defs);
+        svgEl('rect', { x: 0, y: 0, width: box.width, height: box.height, fill: '#fff' }, m); g.setAttribute('mask', 'url(#' + id + ')'); return m;
+      }
       st.routes.forEach(function (r) {
+        var gRoute = svgEl('g', { 'class': 'net-route', 'data-route': r.num }, routeSvg), gCase = svgEl('g', { 'class': 'net-casing' }, gRoute), gLine = svgEl('g', { 'class': 'net-lines' }, gRoute), routeSegs = [];
         var ns = r.route.nodes, w = r.active ? Math.min(T.lineActive, 6) : Math.min(T.line, 4), casing = Math.min(T.casing, 1), dash = r.preview ? '10 7' : null;
         for (var i = 1; i < ns.length; i++) {
           var a = st.nodes[ns[i - 1]], b = st.nodes[ns[i]]; if (!a || !b) continue;
           var p = lanePoint(a, b, r.num, 0), q = lanePoint(a, b, r.num, 1);
-          if (!r.preview) { svgEl('line', { x1: p.left, y1: p.top, x2: q.left, y2: q.top, 'stroke-width': w + casing * 2 }, gCase); segs.push({ x1: p.left, y1: p.top, x2: q.left, y2: q.top, pad: w / 2 + casing }); }
+          routeSegs.push({ x1: p.left, y1: p.top, x2: q.left, y2: q.top, pad: w / 2 + casing });
+          if (!r.preview) { svgEl('line', { x1: p.left, y1: p.top, x2: q.left, y2: q.top, 'stroke-width': w + casing * 2 }, gCase); segs.push(routeSegs[routeSegs.length - 1]); }
           var ln = svgEl('line', { x1: p.left, y1: p.top, x2: q.left, y2: q.top, stroke: r.color, 'stroke-width': r.preview ? T.line * 0.6 : w, 'data-route': r.num }, gLine);
           if (dash) ln.setAttribute('stroke-dasharray', dash);
           if (r.active) ln.setAttribute('class', 'active');
@@ -64,17 +78,28 @@
           if (!r.preview && r.kind === 'regional') { ln.setAttribute('stroke-width', w + 3); svgEl('line', { x1: p.left, y1: p.top, x2: q.left, y2: q.top, 'class': 'regional-stripe', 'stroke-width': Math.max(1.5, w * 0.22) }, gLine); }
         }
         if (!r.preview) ns.forEach(function (id, i) { if (r.route.stops[i] && st.nodes[id]) (at[id] = at[id] || []).indexOf(r.color) < 0 && at[id].push(r.color); });
+        // 이 노선이 서지 않는 정류장을 지나는가: 정류장 원 + 여유 안으로 선이 들어오면 그 둘레만 흐리게
+        var stopsHere = {}; ns.forEach(function (id, i) { if (r.route.stops[i]) stopsHere[id] = true; });
+        var dim = masks[r.num + (r.preview ? 'p' : '')] = { el: zoneMask(r, gRoute), segs: routeSegs, stops: stopsHere, preview: !!r.preview };
+        Object.keys(st.nodes).forEach(function (id) {
+          if (stopsHere[id]) return; var n = st.nodes[id], c = project(n.x, n.y), near = T.stop + 7;
+          if (!routeSegs.some(function (sg) { return segDist(c.left, c.top, sg) < near; })) return;
+          svgEl('circle', { cx: c.left, cy: c.top, r: T.stop + 10, fill: DIM }, dim.el);
+          if (!r.preview) (passing[id] = passing[id] || []).push(r.num);
+        });
       });
       // 정류장 마커
       Object.keys(st.nodes).forEach(function (id) {
         var n = st.nodes[id], p = project(n.x, n.y), sel = st.selected.indexOf(id) >= 0, can = !st.selectable.length || st.selectable.indexOf(id) >= 0 || sel;
-        var g = svgEl('g', { 'class': 'net-stop' + (sel ? ' selected' : '') + (can ? '' : ' muted') + (flashT[id] && performance.now() - flashT[id] < 900 ? ' flash' : ''), 'data-node': id }, gStop);
+        var g = svgEl('g', { 'class': 'net-stop' + (sel ? ' selected' : '') + (can ? '' : ' muted') + (flashT[id] && performance.now() - flashT[id] < 900 ? ' flash' : '') + (passing[id] && !at[id] ? ' pass' : ''), 'data-node': id }, gStop);
+        if (passing[id]) g.setAttribute('data-pass', passing[id].join(','));
         // 이번 단계에 새로 생긴 정류장(2026-11-01): 처음 2.6초 강조 고리(지도 배너와 함께), 이름표엔 ‘새 정류장’ 배지
         if (st.newNodes.indexOf(id) >= 0 && performance.now() - st.newAt < 2600) svgEl('circle', { 'class': 'new-ring', cx: p.left, cy: p.top, r: T.stop + 10 }, g);
         svgEl('circle', { cx: p.left, cy: p.top, r: T.stop }, g);
+        /* 서는 노선 색 점은 원 안에(2026-11-05 P0-1: 원 밖 작은 눈금은 눈에 안 띄어, 지나가는 노선과 구분되지 않았다). 점이 없는 원 = 서지 않는 곳 */
         (at[id] || []).forEach(function (c, k, all) {
-          var ang = -Math.PI / 2 + (k - (all.length - 1) / 2) * 0.62, R = T.stop + 3.5;
-          svgEl('circle', { 'class': 'tick', cx: p.left + Math.cos(ang) * R, cy: p.top + Math.sin(ang) * R, r: 3.2, fill: c }, g);
+          var n2 = all.length, rr = n2 === 1 ? 5.4 : n2 === 2 ? 3.8 : 3.2, ang = -Math.PI / 2 + k * 2 * Math.PI / n2, R = n2 === 1 ? 0 : n2 === 2 ? 4 : 4.6;
+          svgEl('circle', { 'class': 'tick', cx: p.left + Math.cos(ang) * R, cy: p.top + Math.sin(ang) * R, r: rr, fill: c }, g);
         });
         var reserve=T.stop+7,session=root.PB.App&&root.PB.App.s;
         if(root.MINIMAL_UI&&!document.body.classList.contains('minimal-text')&&session&&session.config.finance.service.stops.some(function(c){return c.id===id&&c.fromPhase<=session.phase;}))reserve=Math.max(reserve,34);
@@ -95,16 +120,11 @@
       caps.forEach(function (c) {
         var g = c.g = svgEl('g', { 'class': 'net-cap', 'data-route': c.num, 'data-end': c.start ? 'start' : 'end' }, gCap);
         /* 노선 끝 표시 = 숫자 없는 색 점(2026-11-02: 번호 원이 대기 인원 숫자와 나란히 있어 헷갈렸다). 설정 ‘노선 번호 표시’를 켜면 번호가 다시 나온다 */
-        var nums = root.PB.Names && root.PB.Names.showNumbers();
-        svgEl('circle', { cx: c.x, cy: c.y, r: nums ? T.cap : Math.round(T.cap * 0.7), fill: c.color }, g);
+        var nums = root.PB.Names && root.PB.Names.showNumbers(), capR = nums ? T.cap : Math.round(T.cap * 0.7);
+        svgEl('circle', { cx: c.x, cy: c.y, r: capR, fill: c.color }, g);
         if (nums) { var t = svgEl('text', { x: c.x, y: c.y + 4, 'text-anchor': 'middle', fill: lum(c.color) > 0.35 ? '#1A1D24' : '#FFFFFF' }, g); t.textContent = String(c.num); }
-        var w = T.cap * 2;
-        /* 버스 수는 ‘N대’(2026-11-03: 숫자만이면 노선 번호로 읽혔다). 정류장 반대쪽으로 뒤집어 붙여 봤더니 375px 3D 운행에서 이름표끼리 겹쳐서 늘 오른쪽 */
-        var s = null; if (c.start && c.buses != null) { s = svgEl('text', { 'class': 'cap-count', x: c.x + T.cap + 3, y: c.y + 4 }, g); s.textContent = c.buses + '대'; w += 24; }
-        // 시작 쪽은 예전에 계획 화면의 노선 손잡이(번호 원 24px + 버스 수 pill)가 그 위에 놓였어서 그 크기(56×30)만큼 비워 뒀다. 지금 손잡이는 선 옆 빈자리로 가므로(ui-map-plan positionBadges)
-        // 좁은 지도(≤ 520px)에서는 실제 그린 크기(번호 원 + 버스 수 글자)만 막는다 — 남는 56px 칸 때문에 이름표·손잡이가 갈 바로 옆 자리가 없어지던 것(2026-11-01). 넓은 지도는 그대로
-        if (c.start && c.buses != null && s) w = T.cap + 3 + s.getComputedTextLength() + T.cap + 1;
-        placed.push(c.q = c.start && !narrow ? { x: c.x - 16, y: c.y - 15, w: 56, h: 30, kind: 'cap', route: c.num, start: true } : { x: c.x - T.cap - 2, y: c.y - T.cap - 2, w: w + 4, h: T.cap * 2 + 4, kind: 'cap', route: c.num, start: c.start });
+        /* 노선 시작 쪽 버스 수 글자는 없앴다(2026-11-05 사용자 승인 — ‘1대’가 지도마다 붙어 시끄러웠다). 자리도 그린 원 크기만큼만 잡는다 */
+        placed.push(c.q = { x: c.x - capR - 2, y: c.y - capR - 2, w: capR * 2 + 4, h: capR * 2 + 4, kind: 'cap', route: c.num, start: c.start });
       });
       st.caps = caps;
       /* 이름표(+대기 pill) — 2026-11-01 플레이테스트 수정. 390px 지도에서 빈자리를 못 찾으면 78px+이름표 폭까지 멀리 가서(다른 정류장 옆)
@@ -148,15 +168,18 @@
       }
       function rightAnchored(dir) { return dir === 'W' || dir === 'SW' || dir === 'NW' || /-L$/.test(dir); }
       function inBox(r) { return r.x >= 2 && r.y >= 2 && r.x + r.w <= box.width - 2 && r.y + r.h <= box.height - 2; }
+      // 2026-11-05 P1-8: 이름표는 자기 정류장 쪽에 — 다른 정류장 원에 더 가까운 자리면 그 정류장 이름처럼 읽힌다
+      function rectDist(r, p) { return Math.hypot(Math.max(r.x - p.left, 0, p.left - (r.x + r.w)), Math.max(r.y - p.top, 0, p.top - (r.y + r.h))); }
+      function mine(id, r) { var d = rectDist(r, P[id]); return !ids.some(function (o) { return o !== id && rectDist(r, P[o]) + 1 < d; }); }
       ids.forEach(function (id) {
         var n = st.nodes[id], el = document.createElement('div'), wait = st.waiting[id] || 0;
         P[id] = project(n.x, n.y);
         el.className = 'net-label'; el.dataset.node = id;
         el.appendChild(document.createElement('span')).textContent = narrow && n.short ? n.short : n.name;
         if (narrow && n.short) { el.title = n.name; el.setAttribute('aria-label', n.name); }
-        if (st.newNodes.indexOf(id) >= 0) { var nb = document.createElement('span'); nb.className = 'net-new'; nb.textContent = '새 정류장'; el.appendChild(nb); el.classList.add('is-new'); }
+        if (st.newNodes.indexOf(id) >= 0) { var nb = document.createElement('span'); nb.className = 'net-new'; nb.textContent = narrow ? '새' : '새 정류장'; el.appendChild(nb); el.classList.add('is-new'); }
         // P1-4(2026-11-02): 공공서비스 정류장(외곽 마을·병원 등)은 계획 중에도 정차 횟수와 지원금 조건을 이름표 옆에(6회를 채우면 색이 바뀜)
-        if (st.service[id]) { var sv = document.createElement('span'); sv.className = 'net-service' + (st.service[id].done ? ' done' : ''); sv.textContent = st.service[id].text; sv.title = st.service[id].title || sv.textContent; el.appendChild(sv);
+        if (st.service[id]) { var sv = document.createElement('span'); sv.className = 'net-service' + (st.service[id].done ? ' done' : ''); sv.textContent = narrow && st.service[id].short ? st.service[id].short : st.service[id].text; /* 좁은 지도는 ‘4/6회’만(P1-8: 긴 pill 때문에 이름표가 자기 정류장에서 멀어졌다) */ sv.title = st.service[id].title || sv.textContent; el.appendChild(sv);
           // 정차 횟수 글이 짧아져도(6회 채움 ✓) 처음 폭을 지켜 이름 글자가 움직이지 않게(P1-5 ②)
           if (keep.svc[id]) sv.style.minWidth = keep.svc[id] + 'px'; }
         labels.appendChild(el);
@@ -203,7 +226,7 @@
         var best = null;
         // 0) 기본 자리가 다른 것과 안 겹치면 그대로 1) 옮길 때는 노선 선까지 피함 2) 선은 허용 3) 시계·조작 묶음 가장자리도 허용
         if (inside[0].dir === lab.dir && inBox(inside[0]) && !hits(inside[0], false)) best = inside[0];
-        else [[true, false], [false, false], [false, true]].some(function (pass) { return inside.some(function (r) { if (hits(r, pass[1]) || (pass[0] && lines(r))) return false; best = r; return true; }); });
+        else [[true, false], [false, false], [false, true]].some(function (pass) { return inside.some(function (r) { if (hits(r, pass[1]) || (pass[0] && lines(r)) || !mine(id, r)) return false; best = r; return true; }); });
         if (!best) best = inside.reduce(function (acc, r) {
           var sc = placed.reduce(function (sum, q) { if (!others(q)) return sum; return sum + area(r, q) * (WEIGHT[q.kind] || 1) + core(r, q); }, 0) + (lines(r) ? 40 : 0);
           return !acc || sc < acc.sc ? { r: r, sc: sc } : acc;
@@ -218,7 +241,7 @@
         var list = res[id].inside;
         for (var i = 0; i < list.length; i++) {
           var r = list[i];
-          if (!inBox(r) || (avoidLines && lines(r)) || keep.some(function (k) { return overlap(r, k); })) continue;
+          if (!inBox(r) || (avoidLines && lines(r)) || !mine(id, r) || keep.some(function (k) { return overlap(r, k); })) continue;
           var bad = placed.filter(function (q) { return skip.indexOf(q) < 0 && q.kind !== 'hud' && !(q.kind === 'stop' && q.id === id) && overlap(r, q) && !(soft && (q.kind === 'cap' || (q.kind === 'stop' && !core(r, q)))); });
           if (!bad.length) return [[id, r]];
           if (depth > 0 && bad.length === 1 && bad[0].kind === 'label') { var sub = settle(bad[0].id, skip.concat([bad[0]]), keep.concat([r]), depth - 1, avoidLines, soft); if (sub) return [[id, r]].concat(sub); }
@@ -241,7 +264,7 @@
       /* 번호 원이 이름표에 덮이면(2026-11-01 — 이름표는 제 정류장 바로 옆을 지킨다) 번호 원을 같은 노선 끝 정류장 둘레로 조금씩 돌려
        * 이름표·다른 번호 원·정류장 마커와 안 겹치는 곳으로 옮긴다(가까운 각도부터). 없으면 그대로 */
       // 지난번 얼굴 자리(이 정류장 묶음·틀 크기에서) — 노선을 더해도 얼굴이 그대로 있도록 번호 원이 그 자리도 비켜 간다(P1-5 ②)
-      var keptFaces = st.faces.map(function (f) { var n = st.nodes[f.node], w = keep.face[f.id]; if (!n || !w) return null; var p = project(n.x, n.y); return { x: p.left + w.dx, y: p.top + w.dy, w: f.size, h: f.size, kind: 'keptFace' }; }).filter(Boolean);
+      var keptFaces = st.faces.map(function (f) { var n = st.nodes[f.node], w = keep.face[f.id]; if (!n || !w) return null; var p = project(n.x, n.y); return { x: p.left + w.dx, y: p.top + w.dy, w: faceSize(f), h: faceSize(f), kind: 'keptFace' }; }).filter(Boolean);
       function fixCaps() { caps.forEach(function (c) {
         if (!placed.some(function (q) { return q.kind === 'label' && overlap(c.q, q); }) && !keptFaces.some(function (q) { return overlap(c.q, q); })) return;
         var R = Math.hypot(c.x - c.px, c.y - c.py), a0 = Math.atan2(c.y - c.py, c.x - c.px), ox = c.q.x - c.x, oy = c.q.y - c.y;
@@ -268,7 +291,7 @@
         if (!frozen && settled) keep.lab[id] = { dir: best.dir, right: right, ox: (right ? best.x + best.w : best.x) - p.left, oy: best.y - p.top };
         // 짧은 연결선: 마커 가장자리 → 이름표의 가장 가까운 점
         var bx = Math.max(best.x, Math.min(p.left, best.x + best.w)), by = Math.max(best.y, Math.min(p.top, best.y + best.h)), dd = Math.hypot(bx - p.left, by - p.top);
-        if (!narrow && dd > T.stop + 1) svgEl('line', { 'class': 'leader', 'data-node': id, x1: p.left + (bx - p.left) / dd * T.stop, y1: p.top + (by - p.top) / dd * T.stop, x2: bx, y2: by }, gLead);
+        if (narrow ? dd > L[id].gap + 10 : dd > T.stop + 1) svgEl('line', { 'class': 'leader', 'data-node': id, x1: p.left + (bx - p.left) / dd * T.stop, y1: p.top + (by - p.top) / dd * T.stop, x2: bx, y2: by }, gLead);
       });
       /* 운행·결과: 이름표 칸 = 지금 그린 이름표(대기 pill 포함) + 아직 비어 있는 pill 자리(pad). 얼굴·번호 원은 그린 이름표는 피하고,
        * 빈 pill 자리는 다른 곳이 없을 때만 쓴다(좁은 지도에서 pill 자리 때문에 얼굴이 이름표 위로 밀리던 것) */
@@ -277,35 +300,40 @@
         var core = { x: right ? o.r.x + o.r.w - real : o.r.x, y: o.r.y, w: real, h: o.r.h, kind: 'label', id: id }; placed[k] = core; o.q = core;
         if (o.r.w > real) placed.push({ x: right ? o.r.x : o.r.x + real, y: o.r.y, w: o.r.w - real, h: o.r.h, kind: 'pad', id: id });
       });
-      // 인물 얼굴 자리(이름표 다음): 출발 정류장 옆 — 위 → 왼쪽 위 → 오른쪽 위 → 왼쪽 → 오른쪽 → 아래, 노선 선·마커·번호 원·이름표를 피한다
+      /* 인물 얼굴 자리(이름표 다음, 2026-11-05 P1-8): 출발 정류장에 붙인다 — 정류장 둘레 고리(가까운 고리부터)에서 이름표·다른 얼굴·마커를 안 덮는 자리.
+       * 같은 정류장의 얼굴은 서로 피하므로 둘레에 부채꼴로 놓인다. 예전 첫 빈자리 찾기는 90px까지 나가서 얼굴이 다른 정류장 옆에 붙었다 */
       facePos = {};
       /* 빈자리가 끝내 없을 때 얼굴이 덮어도 되는 순서: 시계 묶음 가장자리 < 번호 원 < 정류장 여백 ≪ 이름표·다른 얼굴(이름표·얼굴은 다른 길이 정말 없을 때만) */
       var FACE_W = { label: 1000, face: 1000, stop: 4, cap: 20, hud: 1, pad: 3 };
       st.faces.forEach(function (f) {
         var n = st.nodes[f.node]; if (!n) return;
-        var p = project(n.x, n.y), s = f.size, g2 = T.stop + 4, best = null;
-        var cand = [[-s / 2, -g2 - s], [-s - g2, -s - 2], [g2, -s - 2], [-s - g2 - 2, -s / 2], [g2 + 2, -s / 2], [-s / 2, g2]];
-        /* 좁은 지도(≤ 520px)는 빈자리가 드물어 10px 간격으로 더 촘촘히 찾는다(2026-11-01). 끝내 없으면 FACE_W 순서로 가장 덜 나쁜 자리 */
-        (narrow ? [10, 20, 30, 40, 50, 62] : [20, 40, 62]).forEach(function (d) { [[0, -1], [-1, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [1, 1], [0, 1]].forEach(function (u) { cand.push([u[0] * (g2 + d + s / 2) - s / 2, u[1] * (g2 + d + s / 2) - s / 2]); }); });
-        var least = null, leastA = Infinity, was = keep.face[f.id];
+        var p = project(n.x, n.y), s = faceSize(f), g2 = T.stop + 4, best = null, was = keep.face[f.id], leastK = Infinity;
         if (was && settled) best = { x: p.left + was.dx, y: p.top + was.dy, w: s, h: s }; // 같은 묶음이면 처음 자리 그대로(P1-5 ②)
-        if (!best) [true, false].some(function (avoidLines) {
-          return cand.some(function (o) {
-            var r = { x: p.left + o[0], y: p.top + o[1], w: s, h: s };
-            if (r.x < 2 || r.y < 2 || r.x + r.w > box.width - 2 || r.y + r.h > box.height - 2) return false;
+        if (!best) {
+          var R0 = T.stop + 3 + s / 2 * 1.2;
+          [0, 6, 12, 20, 30].forEach(function (more) { for (var k = 0; k < 12; k++) {
+            var ang = (-90 + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 30) * Math.PI / 180, cx = p.left + Math.cos(ang) * (R0 + more), cy = p.top + Math.sin(ang) * (R0 + more), r = { x: cx - s / 2, y: cy - s / 2, w: s, h: s };
+            if (r.x < 2 || r.y < 2 || r.x + r.w > box.width - 2 || r.y + r.h > box.height - 2) continue;
             var cost = placed.reduce(function (sum, q) { return sum + area(r, q) * (FACE_W[q.kind] || 1) + (q.kind === 'stop' && q.id !== f.node ? core(r, q) : 0); }, 0);
-            if (cost < leastA) { leastA = cost; least = r; }
-            if (cost > 0) return false;
-            if (avoidLines && segs.some(function (sg) { return segHits(sg, r, sg.pad); })) return false;
-            best = r; return true;
-          });
-        });
-        if (!best) best = least || { x: p.left - s / 2, y: p.top - g2 - s, w: s, h: s }; // 빈 자리가 끝내 없으면 가장 덜 겹치는 곳
+            var k2 = cost + (segs.some(function (sg) { return segHits(sg, r, sg.pad); }) ? 120 : 0) + more * 6;
+            if (k2 < leastK) { leastK = k2; best = r; }
+          } });
+        }
+        if (!best) best = { x: Math.max(2, Math.min(box.width - s - 2, p.left - s / 2)), y: Math.max(2, p.top - g2 - s), w: s, h: s };
         if (settled) keep.face[f.id] = { dx: best.x - p.left, dy: best.y - p.top };
         facePos[f.id] = best; placed.push({ x: best.x, y: best.y, w: s, h: s, kind: 'face', id: f.id });
       });
       // 얼굴이 제자리를 지켰으면 그 위의 번호 원을 한 번 더 비켜 놓는다
       keptFaces = placed.filter(function (q) { return q.kind === 'face'; }); fixCaps();
+      // 그 노선이 서지 않는 정류장의 이름표 밑을 지나는 구간도 흐리게(이름표가 놓인 뒤에야 자리를 안다, P0-1)
+      Object.keys(masks).forEach(function (k) {
+        var mk = masks[k];
+        ids.forEach(function (id) {
+          if (mk.stops[id]) return; var q = res[id] && res[id].q; if (!q) return;
+          if (!mk.segs.some(function (sg) { return segHits(sg, q, 1); })) return;
+          svgEl('rect', { x: q.x - 3, y: q.y - 3, width: q.w + 6, height: q.h + 6, rx: 6, fill: DIM }, mk.el);
+        });
+      });
       if (opts.onLayout) opts.onLayout();
     }
     var queued = false;

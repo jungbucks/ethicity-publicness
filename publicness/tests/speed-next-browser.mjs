@@ -97,10 +97,8 @@ try{
     // 지도는 계속 조작 가능(모달 아님) — 정류장 정보 클릭
     console.log('emergency window',JSON.stringify(box));
     await page.screenshot({path:shot('emergency'+(process.env.SHOT3D?'-3d':''))});
-    // ④-a 창이 열린 상태에서 끝까지 건너뛰기 → 확인창 2회, 아니요면 그대로
-    await page.locator('#run-skip').click();await page.locator('#confirm-skip[open]').waitFor();
-    assert.equal(await page.locator('#confirm-skip-h').innerText(),'남은 긴급 조정 기회 2회를 쓰지 않고 넘어갈까요?');
-    await page.locator('#skip-no').click();assert.equal(await page.locator('#emergency-dialog[open]').count(),1);assert.equal(await page.evaluate(()=>(PB.App.s.emergencyLog||[]).length),0);
+    // ④-a 창이 열린 동안 뒤쪽 조작은 막힌다(2026-11-05 P2 inert) — 끝까지 건너뛰기는 결정 뒤에
+    assert.equal(await page.evaluate(()=>document.querySelector('.stage-col').inert&&document.querySelector('#topbar').inert),true);assert.equal(await page.evaluate(()=>(PB.App.s.emergencyLog||[]).length),0);
     // 결정 → 마지막으로 고른 2×로 복귀
     await page.locator('#emergency-bus').selectOption('3');await page.locator('#emergency-route').selectOption('2');await page.locator('#emergency-apply').click();
     const after=await state(page);assert.equal(after.speed,2);assert.equal(after.shown,2,'결정 뒤 2×');assert.equal(await page.locator('#speed-2').getAttribute('aria-pressed'),'true');

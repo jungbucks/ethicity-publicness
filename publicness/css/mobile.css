@@ -10,7 +10,7 @@
 .route-tab .route-tab-num { font-weight: 800; }
 #btn-new-route { min-width: 104px; border-style: dashed; }
 /* 노선 끝 손잡이(지도): 숫자 없는 색 점 + 흰 버스 수. 번호 표시를 켜면 예전처럼 번호 원 */
-.route-bus .route-num:empty { width: 16px; height: 16px; border-width: 2px; }
+.route-bus .route-num:empty { width: 14px; height: 14px; border-width: 2px; }
 .route-bus .route-num { flex: none; }
 /* 대기 버스 줄: ‘대기 버스 N대’로 읽히게 제목을 보인다(미니멀 화면은 숨겼었다) */
 .minimal-ui:not(.minimal-text) #depot-h { display: inline !important; }
@@ -124,7 +124,7 @@ body.phone-l #bus-depot { padding: 2px 6px; }
 body.phone-l .plan-actions { margin: 0 !important; padding: 5px 0 max(6px, env(safe-area-inset-bottom)); }
 body.phone-l .plan-actions .btn { min-height: 40px; }
 /* 운행 알림 줄: 지도 아래(세로) 고정 높이 — 알림·지도에 못 놓은 소식(#map-notice-overflow)이 늘어도 지도 크기는 그대로, 넘치면 줄 안에서만 스크롤 */
-body.phone-p[data-screen="run"] .map-strip { height: 52px; overflow-y: auto; overscroll-behavior: contain; }
+body.phone-p[data-screen="run"] .map-strip { height: auto; min-height: 52px; max-height: 168px; overflow-y: auto; overscroll-behavior: contain; }
 body.phone-l[data-screen="run"] .map-strip { grid-row: 4 / 6; align-self: stretch; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 body.phone-p .map-strip .map-notice-overflow, body.phone-l .map-strip .map-notice-overflow { margin: 0; gap: 4px; font-size: 12px; line-height: 1.4; }
 body.phone-p .map-strip .map-notice-overflow > div, body.phone-l .map-strip .map-notice-overflow > div { padding: 3px 8px; }
@@ -166,3 +166,102 @@ body.phone-p[data-screen="plan"] .map-strip > .in-strip, body.phone-l[data-scree
 body.phone-p .depot-bus, body.phone-p #btn-lease, body.phone-p #bus-rest { min-height: 44px; }
 /* 숫자 없는 색 점(16px)이 된 노선 손잡이도 손가락 판정은 약 44px 그대로(보이는 점만 작게) */
 .route-bus:has(.route-num:empty)::before { inset: -12px -8px; }
+
+/* ── 5) 지도 틀 고정(2026-11-05 P1-1): 넓은 화면은 지도 + 오른쪽 고정 칸, 좁은 화면은 아래 시트. 크기는 App.fitFrame이 창 크기로만 정한다 ── */
+body.rail { display: flex; flex-direction: column; height: var(--app-h, 100dvh); min-height: 0; overflow: hidden; }
+body.rail .topbar { flex: none; height: 52px; box-sizing: border-box; flex-wrap: nowrap; padding-block: 4px; position: static; }
+body.rail.minimal-ui:not(.minimal-text)[data-screen] .game { flex: 1 1 auto; min-height: 0; overflow: hidden; display: grid; gap: 8px 12px; padding: 12px; box-sizing: border-box;
+  grid-template-columns: var(--map-w, 1fr) minmax(0, 1fr);
+  grid-template-rows: auto auto auto minmax(0, 1fr) 52px 68px;
+  grid-template-areas: "map info" "map people" "map strip" "map slot" "t1 actions" "t2 actions"; }
+body.rail .stage-col { display: contents; }
+body.rail[data-screen="plan"] #plan-toolbar { display: contents; }
+body.rail #stage { grid-area: map; align-self: start; min-height: 0; max-height: none; margin: 0; }
+body.rail .map-toolbar { grid-area: info; margin: 0; min-height: 48px; align-items: center; }
+body.rail #run-controls { order: 3; flex: 1 1 100%; justify-content: space-between; }
+body.rail #run-controls .btn { min-width: 0; flex: 1 1 0; padding: 4px 2px; }
+body.rail #run-controls .btn-text { display: none; }
+body.rail #run-controls .speed-icon { display: inline; }
+body.rail #people-hud { grid-area: people; margin: 0; }
+body.rail .map-toolbar #map-clock .clock { font-size: 22px; }
+body.rail #minimal-profit { min-height: 0; margin-left: auto; padding: 0; display: flex; flex-wrap: wrap; align-items: baseline; justify-content: flex-end; gap: 0 6px; }
+body.rail #minimal-profit strong { font-size: 22px; }
+body.rail #minimal-profit .minimal-profit-expected { margin-left: 0; }
+body.rail.minimal-emergency #panel { padding: 0; border: 0; }
+body.rail .minimal-emergency-buses { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+body.rail .plan-primary { grid-area: t1; margin: 0; flex-wrap: nowrap; align-items: stretch; min-width: 0; }
+body.rail .plan-primary .route-tabs { flex: 1 1 auto; min-width: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px; margin: 0; }
+body.rail #plan-toolbar .route-tab { min-width: 0; height: 52px; min-height: 0; padding: 3px 4px; flex-direction: column; gap: 2px; font-size: 12px; line-height: 1.2; }
+body.rail #btn-new-route { min-width: 0; height: 52px; padding: 3px 4px; font-size: 12px; }
+body.rail #btn-new-route:disabled { display: none; }
+body.rail #btn-undo, body.rail #btn-reset-routes { flex: none; height: 52px; margin: 0; padding: 4px 10px; font-size: 13px; }
+body.rail #bus-depot { grid-area: t2; margin: 0; padding: 4px 8px; flex-wrap: nowrap; min-width: 0; overflow: hidden; }
+body.rail .depot-head { flex: none; white-space: nowrap; }
+body.rail .depot-buses { flex: 1 1 auto; min-width: 0; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
+body.rail .depot-bus { flex: none; }
+body.rail #btn-lease, body.rail #bus-rest { flex: none; margin: 0; white-space: nowrap; }
+body.rail #plan-econ, body.rail #map-plan-message { display: none; }
+body.rail .plan-actions { grid-area: actions; margin: 0; align-self: end; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+body.rail .plan-actions #btn-depart { grid-column: 1 / -1; margin: 0; width: 100%; }
+body.rail .map-strip { grid-area: strip; display: flex; flex-direction: column; gap: 6px; margin: 0; min-height: 0; }
+body.rail[data-screen="run"] .map-strip { grid-area: auto; grid-column: 1; grid-row: 5 / 7; height: 128px; overflow-y: auto; overscroll-behavior: contain; }
+body.rail .map-strip:empty { display: none; }
+body.rail #panel { grid-area: slot; position: static; max-height: none; height: auto; min-height: 0; overflow-y: auto; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); }
+body.rail[data-screen="run"] #panel { grid-column: 2; grid-row: 4 / 7; }
+body.rail[data-screen="plan"] #panel { display: none; }
+body.rail.minimal-ui:not(.minimal-text):not(.minimal-emergency).run-drawer[data-screen=run] #panel:not(:has(#emergency-dialog)) { position: static; width: auto; max-height: none; box-shadow: none; }
+body.rail #emergency-dialog { position: static; width: auto; max-width: none; margin: 0; padding: 0; border: 0; }
+body.rail[data-screen="plan"] #plan-ai-popover { grid-area: slot; position: static; width: auto; max-height: none; min-height: 0; box-shadow: none; z-index: auto; }
+/* 인물 칩: 줄바꿈(가로 스크롤 없음). 오른쪽 칸은 2열 압축형 — 얼굴·이름·누적 / 시각·구간 */
+.people-hud-row { flex-wrap: wrap; overflow-x: visible; }
+body.rail .people-hud-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 0; }
+body.rail .person-chip { display: grid; grid-template-columns: 26px auto minmax(0, 1fr) auto; grid-template-areas: "face name name count" "face time trip trip"; align-items: center; column-gap: 5px; row-gap: 0; min-width: 0; width: 100%; min-height: 44px; padding: 3px 8px 3px 3px; border-radius: 12px; font-size: 12px; line-height: 1.3; text-align: left; white-space: normal; }
+body.rail .person-chip-face { grid-area: face; width: 26px; height: 26px; }
+body.rail .person-chip > b { grid-area: name; font-size: 13px; }
+body.rail .person-chip-count { grid-area: count; justify-self: end; }
+body.rail .person-chip-time { grid-area: time; }
+body.rail .person-chip-trip { grid-area: trip; min-width: 0; overflow-wrap: anywhere; }
+body.rail .person-chip-flag, body.rail .person-chip-live { grid-column: 2 / -1; justify-self: start; font-size: 11px; line-height: 1.3; }
+/* 폭 701~959: 위 시각·인물 칩, 지도, 아래 조작부. 패널은 아래 시트 */
+body.sheet { display: block; height: auto; min-height: 100dvh; overflow: auto; }
+body.sheet .game { display: block; overflow: visible; min-height: 0; }
+body.sheet .stage-col { position: static; padding: 8px 16px; border: 0; }
+body.sheet #stage { max-height: none; min-height: 0; }
+body.sheet .map-strip { display: flex; flex-direction: column; gap: 6px; margin: 6px 0; }
+/* 알림 줄 높이를 고정 — 배너가 첫 클릭에 닫히며 아래 조작부가 밀려 그 클릭이 빗나가던 것 */
+body.sheet .map-strip { height: 76px; min-height: 76px; box-sizing: border-box; overflow-y: auto; overscroll-behavior: contain; justify-content: flex-start; }
+body.sheet[data-screen="plan"] #panel { display: none; }
+/* 조작부는 오른쪽 칸 배치와 같은 낮은 줄(태블릿 세로에서 페이지가 세로로 넘치지 않게) */
+body.sheet .plan-primary { margin: 0 0 8px; flex-wrap: nowrap; align-items: stretch; min-width: 0; }
+body.sheet .plan-primary .route-tabs { flex: 1 1 auto; min-width: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px; margin: 0; }
+body.sheet #plan-toolbar .route-tab, body.sheet #btn-new-route { min-width: 0; height: 52px; min-height: 0; padding: 3px 4px; flex-direction: column; gap: 2px; font-size: 12px; line-height: 1.2; }
+body.sheet #btn-new-route:disabled { display: none; }
+body.sheet #btn-undo, body.sheet #btn-reset-routes { flex: none; height: 52px; margin: 0; padding: 4px 10px; font-size: 13px; }
+body.sheet #bus-depot { margin: 0 0 8px; padding: 4px 8px; flex-wrap: nowrap; min-width: 0; min-height: 60px; overflow: hidden; }
+body.sheet .depot-head { flex: none; white-space: nowrap; }
+body.sheet .depot-buses { flex: 1 1 auto; min-width: 0; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
+body.sheet .depot-bus { flex: none; }
+body.sheet #btn-lease, body.sheet #bus-rest { flex: none; margin: 0; white-space: nowrap; }
+body.sheet #plan-toolbar { max-width: none; padding: 4px 0 0; }
+body.sheet .plan-actions { margin: 0; flex-wrap: nowrap; }
+/* 긴급 조정·운행 상황 = 아래 시트(휴대폰 세로·폭 959 이하). 지도 크기는 그대로, 시트만 위로 */
+body.minimal-ui:not(.minimal-text):not(.rail):not(.phone-l).minimal-emergency #panel { display: block; position: fixed; z-index: 60; left: 0; right: 0; top: auto; bottom: 0; width: auto; height: auto; max-height: 58dvh; overflow-y: auto; overscroll-behavior: contain; padding: 12px 16px max(12px, env(safe-area-inset-bottom)); background: var(--bg); border-radius: 16px 16px 0 0; box-shadow: 0 -6px 24px #17233529; }
+body.minimal-ui:not(.minimal-text):not(.rail):not(.phone-l).minimal-emergency #emergency-dialog { position: static; width: auto; max-width: none; margin: 0; padding: 0; border: 0; }
+@media (max-width: 959px) { .minimal-ui:not(.minimal-text):not(.minimal-emergency).run-drawer[data-screen=run]:not(.phone-l) #panel:not(:has(#emergency-dialog)) { top: auto; right: 0; left: 0; bottom: 0; width: auto; max-height: 62dvh; border-radius: 16px 16px 0 0; border-bottom: 0; } }
+/* 운행 상태 줄(멈춘 이유·긴급 조정 열기) */
+body.rail .map-banner.in-strip { border-radius: 12px; font-size: 13px; line-height: 1.5; text-align: left; padding: 6px 10px; }
+.run-statusbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 8px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+.run-statusbar p { flex: 1 1 200px; margin: 0; font-size: 14px; line-height: 1.5; font-weight: 600; }
+.run-statusbar[hidden] { display: none; }
+.run-statusbar.is-hold { background: var(--accent-soft); border-color: var(--sem-action); }
+.run-statusbar .btn { flex: none; min-height: 40px; font-size: 13px; }
+body:not([data-screen="run"]) #run-statusbar { display: none; }
+body:not(.minimal-ui) #run-statusbar, .minimal-text #run-statusbar { display: none; }
+body.phone-p .run-statusbar, body.phone-l .run-statusbar { padding: 4px 8px; }
+body.phone-p .run-statusbar p, body.phone-l .run-statusbar p { font-size: 12px; line-height: 1.35; flex-basis: 150px; }
+/* 인물 칩 줄바꿈(P1-2) · 새 표시(P1-3) */
+.new-tag { display: inline-block; flex: none; padding: 0 5px; border-radius: 6px; background: var(--sem-action); color: #fff; font-size: 11px; font-weight: 700; line-height: 1.5; }
+.route-tab .new-tag { background: #fff; color: #1A1D24; }
+/* 엔딩·결과 지도도 같은 틀(P1-1): 왼쪽 지도, 오른쪽 내용 */
+@media (min-width: 960px) { body.minimal-ui:not(.minimal-text)[data-screen="ending"] .game { grid-template-columns: calc(var(--map-w, 700px) + 24px) minmax(0, 1fr); } body.minimal-ui:not(.minimal-text)[data-screen="ending"] .stage-col { padding: 12px; border-right: 0; } }
+body.minimal-ui:not(.minimal-text)[data-screen="result"] #stage { margin-inline: auto; max-height: none; }

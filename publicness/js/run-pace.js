@@ -63,21 +63,21 @@
    *  · 오늘 기준 초과: 한 번 이동에서 버스를 기다린 시간이 기준(service.maxWait)을 넘는 순간(첫 승차 대기 + 환승 대기를 이어 셈 — ResidentEvaluation과 같은 값)
    * 만차·대기 10명 같은 일반 사건(notables)은 멈추지 않고 지도 표시·운행 소식에만 남는다 */
   function residentStops(result, config) {
-    var W = config.bus.window, max = config.service ? config.service.maxWait : null, tr = config.bus.transferMin || 0, boards = {}, alights = {}, out = [];
+    var W = config.bus.window, max = config.service ? config.service.maxWait : null, tr = config.bus.transferMin || 0, boards = {}, alights = {}, spots = {}, out = [];
     result.log.forEach(function (e) {
       if (e.type === 'board') (boards[e.pid] = boards[e.pid] || []).push(e.t);
-      if (e.type === 'alight') (alights[e.pid] = alights[e.pid] || []).push(e.t);
+      if (e.type === 'alight') { (alights[e.pid] = alights[e.pid] || []).push(e.t); (spots[e.pid] = spots[e.pid] || []).push(e.node); }
     });
     result.passengers.forEach(function (p) {
       if (!p.residentId) return;
-      if (p.leg === 'return' && p.status === 'arrived' && p.arriveT != null && p.arriveT < W) out.push({ t: Math.ceil(p.arriveT), kind: 'resident', what: 'done', resident: p.residentId, node: p.d });
+      if (p.leg === 'return' && p.status === 'arrived' && p.arriveT != null && p.arriveT < W) out.push({ t: Math.ceil(p.arriveT), kind: 'resident', what: 'done', resident: p.residentId, node: p.d, leg: p.leg });
       if (max == null || !(p.waitTotal > max)) return;
-      var b = boards[p.id] || [], a = alights[p.id] || [], waited = 0, start = p.t, node = p.o;
+      var b = boards[p.id] || [], a = alights[p.id] || [], sp = spots[p.id] || [], waited = 0, start = p.t, node = p.o;
       for (var i = 0; i <= b.length; i++) {
         var end = i < b.length ? b[i] : W;
-        if (start + (max - waited) < end) { var t = Math.floor(start + (max - waited)) + 1; if (t < W) out.push({ t: t, kind: 'resident', what: 'over', resident: p.residentId, node: node }); break; }
+        if (start + (max - waited) < end) { var t = Math.floor(start + (max - waited)) + 1; if (t < W) out.push({ t: t, kind: 'resident', what: 'over', resident: p.residentId, node: node, leg: p.leg }); break; }
         waited += Math.max(0, end - start);
-        if (i < a.length) { start = a[i] + tr; node = null; } else break;
+        if (i < a.length) { start = a[i] + tr; node = sp[i] || null; } else break; /* 갈아타는 곳에서 넘기면 그 정류장에 말풍선(11-05 P1-5) */
       }
     });
     return out.sort(function (x, y) { return x.t - y.t || (x.resident < y.resident ? -1 : 1); });

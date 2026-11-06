@@ -21,7 +21,7 @@ async function playPhase(page,phase){
  await beginPlan(page);
  await page.evaluate(()=>{const s=PB.App.s,S=PB.Session,paths=[['F','C','D','A'],['B','A','G','E'],['H','A','D'],['I','A']];for(const r of s.draft.routes){const n=paths[r.num-1].filter(x=>S.graph(s).has(x));S.updateRoute(s,r.num,{nodes:n,stops:n.map(()=>true)});}s.draft.buses.forEach(b=>{if(b.routeNum==null)S.assign(s,b.id,1);});PB.App.render();});
  await page.locator('#btn-depart').click();await page.locator('#confirm-yes').click();
- /* 운행은 끝까지 건너뛰기(남은 긴급 조정 기회는 ‘변경 없이 계속’) */await page.locator('#run-skip').click();if(await page.locator('#confirm-skip[open]').count())await page.locator('#skip-yes').click();await page.locator('#resident-summary').waitFor({state:'attached',timeout:60000});
+ /* 운행은 끝까지 건너뛰기(남은 긴급 조정 기회는 ‘변경 없이 계속’) */for(let i=0;i<80&&!(await page.locator('#btn-next-phase').count());i++){/* 긴급 조정 창은 운행 중 늦게 뜬다 */if(await page.locator('#emergency-dialog[open]').count())await page.locator('#emergency-continue').click({timeout:800}).catch(()=>{});await page.locator('#run-skip').click({timeout:600}).catch(()=>{});await page.locator('#skip-yes').click({timeout:300}).catch(()=>{});await page.waitForTimeout(150);}await page.locator('#resident-summary').waitFor({state:'attached',timeout:60000});
  assert.equal(await page.locator('dialog#route-report').count(),0,'효율 표는 결과 화면 안에(자동 팝업 없음)');assert.equal(await page.locator('section#route-report').count(),1);
  assert.equal(await page.locator('#learning-dialog:modal').count(),0,'생각해 보기 별도 창 없음');
  assert.equal(await page.locator('#result-think #learning').getAttribute('data-phase'),String(phase));assert.ok((await page.locator('#learning .learning-question').innerText()).length>10);

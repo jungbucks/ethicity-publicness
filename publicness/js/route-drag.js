@@ -28,11 +28,22 @@
    var key=JSON.stringify(tx.route);
    if(tx.metricKey!==key){tx.metricKey=key;tx.metrics=api().valid(tx.route)?api().preview(tx):null;}
    var m=tx.metrics,duration=function(v){return v==null?'—':A().duration(v);};
-   tip.textContent=m?(tx.last?(tx.route.nodes.length<tx.original.nodes.length?'−':'+')+A().nodeName(tx.last)+' · ':'')+(riverIn(tx.route)?'강 건넘(다리로 돌아감) · ':'')+'한 바퀴 '+(m.km==null?'—':Math.round(m.km*10)/10)+' km · 간격 '+duration(m.headwayBefore)+' → '+duration(m.headwayAfter)+' · 수지 '+A().won(m.before)+' → '+A().won(m.after):'이 노선에는 연결할 수 없어요.';
+   tip.textContent=m?(tx.last?(tx.route.nodes.length<tx.original.nodes.length?'−':'+')+A().nodeName(tx.last)+' · ':'')+(riverIn(tx.route)?'강 건넘(다리로 돌아감) · ':'')+'한 바퀴 '+(m.km==null?'—':Math.round(m.km*10)/10)+' km · 간격 '+both(m.headwayBefore,m.headwayAfter,duration)+' · 수지 '+both(m.before,m.after,A().won):'이 노선에는 연결할 수 없어요.';
    if(m){tip.dataset.profit=String(m.after);tip.dataset.headway=String(m.headwayAfter);}
-   tip.hidden=false;tip.style.left=Math.max(6,Math.min(w-tip.offsetWidth-6,p.x+18))+'px';tip.style.top=Math.max(6,Math.min(h-tip.offsetHeight-6,p.y+22))+'px';
+   tip.hidden=false;placeTip(p,w,h);
   }else tip.hidden=true;
   if(animation){var k=Math.min(1,(performance.now()-animation.t)/180),ease=1-Math.pow(1-k,3);animation.edges.forEach(function(e){var a=project(e[0]),b=project(e[1]);line([a,{left:a.left+(b.left-a.left)*ease,top:a.top+(b.top-a.top)*ease}],'#fff',false,8);line([a,{left:a.left+(b.left-a.left)*ease,top:a.top+(b.top-a.top)*ease}],animation.color,false,4);});if(k<1)schedule();else animation=null;}
+ }
+ /* 2026-11-06 P2-6: 전후가 같으면(아직 노선이 안 바뀐 순간) 값 하나만 */
+ function both(a,b,f){return a===b?f(a):f(a)+' → '+f(b);}
+ /* 2026-11-06 P2-6: 툴팁이 알림·정류장 이름표·손가락을 덮지 않는 자리로. 손가락 옆 네 곳 → 지도 네 귀퉁이 순으로 보고 가장 덜 겹치는 곳(같으면 앞쪽) */
+ function placeTip(p,w,h){
+  var tw=tip.offsetWidth,th=tip.offsetHeight,box=stage.getBoundingClientRect(),m=6,walls=[{left:p.x-14,top:p.y-14,right:p.x+14,bottom:p.y+14}];
+  [].forEach.call(stage.querySelectorAll('.net-label,.stop-name,#minimal-toast:not([hidden])'),function(n){var r=n.getBoundingClientRect();if(r.width)walls.push({left:r.left-box.left,top:r.top-box.top,right:r.right-box.left,bottom:r.bottom-box.top});});
+  var fit=function(x,y){return {x:Math.max(m,Math.min(w-tw-m,x)),y:Math.max(m,Math.min(h-th-m,y))};};
+  var spots=[fit(p.x+18,p.y+22),fit(p.x+18,p.y-th-22),fit(p.x-tw-18,p.y+22),fit(p.x-tw-18,p.y-th-22),fit(m,h),fit(w,h),fit(m,m),fit(w,m)],best=spots[0],least=Infinity;
+  spots.forEach(function(c){var hit=0;walls.forEach(function(r){var dx=Math.min(c.x+tw,r.right)-Math.max(c.x,r.left),dy=Math.min(c.y+th,r.bottom)-Math.max(c.y,r.top);if(dx>0&&dy>0)hit+=dx*dy;});if(hit<least){least=hit;best=c;}});
+  tip.style.left=best.x+'px';tip.style.top=best.y+'px';
  }
  function schedule(){if(!queued)queued=requestAnimationFrame(draw);}
  function cancel(){var g=gesture;gesture=null;hover=null;latest=null;if(g){until=performance.now()+400;try{if(stage.hasPointerCapture(g.id))stage.releasePointerCapture(g.id);}catch(e){}}schedule();}

@@ -41,14 +41,16 @@
   /* 금액 표시(2026-11-01): 노선이 없으면 숫자 대신 흐린 안내 / 운행 중에는 ‘지금까지’(운임·비용이 들어오는 대로, UI.Econ.live) + 옆에 작게 ‘예상’ */
   var sign=function(n){n=Math.round(n);return (n>0?'+':'')+n.toLocaleString('ko-KR');},run=s.stage==='run'&&s.current&&s.current.result&&PB.UI.runState&&PB.UI.runState(),live=run&&E.live?E.live(s,PB.UI.runState().tf):null;
   if(s.stage==='plan'&&!s.draft.routes.some(function(r){return r.nodes.length>=2;})){profit.classList.add('empty');profit.append(el('small',null,'노선을 만들면 예상 수지가 나와요'));profit.setAttribute('aria-label','이번 단계 예상 수지 · 노선을 만들면 예상 수지가 나와요');}
-  else if(live){profit.classList.add('live');profit.dataset.live=live.total;profit.classList.toggle('negative',live.total<0);
-   profit.title='지금까지 수지 '+PB.App.won(live.total)+'(기본 지원 − 보유·임차 + 받은 운임 − 든 운영·연료비 + 채운 수행분) · 이번 단계 예상 '+PB.App.won(k.total)+'(기본 수요 기준)';profit.setAttribute('aria-label',profit.title);
-   profit.append(el('small',null,'지금까지'),el('strong',null,sign(live.total)),el('small','minimal-profit-expected','예상 '+sign(k.total)));}
+  else if(live){profit.classList.add('live');profit.dataset.live=live.total;profit.dataset.running=live.running;profit.classList.toggle('negative',live.running<0);
+   var pend=live.pending,settle='운행 종료 때 정산될 항목: 보유비 −'+won(pend.holding)+(pend.lease?', 임차료 −'+won(pend.lease):'')+', 공공서비스 수행분 +'+won(pend.service);
+   /* 11-05 P1-4: 화면 숫자는 기본 지원 + 받은 운임 − 든 운영·연료비. 보유비·임차료·수행분은 끝날 때 정산 — 결과 화면 ‘운행 중 → 종료 정산 → 최종’과 같은 나눔 */
+   profit.title='지금까지 수지 '+PB.App.won(live.running)+'(기본 지원 + 받은 운임 − 든 운영·연료비) · '+settle+' · 이번 단계 예상 '+PB.App.won(k.total)+'(기본 수요 기준)';profit.setAttribute('aria-label',profit.title);
+   profit.append(el('small',null,'지금까지'),el('strong',null,sign(live.running)),el('small','minimal-profit-expected','예상 '+sign(k.total)));}
   else{profit.classList.toggle('negative',k.total<0);profit.title='이번 단계 예상 수지 · 기본 수요 기준 · '+PB.App.won(k.total);profit.setAttribute('aria-label',profit.title);
    profit.append(el('small',null,'예상'),el('strong',null,sign(k.total)));}
   /* P1-4(2026-11-02): 예상 수지를 누르거나 마우스를 올리면 짧은 내역(지원금·운임·보유비·운영·연료비·임차료) */
   if(!profit.classList.contains('empty')){var cp=PB.Metrics.costParts(k),row=function(t,v){var li=el('li');li.append(el('span',null,t),el('b',null,(v>0?'+':v<0?'−':'')+Math.abs(Math.round(v)).toLocaleString('ko-KR')+'원'));return li;},ul=el('ul','minimal-profit-detail');ul.id='minimal-profit-detail';
-   ul.append(row('기본 지원',cp.subsidyBase),row('공공서비스 지원금',cp.subsidyService||0),row('운임',cp.fare),row('버스 보유비',-cp.holding));if(cp.lease)ul.append(row('임차료',-cp.lease));ul.append(row('운영·연료비',-(cp.op+cp.fuel)));
+   if(live){var pd=live.pending,lh=el('li','detail-head','운행 종료 때 정산될 항목');ul.append(lh,row('보유비',-pd.holding));if(pd.lease)ul.append(row('임차료',-pd.lease));ul.append(row('공공서비스 수행분',pd.service),el('li','detail-head','이번 단계 예상 내역'));}ul.append(row('기본 지원',cp.subsidyBase),row('공공서비스 지원금',cp.subsidyService||0),row('운임',cp.fare),row('버스 보유비',-cp.holding));if(cp.lease)ul.append(row('임차료',-cp.lease));ul.append(row('운영·연료비',-(cp.op+cp.fuel)));
    ul.hidden=!profitOpen;profit.append(ul);profit.tabIndex=0;profit.setAttribute('role','button');profit.setAttribute('aria-expanded',String(profitOpen));profit.setAttribute('aria-controls','minimal-profit-detail');
    profit.addEventListener('click',function(){profitOpen=!profitOpen;ul.hidden=!profitOpen;profit.setAttribute('aria-expanded',String(profitOpen));});
    profit.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();profit.click();}});
@@ -58,8 +60,8 @@
   var svc={},F=s.config.finance.service;
   (k.service||[]).forEach(function(c){var p=project(c.id),count=c.stops;
    if(s.stage==='run'&&s.current&&s.current.result){var time=PB.UI.runState().tf;count=s.current.result.timelines.reduce(function(n,tl){return n+(tl.visits||[]).filter(function(v){return v.kind==='stop'&&v.node===c.id&&v.t<=time;}).length;},0);}
-   var ring=el('div','minimal-service');ring.style.left=p.left+'px';ring.style.top=p.top+'px';ring.setAttribute('role','img');ring.setAttribute('aria-label',c.label+' 공공서비스 '+count+'/'+c.need+'회 정차');ring.title=ring.getAttribute('aria-label');
-   svc[c.id]={text:Math.min(count,c.need)+'/'+c.need+'회'+(count>=c.need?' · +'+won(F.amount)+' ✓':' · '+c.need+'회면 +'+won(F.amount)),done:count>=c.need,title:c.label+' 공공서비스 '+count+'/'+c.need+'회 정차'+(s.stage==='plan'?'(예상)':'')+' · 하루 '+c.need+'회 이상 서면 '+won(F.amount)};
+   var ring=el('div','minimal-service');ring.style.left=p.left+'px';ring.style.top=p.top+'px';ring.setAttribute('role','img');var svcText=count>=c.need?c.need+'/'+c.need+'회 달성('+count+'회 정차)':count+'/'+c.need+'회 정차';ring.setAttribute('aria-label',c.label+' 공공서비스 '+svcText);ring.title=ring.getAttribute('aria-label');
+   svc[c.id]={text:Math.min(count,c.need)+'/'+c.need+'회'+(count>=c.need?' · +'+won(F.amount)+' ✓':' · '+c.need+'회면 +'+won(F.amount)),short:Math.min(count,c.need)+'/'+c.need+'회'+(count>=c.need?' ✓':''),done:count>=c.need,title:c.label+' 공공서비스 '+svcText+(s.stage==='plan'?'(예상)':'')+' · 하루 '+c.need+'회 이상 서면 '+won(F.amount)};
    for(var i=0;i<c.need;i++){var bar=el('i',i<count?'filled':'');bar.style.transform='rotate('+(i*360/c.need)+'deg) translateY(-27px)';ring.append(bar);}if(count>=c.need)ring.append(el('b',null,'✓'));layer.append(ring);
   });
   setService(svc);
@@ -82,7 +84,7 @@
   var select=$('#emergency-bus');dialog.querySelectorAll('#emergency-buses li').forEach(function(li){var id=Number(li.dataset.bus),b=el('button','btn','🚌 '+((li.querySelector('b')||{}).textContent||'버스').trim()+' · '+(counts[id]||0)+'/'+PB.Schedule.vehicle(s.config,id).capacity),ok=!!(select&&select.querySelector('option[value="'+id+'"]'));b.type='button';b.setAttribute('aria-label',li.textContent+(ok?'':' · 옮길 수 있는 노선 없음'));b.title=b.getAttribute('aria-label');b.disabled=!ok;b.setAttribute('aria-pressed',String(ok&&select.value===String(id)));b.onclick=function(){select.value=String(id);select.dispatchEvent(new Event('change',{bubbles:true}));chips.querySelectorAll('button').forEach(function(n){n.setAttribute('aria-pressed',String(n===b));});};chips.append(b);});dialog.querySelector('h2').after(chips);
  }
  function refresh(){
-  document.body.classList.toggle('minimal-ui',root.MINIMAL_UI);document.body.classList.toggle('minimal-text',full);var toggle=$('#minimal-ui-toggle');if(toggle)toggle.textContent=root.MINIMAL_UI?'기본 화면':'미니멀 화면';
+  document.body.classList.toggle('minimal-emergency',!!$('#emergency-dialog'));document.body.classList.toggle('minimal-ui',root.MINIMAL_UI);document.body.classList.toggle('minimal-text',full);var toggle=$('#minimal-ui-toggle');if(toggle)toggle.textContent=root.MINIMAL_UI?'기본 화면':'미니멀 화면';
   var tb=$('#minimal-text-toggle');if(tb)tb.setAttribute('aria-pressed',String(full));if(PB.App.syncLayout)PB.App.syncLayout();/* 휴대폰 배치는 텍스트 모드에서 꺼진다(2026-11-02) */
   var s=PB.App.s,screen=document.body.dataset.screen;if(!s)return;if(full&&screen==='plan')document.body.classList.add('plan-text-open');
   /* 결과 화면은 미니멀·기본 모두 같은 구조(ui-transition.js, 2026-11-01). 텍스트 모드면 ‘자세히’를 펼친다. 옛 legacyResult·legacyReflection은 쓰지 않는다 */
@@ -98,7 +100,6 @@
   var controls=el('div','minimal-switches'),b=el('button','btn','지도·텍스트 보기');b.id='minimal-text-toggle';b.setAttribute('aria-label','지도·텍스트 보기');/* 휴대폰 머리말은 짧은 글자(css/mobile.css) — 이름은 그대로 */b.type='button';b.setAttribute('aria-pressed','false');b.onclick=function(){text(!full,{view:true});};controls.append(b);var flag=el('button','btn','기본 화면');flag.id='minimal-ui-toggle';flag.type='button';flag.onclick=function(){set(!root.MINIMAL_UI);};$('#help').append(flag);$('#topbar').append(controls);
   var help=el('details');help.id='minimal-tip-help';help.append(el('summary',null,'처음 안내 다시 보기'));help.addEventListener('toggle',function(){help.querySelectorAll('p.tip-line').forEach(function(n){n.remove();});Object.keys(tips).forEach(function(k){var x=tipText(k);if(x)help.insertBefore(el('p','tip-line',x),replay);});});var replay=el('button','btn','안내 다시 시작');replay.type='button';replay.onclick=function(){seen={};try{localStorage.removeItem(KEY);}catch(e){}$('#help').close();refresh();};help.append(replay);$('#help').append(help);
   var titleText=el('button','btn','설명 보기');titleText.type='button';titleText.onclick=function(){text(!full);titleText.setAttribute('aria-pressed',String(full));};$('.title-copy').append(titleText);document.querySelectorAll('#screen-title label').forEach(function(n){n.title=n.textContent.trim();});
-  new MutationObserver(function(){var body=$('#confirm-depart-body');if(!root.MINIMAL_UI||full||body.querySelector('details'))return;var more=el('details');more.append(el('summary',null,'자세히'));Array.from(body.children).forEach(function(n){if(n.id!=='depart-summary')more.append(n);});body.append(more);}).observe($('#confirm-depart-body'),{childList:true}); /* 요약(#depart-summary)은 접지 않는다(P1-5 ①) */
   var render=PB.App.render;PB.App.render=function(){var r=render.apply(this,arguments);refresh();return r;};
   $('#btn-view-toggle').addEventListener('click',function(){if(root.MINIMAL_UI)text(this.textContent.indexOf('3D')>=0);});
   document.addEventListener('click',function(e){if(e.target.closest('#plan-text-toggle')&&root.MINIMAL_UI)text($('#plan-text-toggle').getAttribute('aria-expanded')==='true');});
@@ -109,7 +110,7 @@
    function clear(){clearTimeout(hold);if(popup)popup.remove();document.removeEventListener('pointerup',clear);document.removeEventListener('pointercancel',clear);document.removeEventListener('pointermove',move);}
    function move(p){if(Math.hypot(p.clientX-x,p.clientY-y)>7)clear();}document.addEventListener('pointerup',clear);document.addEventListener('pointercancel',clear);document.addEventListener('pointermove',move);
   });
-  new MutationObserver(function(){var m=$('#map-plan-message');if(m&&m.textContent!==lastMessage){lastMessage=m.textContent;if(root.MINIMAL_UI&&!full)toast(lastMessage);}var r=$('#run-status');if(r&&r.textContent!==lastRunStatus){lastRunStatus=r.textContent;if(root.MINIMAL_UI&&!full)toast(lastRunStatus);}}).observe($('#panel'),{childList:true,subtree:true,characterData:true});
+  new MutationObserver(function(){var m=$('#map-plan-message');if(m&&m.textContent!==lastMessage){lastMessage=m.textContent;if(root.MINIMAL_UI&&!full)toast(lastMessage);}var r=$('#run-status');if(r&&r.textContent!==lastRunStatus){lastRunStatus=r.textContent;if(root.MINIMAL_UI&&!full&&!$('#run-statusbar-text'))toast(lastRunStatus);/* 상태 줄(#run-statusbar)이 있으면 알림으로 또 띄우지 않는다 */}}).observe($('#panel'),{childList:true,subtree:true,characterData:true});
   new ResizeObserver(signals).observe(stage);setInterval(function(){if(PB.App.s&&PB.App.s.stage==='run'){signals();emergency();if($('#emergency-dialog'))tip('emergency');}},500);
   refresh();
  }

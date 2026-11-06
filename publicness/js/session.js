@@ -303,6 +303,53 @@
     return true;
   }
 
+  /* 결과 화면 ‘AI라면?’(2026-11-06): AI 제안을 다음 단계 계획 화면과 같은 입력으로 돌리기 위한 사본. 진짜 세션은 건드리지 않는다.
+   * 마지막 단계·계약 종료는 다음 단계가 없어 같은 단계 사본(이번 결과가 prevMetrics) */
+  function plannedNext(s) {
+    var c = serialize(s); if (!c.config) c.config = s.config; c.current = null;
+    if (s.stage === 'result' && s.phase < s.config.phases.length && !(s.end && s.end.cause === 'contract')) { nextPhase(c); beginPlan(c); }
+    return c;
+  }
+  // AI 제안을 적용한 초안 사본(계획 화면 미리보기·결과 화면 카드가 같은 함수)
+  function previewRec(s, rec) {
+    var pv = Object.assign({}, s, { draft: clone(s.draft), goalHistory: clone(s.goalHistory), _g: null });
+    applyRecommendation(pv, rec);
+    var used = pv.draft.buses.map(function (b) { return b.routeNum; });
+    pv.draft.routes = pv.draft.routes.filter(function (r) { return used.indexOf(r.num) >= 0; });
+    return pv;
+  }
+  // 두 초안의 가장 큰 변화 하나: 노선 추가 > 노선 삭제 > 정류장 추가 > 정류장 삭제 > 버스 이동 > 버스 빌리기
+  function planChange(a, b) {
+    function rows(s) {
+      return s.draft.routes.map(function (r) { return { num: r.num, route: r, nodes: r.nodes, buses: s.draft.buses.filter(function (x) { return x.routeNum === r.num; }).length }; })
+        .filter(function (r) { return r.nodes.length >= 2 && r.buses > 0; });
+    }
+    var x = rows(a), y = rows(b), restX = x.slice(), restY = [], moved = null, stops = [];
+    y.forEach(function (n) {
+      var old = restX.filter(function (o) { return Graph.routeId(o.route) === Graph.routeId(n.route); })[0];
+      if (!old) { restY.push(n); return; }
+      restX.splice(restX.indexOf(old), 1);
+      if (n.buses > old.buses && !moved) moved = { type: 'moveBus', num: old.num };
+    });
+    var added = [];
+    restY.forEach(function (n) {
+      var best = null, shared = 0;
+      restX.forEach(function (o) { var k = o.nodes.filter(function (id) { return n.nodes.indexOf(id) >= 0; }).length; if (k > shared) { shared = k; best = o; } });
+      if (!best || shared < 2 || shared * 2 < best.nodes.length) { added.push(n); return; }
+      restX.splice(restX.indexOf(best), 1);
+      var plus = n.nodes.filter(function (id) { return best.nodes.indexOf(id) < 0; }), minus = best.nodes.filter(function (id) { return n.nodes.indexOf(id) < 0; });
+      if (plus.length) stops.push({ type: 'addStop', num: best.num, node: plus[0] });
+      else if (minus.length) stops.push({ type: 'delStop', num: best.num, node: minus[0] });
+    });
+    if (added.length) { var longest = added.slice().sort(function (p, q) { return q.nodes.length - p.nodes.length; })[0]; return { type: 'addRoute', nodes: longest.nodes.slice() }; }
+    if (restX.length) return { type: 'delRoute', num: restX[0].num };
+    var stop = stops.filter(function (c) { return c.type === 'addStop'; })[0] || stops[0];
+    if (stop) return stop;
+    if (moved) return moved;
+    if (b.draft.buses.length > a.draft.buses.length) return { type: 'lease' };
+    return { type: 'none' };
+  }
+
   function revealed(s) {
     var h = s.history[s.history.length - 1];
     return Advisor.makeRevealed({
@@ -344,6 +391,22 @@
     s.current = computeRun(s, clone(toPlan(s)));
     s.stage = 'run'; s.resumedFromRun = false;
     return s.current.result;
+  }
+  /* 출발 전 점검(2026-11-05 P0-2): 예측이 아니라 지금 계획에서 바로 셀 수 있는 사실만 — 문구는 ui-plan departCheck.
+   * 노선이 있어도 버스가 없으면 그 정류장에는 아무도 못 오므로 ‘운행하는 노선’만 센다. 새 정류장을 앞에 */
+  function departChecks(s) {
+    var g = graph(s), buses = s.draft.buses, F = s.config.finance, phase = s.phase;
+    var running = s.draft.routes.filter(function (r) { return r.nodes.length >= 2 && !Graph.validateRoute(g, r).length && buses.some(function (b) { return b.routeNum === r.num; }); });
+    function serves(id) { return running.some(function (r) { return r.nodes.some(function (n, i) { return n === id && r.stops[i]; }); }); }
+    var resting = buses.filter(function (b) { return b.routeNum == null; }), owned = resting.filter(function (b) { return !b.leased; }), leased = resting.filter(function (b) { return b.leased; });
+    var fresh = phase > 1 ? s.config.nodes.filter(function (n) { return n.fromPhase === phase; }).map(function (n) { return n.id; }) : [];
+    var unserved = g.nodes.filter(function (id) { return !serves(id); }), isNew = function (id) { return fresh.indexOf(id) >= 0; };
+    return {
+      noBus: !buses.some(function (b) { return b.routeNum != null; }),
+      resting: owned.length, restingCost: owned.length * F.holding, restingLeased: leased.length, restingLeaseCost: leased.length * F.lease.fee,
+      unserved: unserved.filter(isNew).concat(unserved.filter(function (id) { return !isNew(id); })), newStops: fresh,
+      residents: Demand.residents(s.config, phase).filter(function (rd) { return !serves(rd.o) || !serves(rd.d); }).map(function (rd) { return { id: rd.id, name: rd.name, o: rd.o, d: rd.d }; })
+    };
   }
   // 긴급 조정 시점(엔진 시간, 10:06·15:03) — 운행 화면(ui-run)도 이 값을 쓴다
   var EMERGENCY_AT=[34,67];
@@ -555,13 +618,13 @@
   }
 
   var api = {
-    emergencyDecision:emergencyDecision,EMERGENCY_AT:EMERGENCY_AT,busRouteAt:busRouteAt,emergencyPreview:emergencyPreview,emergencyImpact:emergencyImpact,routeNumOf:routeNumOf,
+    departChecks:departChecks,emergencyDecision:emergencyDecision,EMERGENCY_AT:EMERGENCY_AT,busRouteAt:busRouteAt,emergencyPreview:emergencyPreview,emergencyImpact:emergencyImpact,routeNumOf:routeNumOf,
     serialize: serialize, restore: restore, migrateTransition: migrateTransition, CHOICES: CHOICES, choiceKey: choiceKey, scoresOverall: scoresOverall, rescore: rescore, financeRule: financeRule, financeStatus: financeStatus, balance: balance, DEFICIT_LIMIT: DEFICIT_LIMIT, NEGATIVE_LIMIT: NEGATIVE_LIMIT, residentVerdict: residentVerdict, tripLimit: tripLimit, expectedRun: expectedRun,
     parseSeedParam: parseSeedParam, create: create, graph: graph, visibleNodeIds: visibleNodeIds, routeByNum: routeByNum,
     toPlan: toPlan, validate: validate, routeLimit: routeLimit, routesInOrder: routesInOrder, stopLimit:stopLimit, routeFits:routeFits, routeRule:routeRule, canAssign:canAssign, addRoute: addRoute, updateRoute: updateRoute, deleteRoute: deleteRoute,
     assign: assign, lease: lease, unlease: unlease, leaseLimit: leaseLimit, leasedBuses: leasedBuses, LEASE_BASE: LEASE_BASE, restingFor: restingFor, autoPlace: autoPlace, busCost: busCost, typicalBusCost: typicalBusCost, setOffset: setOffset, beginPlan: beginPlan, introduceFourth: introduceFourth,
     chooseGoal: chooseGoal, markGoalAction: markGoalAction, applyRecommendation: applyRecommendation, applyFourth: applyFourth,
-    revealed: revealed, expected: expected, startRun: startRun, finishRun: finishRun, nextPhase: nextPhase, endingSummary: endingSummary
+    revealed: revealed, plannedNext: plannedNext, previewRec: previewRec, planChange: planChange, expected: expected, startRun: startRun, finishRun: finishRun, nextPhase: nextPhase, endingSummary: endingSummary
   };
   root.PB = root.PB || {};
   root.PB.Session = api;

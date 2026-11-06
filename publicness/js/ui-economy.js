@@ -98,7 +98,27 @@
     });
     var fixed = (F.basePerBus || 0) * provided - F.holding * provided - (F.lease ? F.lease.fee : 0) * leased;
     var opWon = Math.round(F.opPerMin * op), fuelWon = Math.round(F.fuelPerKm * km);
-    return { t: t, total: fixed + service + F.fare * riders - opWon - fuelWon, fixed: fixed, fare: F.fare * riders, op: opWon, fuel: fuelWon, service: service };
+    /* 2026-11-05 P1-4: 화면의 ‘지금까지’는 running(기본 지원 + 운임 − 운영·연료). 보유비·임차료·수행분은 운행 종료 때 정산될 항목(pending)으로 따로 보여 준다.
+     * running + pending = total(운행이 끝나는 시각에는 정산 수지와 같다 — 정산 숫자는 그대로) */
+    var total = fixed + service + F.fare * riders - opWon - fuelWon, holding = F.holding * provided, lease = (F.lease ? F.lease.fee : 0) * leased;
+    return { t: t, total: total, fixed: fixed, fare: F.fare * riders, op: opWon, fuel: fuelWon, service: service, running: (F.basePerBus || 0) * provided + F.fare * riders - opWon - fuelWon, pending: { holding: holding, lease: lease, service: service } };
+  };
+  // 운행 중 → 종료 정산 → 최종(결과 화면 3줄). k = 그 단계 정산 비용 표
+  E.settleParts = function (k) {
+    var c = M.costParts(k); if (c.legacy) return null;
+    return { running: c.subsidyBase + c.fare - c.op - c.fuel, holding: c.holding, lease: c.lease, service: c.subsidyService, settle: c.subsidyService - c.holding - c.lease, total: k.total };
+  };
+  /* 지금 추세로 학기 말(P1-4 b): 누적 잔액 + 마지막 단계 수지 × 남은 단계. 숫자를 바꾸지 않고 앞으로의 합만 계산한다. 앞선 단계 기록이 없거나 남은 단계가 없으면 null */
+  E.trend = function (s) {
+    var h = s.history, last = h[h.length - 1], total = s.config.phases.length; if (!last) return null;
+    var left = s.stage === 'plan' ? total - s.phase + 1 : total - s.phase; if (left <= 0 || (s.end && s.end.cause)) return null;
+    var resting = s.stage === 'plan' ? s.draft.buses.filter(function (b) { return b.routeNum == null; }).length : ((last.plan && last.plan.buses) || []).filter(function (b) { return !b.route; }).length;
+    var v = S.balance(s) + last.metrics.costs.total * left;
+    return { value: Math.round(v / 1000) * 1000, left: left, resting: resting };
+  };
+  E.trendLine = function (s, word) {
+    var t = E.trend(s); if (!t) return null;
+    return { text: '지금 추세(' + word + ' 수지 유지)라면 학기 말 잔액 약 ' + won(t.value) + (t.value < 0 ? ' · 쉬는 버스 ' + t.resting + '대' : ''), warn: t.value < 0 };
   };
   // 계획 화면(지도 아래) — 접힌 줄 하나 + 펼치면 상세. 편집 중 노선 한 줄은 늘 보인다
   E.planPanel = function (s, state) {
@@ -126,5 +146,6 @@
     box.appendChild(d);
     return box;
   };
+  E.signed = signed;
   UI.Econ = E;
 })(window);

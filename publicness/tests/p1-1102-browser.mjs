@@ -87,10 +87,10 @@ try {
     let ai = null;
     if (w > 850) {
       await page.locator('#plan-ai-toggle').click(); await page.waitForTimeout(800); boxes.push(await rectOf(page, '#stage'));
-      ai = await page.evaluate(() => { const a = document.querySelector('#plan-ai-popover').getBoundingClientRect(), s = document.querySelector('#stage').getBoundingClientRect(); return { inside: a.left >= s.left && a.right <= s.right + 1 && a.top >= s.top, rightGap: Math.round(s.right - a.right) }; });
+      ai = await page.evaluate(() => { const a = document.querySelector('#plan-ai-popover').getBoundingClientRect(), s = document.querySelector('#stage').getBoundingClientRect(); return { clear: a.left >= s.right || a.right <= s.left, gap: Math.round(a.left - s.right) }; });
       if (w === 1148) await page.screenshot({ path: `${SHOT}/_shot-p1-1-ai-1148.png` });
       await page.locator('#plan-ai-close').click(); await page.waitForTimeout(800); boxes.push(await rectOf(page, '#stage'));
-      assert.ok(ai.inside && ai.rightGap <= 12, 'AI 패널은 지도 오른쪽 가장자리 위 ' + JSON.stringify(ai));
+      assert.ok(ai.clear, 'AI 패널은 지도 옆 칸(11-05 P1-1·P1-6, 지도를 덮지 않음) ' + JSON.stringify(ai));
     }
     if (w !== 1148) await page.screenshot({ path: `${SHOT}/_shot-p1-1-coach-${w}.png` });
     assert.equal(new Set(boxes).size, 1, '지도 틀 그대로: ' + boxes.join(' | '));
@@ -106,7 +106,7 @@ try {
     await page.locator('#confirm-depart[open]').waitFor();
     assert.equal(await page.locator('#confirm-depart-h').innerText(), '이대로 출발할까요?');
     assert.equal(await page.locator('#depart-summary, .depart-plan, #depart-rule').count(), 0, '예상 요약·운행 구성·규칙 문단 없음');
-    assert.doesNotMatch(await page.locator('#confirm-depart').innerText(), /기준 충족|예상 수지|못 떠나는/);
+    /* 2026-11-05 UI/UX 지시서 P0-2: 점검 목록과 예상 수지 한 줄은 보인다(인물별 기준 충족 예상은 없음) */assert.doesNotMatch(await page.locator('#confirm-depart').innerText(), /기준 충족/);
     await page.locator('#confirm-yes').click(); await page.waitForTimeout(600);
     assert.equal(await page.locator('#run-next').getAttribute('aria-label'), '다음 멈춤까지', phase + '단계 버튼 이름');
     const note = await page.evaluate(() => [...document.querySelectorAll('#panel .note')].map(n => n.textContent).find(t => /정원/.test(t)) || '');
@@ -120,7 +120,7 @@ try {
         chips: Object.fromEntries([...document.querySelectorAll('.person-chip')].map(c => [c.dataset.resident, c.querySelector('.person-chip-count').textContent])) }));
       stops.push(r);
       if (r.em) { await page.locator('#emergency-continue').click(); await page.waitForTimeout(200); continue; }
-      assert.match(r.status, /(왕복 완료|오늘 기준 초과)/, '멈춘 이유 = 주요 인물 판정: ' + r.status); assert.doesNotMatch(r.status, /만차|대기 10명/);
+      assert.match(r.status, /(왕복을 마쳐서|을 넘어서)/, '멈춘 이유 = 주요 인물 판정: ' + r.status); assert.doesNotMatch(r.status, /만차|대기 10명/);
       assert.ok(r.paused, '멈춘 동안 ▶만 강조(배속은 옅게)');
       const loud = await page.evaluate(() => { const cs = e => getComputedStyle(e), play = cs(document.querySelector('#run-pause')); return [...document.querySelectorAll('#run-controls .btn:not(#run-pause)')].filter(b => cs(b).backgroundColor === play.backgroundColor || (cs(b).boxShadow !== 'none' && cs(b).boxShadow === play.boxShadow)).map(b => b.id); });
       assert.deepEqual(loud, [], '멈춘 동안 ▶와 같은 강조는 없음(소리 버튼 포함)');
@@ -136,7 +136,7 @@ try {
     const tally = await page.evaluate(() => Object.fromEntries(Object.entries(PB.Narrative.residentTally(PB.App.s.config, PB.App.s.history)).map(([k, v]) => [k, v.completed + '/' + v.threshold])));
     Object.keys(lastChips).forEach(id => assert.equal(lastChips[id], tally[id], `${phase}단계 ${id} 칩 마지막 값 = 결과 학기 누적`));
     if (phase === 1) {
-      const h = stops.find(x => /하늘 왕복 완료/.test(x.status)); assert.ok(h && h.chips.haneul === '1/4', '하늘이 돌아오는 길을 마친 순간 1/4 ' + JSON.stringify(h));
+      const h = stops.find(x => /하늘이 왕복을 마쳐서/.test(x.status)); assert.ok(h && h.chips.haneul === '1/4', '하늘이 돌아오는 길을 마친 순간 1/4 ' + JSON.stringify(h));
       const card = await page.locator('#result-people').innerText().catch(() => ''); assert.ok(/누적 1\/4회|1\/4/.test(card) || true);
     }
     assert.deepEqual(page.errors, []);
@@ -193,10 +193,11 @@ try {
     await arrive(page, 3); await page.waitForTimeout(2500);
     const proj = () => page.evaluate(() => PB.Session.visibleNodeIds(PB.App.s).map(id => { const n = PB.App.nodeXY(id), p = PB.App.view.project(n.x, n.y); return id + Math.round(p.left) + ',' + Math.round(p.top); }).join(' '));
     const p0 = await proj(), m0 = await marks(page), shifts = [];
+    const same = (a, b, m) => { const n = (s) => s.match(/-?\d+/g).map(Number), x = n(a), y = n(b); assert.ok(x.length === y.length && x.every((v, i) => Math.abs(v - y[i]) <= 1), m + ' ' + a + ' / ' + b); }; // 1px 반올림은 흔들림이 아니다
     await page.locator('#route-4').click(); await page.waitForTimeout(700);
-    assert.equal(await proj(), p0, '첫 클릭에 투영 그대로'); shifts.push(...moved(m0, await marks(page)));
+    same(await proj(), p0, '첫 클릭에 투영 그대로'); shifts.push(...moved(m0, await marks(page)));
     for (const id of ['I', 'A']) { await clickNode(page, id); await page.waitForTimeout(700); shifts.push(...moved(m0, await marks(page)).map(x => '+' + id + ' ' + x)); }
-    assert.equal(await page.evaluate(() => PB.App.s.draft.routes.find(r => r.num === 4).nodes.join('')), 'IA'); assert.equal(await proj(), p0);
+    assert.equal(await page.evaluate(() => PB.App.s.draft.routes.find(r => r.num === 4).nodes.join('')), 'IA'); same(await proj(), p0, '이은 뒤 투영 그대로');
     assert.deepEqual(shifts, [], '3단계 4번 노선을 이어도 이름표·얼굴 그대로');
     assert.deepEqual(page.errors, []); ok('P1-5 ② 3D 1148 3단계 도착 뒤 첫 클릭·I·A 잇기: 투영·이름표·얼굴 그대로'); await page.close();
   }
@@ -206,8 +207,8 @@ try {
       const page = await fresh(q, { width: w, height: h }, dpr);
       await arrive(page, phase); await page.waitForTimeout(700);
       const c = await covered(page, '#map-banner'); assert.ok(c, '배너 있음');
-      const geo = await page.evaluate(() => { const b = document.querySelector('#map-banner').getBoundingClientRect(), s = document.querySelector('#stage').getBoundingClientRect(); return { w: b.width, h: b.height, inStage: b.left >= s.left - 1 && b.right <= s.right + 1 && b.top >= s.top - 1 && b.bottom <= s.bottom + 1, above: b.bottom <= s.top + 1 && b.left >= s.left - 1 && b.right <= s.right + 1, strip: document.querySelector('#map-banner').parentNode.id === 'map-strip' && b.top >= s.bottom - 1 }; });
-      assert.ok(geo.w > 100 && geo.h < 90, '배너가 접히지 않음 ' + JSON.stringify(geo)); assert.ok(geo.inStage || geo.strip, '배너가 지도 안 또는 지도 아래 알림 줄(빈자리가 없을 때) ' + JSON.stringify(geo));
+      const geo = await page.evaluate(() => { const b = document.querySelector('#map-banner').getBoundingClientRect(), s = document.querySelector('#stage').getBoundingClientRect(); return { w: b.width, h: b.height, side: b.left >= s.right - 1 && b.right <= innerWidth && b.top >= 0 && b.bottom <= innerHeight, inStage: b.left >= s.left - 1 && b.right <= s.right + 1 && b.top >= s.top - 1 && b.bottom <= s.bottom + 1, above: b.bottom <= s.top + 1 && b.left >= s.left - 1 && b.right <= s.right + 1, strip: document.querySelector('#map-banner').parentNode.id === 'map-strip' && b.top >= s.bottom - 1 }; });
+      assert.ok(geo.w > 100 && geo.h < 90, '배너가 접히지 않음 ' + JSON.stringify(geo)); assert.ok(geo.inStage || geo.strip || geo.side, '배너가 지도 안·지도 옆 칸(넓은 화면 기본 배치 2026-11-05) 또는 지도 아래 알림 줄 ' + JSON.stringify(geo));
       assert.deepEqual(c.hits, [], `${q || '3D'} ${w} ${phase}단계 배너가 가리는 것`);
       if (w === 1280 && q) await page.screenshot({ path: `${SHOT}/_shot-p1-5-banner-2d1280-p${phase}.png` });
       if (w === 390) await page.screenshot({ path: `${SHOT}/_shot-p1-5-banner-390-p${phase}.png` });

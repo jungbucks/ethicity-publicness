@@ -15,7 +15,12 @@ async function runPhase(page,total){
   await page.locator('#btn-depart').click();await page.locator('#confirm-yes').click();
   // 3단계부터 긴급 조정 기회가 있으면 끝까지 건너뛰기(남은 기회는 ‘변경 없이 계속’)
   // (빠른 재생이라 누르기 전에 운행이 끝나 버튼이 사라질 수 있다 — 그때는 그냥 넘어간다)
-  await page.locator('#run-skip').click({timeout:3000}).catch(()=>{});await page.locator('#skip-yes').click({timeout:1500}).catch(()=>{});
+  /* 긴급 조정 창이 열리면 뒤쪽 조작이 막힌다(2026-11-05 P2 inert) — 창은 운행 중 늦게 뜨니 끝날 때까지 ‘변경 없이 계속’과 건너뛰기를 번갈아 */
+  for(let i=0;i<80&&!(await page.locator('#btn-next-phase').count());i++){
+   if(await page.locator('#emergency-dialog[open]').count())await page.locator('#emergency-continue').click({timeout:800}).catch(()=>{});
+   await page.locator('#run-skip').click({timeout:600}).catch(()=>{});await page.locator('#skip-yes').click({timeout:300}).catch(()=>{});
+   await page.waitForTimeout(150);
+  }
   try{await page.locator('#btn-next-phase').waitFor({timeout:90000});}catch(e){await page.screenshot({path:'publicness/tests/_shot-failure-debug.png'});throw e;}
 }
 const next=async(page)=>{await page.locator('#btn-next-phase').click();await beginPlan(page);};

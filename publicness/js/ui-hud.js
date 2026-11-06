@@ -38,6 +38,17 @@
     });
     return best ? { legs: best.legs, transfer: best.transfer } : null;
   }
+  /* ‘노선 없음’ 말풍선을 눌렀을 때 한 줄(2026-11-05 P0-1 c): 출발·도착 정류장에 서는 노선을 보고 가장 가까운 연결 방법을 알려 준다 */
+  function linkHint(routes, o, d) {
+    var A = app(), N = PB.Narrative, at = function (id) { return routes.filter(function (r) { return stopsAt(r, id); }); }, from = at(o), to = at(d);
+    if (!from.length) return N.josa(A.nodeName(o), '은는') + ' 서는 노선이 없어요. 이 정류장부터 이어 보세요.';
+    if (!to.length) return N.josa(A.nodeName(d), '은는') + ' 서는 노선이 없어요. 이 정류장까지 이어 보세요.';
+    var xy = function (id) { return A.nodeXY(id); }, best = null;
+    from.forEach(function (a) { to.forEach(function (b) { if (a === b) return;
+      a.route.nodes.forEach(function (x) { b.route.nodes.forEach(function (y) { var p = xy(x), q = xy(y), dist = Math.hypot(p.x - q.x, p.y - q.y); if (!best || dist < best.dist) best = { a: a, b: b, dist: dist }; }); }); }); });
+    if (!best) return A.nodeName(o) + '에서 ' + A.nodeName(d) + '까지 잇는 버스가 없어요.';
+    return N.josa(PB.Names.color(best.a.num), '과와') + ' ' + N.josa(PB.Names.color(best.b.num), '이가') + ' 만나는 정류장이 없어요. 한 정류장에 함께 서면 갈아탈 수 있어요.';
+  }
   // 지금 화면의 운행 노선(버스가 있는 것만): 계획 = 초안, 운행·결과 = 출발한 계획
   function routesNow() {
     var A = app(), s = A.s;
@@ -75,7 +86,7 @@
   function live(res, tf) {
     var A = app(), s = A.s; if (!s || !res || document.body.dataset.screen !== 'run') return;
     if (!liveCache || liveCache.res !== res) {
-      var over = {}; (PB.RunPace ? PB.RunPace.residentStops(res, s.config) : []).forEach(function (n) { if (n.what === 'over' && over[n.resident] == null) over[n.resident] = n.t; });
+      var over = {}; (PB.RunPace ? PB.RunPace.residentStops(res, s.config) : []).forEach(function (n) { if (n.what === 'over' && over[n.resident] == null) over[n.resident] = n; });
       liveCache = { res: res, recs: PB.ResidentEvaluation.records(s.config, s.phase, res), over: over, t: tally() };
     }
     var c = liveCache;
@@ -85,13 +96,14 @@
       var rec = c.recs[rd.id], t = c.t[rd.id], done = !!(back && back.status === 'arrived' && back.arriveT <= tf), outDone = !!(out && out.status === 'arrived' && out.arriveT <= tf);
       var gained = done && rec && rec.satisfied ? 1 : 0, text = '';
       var onBus = function (p) { return p && p.firstBoardT != null && p.firstBoardT <= tf; };
-      if ((c.over[rd.id] != null && tf >= c.over[rd.id]) || (done && rec && !rec.satisfied)) text = '오늘 기준 초과';
+      var ov = c.over[rd.id];
+      if ((ov && tf >= ov.t) || (done && rec && !rec.satisfied)) text = (ov ? PB.UI.legName(rd, ov.leg) + ' ' : '') + '기준 초과';
       else if (done) text = '왕복 완료 ✓';
       else if (outDone) text = '가는 길 ✓ · ' + (!back || tf < back.t ? '볼일 중' : '돌아오는 길 ' + (onBus(back) ? '버스 안' : '대기 중'));
       else if (out && tf >= out.t) text = '가는 길 ' + (onBus(out) ? '버스 안' : '대기 중');
-      var cnt = b.querySelector('.person-chip-count'); if (cnt && t) { var v = (t.completed + gained) + '/' + t.threshold; if (cnt.textContent !== v) cnt.textContent = v; }
+      var cnt = b.querySelector('.person-chip-count'); if (cnt && t) { var v = (t.completed + gained) + '/' + t.threshold; if (cnt.textContent !== v) cnt.textContent = v; /* 2026-11-06 P2-7: 읽어 주는 이름표도 같은 숫자 */ var al = b.getAttribute('aria-label') || '', al2 = al.replace(/학기 누적 \d+\/\d+회/, '학기 누적 ' + v + '회'); if (al2 !== al) b.setAttribute('aria-label', al2); }
       var lv = b.querySelector('.person-chip-live'); if (!lv) { lv = el('span', { 'class': 'person-chip-live' }); b.appendChild(lv); }
-      if (lv.textContent !== text) lv.textContent = text; lv.hidden = !text; lv.classList.toggle('bad', text === '오늘 기준 초과'); lv.classList.toggle('good', text === '왕복 완료 ✓');
+      if (lv.textContent !== text) lv.textContent = text; lv.hidden = !text; lv.classList.toggle('bad', /기준 초과$/.test(text)); lv.classList.toggle('good', text === '왕복 완료 ✓');
       b.dataset.live = text; b.title = b.getAttribute('aria-label') + (text ? ' · 지금: ' + text : '');
     });
   }
@@ -104,6 +116,8 @@
     hud.hidden = false; hud.textContent = '';
     var goal = (s.choices || {})[s.phase - 1];
     if (goal) hud.appendChild(el('p', { id: 'hud-goal', 'class': 'hud-goal' }, '이번 목표: ' + PB.Session.CHOICES[goal]));
+    var trend = screen === 'plan' && PB.UI.Econ ? PB.UI.Econ.trendLine(s, '지난 단계') : null; /* P1-4 b: 다음 단계 계획 화면 */
+    if (trend) hud.appendChild(el('p', { id: 'hud-trend', 'class': 'trend-line' + (trend.warn ? ' warn' : '') }, trend.text));
     var row = el('div', { 'class': 'people-hud-row' }), t = tally();
     residentsNow().forEach(function (rd) { row.appendChild(chip(rd, t[rd.id])); });
     hud.appendChild(row);
@@ -154,12 +168,22 @@
     routes.forEach(function (r) { svg('polyline', { points: r.route.nodes.map(function (id) { return nodes[id] ? nodes[id].x + ',' + nodes[id].y : ''; }).join(' '), 'class': 'mm-route', stroke: r.color }, m); });
     if (focus.legs) focus.legs.forEach(function (l) { var pts = l.nodes.map(function (id) { return nodes[id].x + ',' + nodes[id].y; }).join(' '); svg('polyline', { points: pts, 'class': 'mm-casing' }, m); svg('polyline', { points: pts, 'class': 'mm-focus', stroke: l.color }, m); });
     else if (nodes[focus.o] && nodes[focus.d]) svg('line', { x1: nodes[focus.o].x, y1: nodes[focus.o].y, x2: nodes[focus.d].x, y2: nodes[focus.d].y, 'class': 'mm-missing' }, m);
-    ids.forEach(function (id) { var n = nodes[id], key = id === focus.o || id === focus.d; svg('circle', { cx: n.x, cy: n.y, r: key ? 0.32 : 0.18, 'class': key ? 'mm-stop key' : 'mm-stop' }, m);
-      if (key) { var t = svg('text', { x: n.x, y: n.y - 0.48, 'text-anchor': 'middle', 'class': 'mm-label' }, m); t.textContent = A.nodeName(id); } });
+    ids.forEach(function (id) { var n = nodes[id], key = id === focus.o || id === focus.d; svg('circle', { cx: n.x, cy: n.y, r: key ? 0.32 : 0.18, 'class': key ? 'mm-stop key' : 'mm-stop' }, m); });
+    /* 라벨(2026-11-05 P1-9): 출발·도착 라벨이 가까우면 글자가 포개져 읽을 수 없었다 — 한 번씩만, ‘출발·도착’을 라벨 안에 적고, 정류장 위·아래·옆 중 서로 안 겹치고 틀 안에 드는 자리에 */
+    var FS = 0.42, taken = [], VW = maxX - minX, VH = maxY - minY;
+    [[focus.o, '출발 '], [focus.d, '도착 ']].forEach(function (k) {
+      var n = nodes[k[0]]; if (!n) return; var text = k[1] + A.nodeName(k[0]), w = text.length * FS * 0.92, h = FS * 1.2, spots = [[-w / 2, -0.42 - h], [-w / 2, 0.42], [0.42, -h / 2], [-w - 0.42, -h / 2], [-w / 2, -0.95 - h], [-w / 2, 0.95]], pick = null;
+      spots.some(function (o) {
+        var r = { x: Math.max(minX + 0.05, Math.min(maxX - w - 0.05, n.x + o[0])), y: Math.max(minY + 0.05, Math.min(maxY - h - 0.05, n.y + o[1])), w: w, h: h };
+        if (taken.some(function (q) { return r.x < q.x + q.w && q.x < r.x + r.w && r.y < q.y + q.h && q.y < r.y + r.h; })) return false; pick = r; return true;
+      });
+      if (!pick) pick = { x: Math.max(minX, n.x - w / 2), y: Math.max(minY, n.y - 0.42 - h), w: w, h: h };
+      taken.push(pick); var t = svg('text', { x: pick.x, y: pick.y + FS, 'class': 'mm-label', 'data-node': k[0] }, m); t.textContent = text;
+    });
     return m;
   }
 
   root.addEventListener('resize', function () { if (picked.id) drawPath(false); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && picked.id && !document.querySelector('dialog[open]')) { picked = { key: null, id: null }; clearPath(); syncPressed(); } });
-  PB.Hud = { layout: function () { if (picked.id && document.querySelector('#person-path')) drawPath(false); }, render: render, live: live, toggle: toggle, pathFor: pathFor, along: along, routesNow: routesNow, miniMap: miniMap, shortName: shortName, selected: function () { return picked.id; } };
+  PB.Hud = { layout: function () { if (picked.id && document.querySelector('#person-path')) drawPath(false); }, render: render, live: live, toggle: toggle, pathFor: pathFor, along: along, routesNow: routesNow, linkHint: linkHint, miniMap: miniMap, shortName: shortName, selected: function () { return picked.id; } };
 })(window);

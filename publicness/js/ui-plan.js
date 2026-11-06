@@ -178,20 +178,27 @@
     return rec.goal==='reach'?'이 제안의 ‘소외 지역’은 '+(st().phase===1||!st().history.length?'처음 정해 둔':'지난 운행에서 도착률이 가장 낮았던')+' 출발 지역'+(names?'('+names+')':'')+'이에요. 노선이 아예 없는 정류장이나 주요 인물을 따로 챙기지는 않아요.'
       :rec.goal==='time'?'이 제안의 ‘빠른 이동’은 모든 이동의 도착 시간 합이에요. 주요 인물을 따로 챙기지는 않아요.'
       :'이 제안의 ‘수익’은 이번 단계 수지예요. 도착 건수는 수지가 같을 때만 따져요.';}
+  /* AI 비교(2026-11-05 P1-6): ‘내 노선 | AI 제안’ 두 열 표를 맨 위에. 좋아짐·나빠짐은 색과 글자 둘 다. 값은 모두 같은 예상 함수(Session.expected) */
+  function recCompare(rec,v){
+    var a=v.before,b=v.after,W=app().won,D=app().duration,pa=peopleCount(a),pb=peopleCount(b),day=st().config.day;
+    function who(m){return Object.keys(m.residents||{}).filter(function(id){return m.residents[id]&&m.residents[id].satisfied===true;}).map(function(id){return st().config.residents.filter(function(r){return r.id===id;})[0].name;}).join('·');}
+    var rows=[{id:'rec-row-arrived',name:'도착',x:a.arrived+'건',y:b.arrived+'건',d:b.arrived-a.arrived},{id:'rec-row-wait',name:'최장 대기',x:D(a.maxWait),y:D(b.maxWait),d:a.maxWait-b.maxWait},{id:'rec-row-nolink',name:'노선 없음',x:a.noLink+'건',y:b.noLink+'건',d:a.noLink-b.noLink}];
+    if(day)rows.push({id:'rec-people',name:'주요 인물 기준 충족',x:pa.ok+'/'+pa.total+'명'+(who(a)?' ('+who(a)+')':''),y:pb.ok+'/'+pb.total+'명'+(who(b)?' ('+who(b)+')':''),d:pb.ok-pa.ok});
+    rows.push({id:'rec-row-profit',name:'예상 수지',x:W(a.costs.total),y:W(b.costs.total),d:b.costs.total-a.costs.total});
+    var t=el('table',{id:'rec-compare','class':'rec-compare'}),head=el('tr');['','내 노선','AI 제안'].forEach(function(h){head.appendChild(el('th',{scope:'col'},h));});var th=el('thead');th.appendChild(head);t.appendChild(th);var body=el('tbody');
+    rows.forEach(function(r){var tr=el('tr',{id:r.id});tr.appendChild(el('th',{scope:'row'},r.name));tr.appendChild(el('td',null,r.x));var td=el('td',{'class':r.d>0?'better':r.d<0?'worse':'same'},r.y);td.appendChild(el('span',{'class':'rec-delta'},r.d>0?'좋아짐':r.d<0?'나빠짐':'같음'));tr.appendChild(td);body.appendChild(tr);});
+    t.appendChild(body);return t;
+  }
   function ai(panel){
     var d=el('details',{id:'ai-tools'});if(P.rec||P.busy)d.open=true;d.appendChild(el('summary',null,'AI에게 노선 제안받기'));
     var row=el('div',{'class':'goal-row'});[{id:'time',name:'빠른 이동'},{id:'reach',name:'소외 지역 연결'},{id:'profit',name:'수익'}].forEach(function(g){
       var cell=el('div',{'class':'goal-cell'}),b=btn(g.name,'goal-'+g.id,function(){choose(g.id);},'goal-btn');b.dataset.goal=g.id;b.disabled=P.busy;b.setAttribute('aria-pressed',String(!!P.rec&&st().goal===g.id));b.setAttribute('aria-describedby','goal-desc-'+g.id);
-      cell.appendChild(b);cell.appendChild(el('p',{id:'goal-desc-'+g.id,'class':'goal-desc note'},goalDesc(g.id)));row.appendChild(cell);});d.appendChild(row);
+      cell.appendChild(b);cell.appendChild(el('p',{id:'goal-desc-'+g.id,'class':'goal-desc note'},goalDesc(g.id)));row.appendChild(cell);});/* 제안이 나오면 비교표가 맨 위(P1-6) — 목표 버튼은 카드 아래로 */if(!P.rec)d.appendChild(row);
     if(P.busy)d.appendChild(el('p',{id:'rec-progress',role:'status'},'노선을 비교하고 있어요…'));
     if(P.rec){var rec=P.rec,c=el('section',{id:'rec-card',tabindex:'-1','aria-labelledby':'rec-card-h'});c.appendChild(el('h3',{id:'rec-card-h'},'‘'+(GOALS[rec.goal]||'')+'’ 제안'));
-      c.appendChild(el('p',null,'도착 예상 '+rec.baseline.arrived+'건 → '+rec.expected.arrived+'건'));
-      c.appendChild(el('p',{'class':'note'},'버스를 탄 사람의 최장 대기 '+app().duration(rec.baseline.maxWait)+' → '+app().duration(rec.expected.maxWait)+' · 노선 없음 '+rec.baseline.noLink+' → '+rec.expected.noLink+'건'));
+      var v=recView(rec);c.appendChild(recCompare(rec,v));
       c.appendChild(el('p',{id:'rec-criterion','class':'rec-criterion'},goalCriterion(rec)));
-      var v=recView(rec);
-      // 주요 인물 기준 충족이 그대로이거나 줄면 그 줄을 주황(주의)으로 — 색만이 아니라 글로도 ‘그대로’·‘줄어요’
-      if(st().config.day){var pb=peopleCount(v.before),pa=peopleCount(v.after),fb=v.before.families,fa=v.after.families,flat=pa.ok<=pb.ok;
-        c.appendChild(el('p',{id:'rec-people','class':flat?'rec-people-warn':''},'주요 인물 기준 충족 '+pb.ok+'/'+pb.total+'명 → '+pa.ok+'/'+pa.total+'명'+(flat?(pa.ok<pb.ok?' (줄어요)':' (그대로예요)'):'')+(fa&&fa.total?' · 가족 전원 왕복 '+fb.complete+' → '+fa.complete+'/'+fa.total+'팀':'')));}
+      if(st().config.day&&v.after.families&&v.after.families.total)c.appendChild(el('p',{'class':'note'},'가족 전원 왕복 '+v.before.families.complete+' → '+v.after.families.complete+'/'+v.after.families.total+'팀'));
       var more=el('details');more.appendChild(el('summary',null,'노선·배차 상세'));c.appendChild(more);var rl=el('ul',{id:'rec-routes','class':'plain'});
       v.rows.forEach(function(row){var li=el('li',{'data-num':row.num},R(row.num)+' · '+routeText(row.route)+' · 버스 '+row.buses.split(',').filter(Boolean).length+'대');
         if(row.changed)li.appendChild(el('b',{'class':'rec-changed'},' 바뀜'));rl.appendChild(li);});
@@ -201,7 +208,7 @@
       if(same.length)c.appendChild(el('p',{id:'rec-same','class':'note'},'‘'+same.map(function(g){return GOALS[g];}).join('’·‘')+'’ 목표의 제안과 같은 노선이에요. 지금 버스와 노선 수에서는 목표가 달라도 같은 계획이 나올 수 있어요.'));
       var acts=el('div',{'class':'row-actions'});acts.appendChild(btn(P.preview?'내 노선 보기':'지도에서 미리 보기','rec-preview',function(){P.preview=!P.preview;render();}));
       acts.appendChild(btn('거절','rec-reject',function(){S.markGoalAction(st(),'reject');P.preview=false;P.rec=null;P.message='내 노선을 유지했어요.';render();}));
-      acts.appendChild(btn('적용하고 고치기','rec-accept',applyRec,'btn-primary'));c.appendChild(acts);d.appendChild(c);
+      acts.appendChild(btn('적용하고 고치기','rec-accept',applyRec,'btn-primary'));c.appendChild(acts);d.appendChild(c);d.appendChild(row);
     }panel.appendChild(d);
   }
   function routes(panel){
@@ -216,10 +223,11 @@
     reset.setAttribute('aria-label','노선 모두 지우기 — 버스는 대기로, 되돌리기로 복구');sec.appendChild(reset);var list=el('div',{'class':'route-tabs'});
     /* 노선 칩(2026-11-02 휴대폰 정리): ‘1번 · 운행 대기’ 대신 색·선 모양 견본 + 상태(운행 대기·미배정·버스 N대) — 지도에서 노선 번호를 뺀 것과 같게. 이름(빨강 노선 등)은 aria-label·title.
      * 설정 ‘노선 번호 표시’를 켜면 견본 옆에 번호. 같은 크기 칩(css), 고른 노선만 테두리 */
+    var newRoutes=app().phaseChanges(st()).newRouteNums;/* 이번 단계에 새로 생긴 노선 칩(P1-3) */
     S.routesInOrder(st()).forEach(function(r){var on=assigned(r.num).length,kind=(S.stopLimit(st(),r.num)===2?'광역 ':S.stopLimit(st(),r.num)===3?'직행 ':'')+(G.isLoop(r)?'순환 ':''),status=!on?(r.nodes.length>=2?'운행 대기':'미배정'):'버스 '+on+'대';
       var b=btn('','route-'+r.num,function(){P.editing=r.num;P.anchor=null;P.mapSegment=null;P.mapEnd=null;P.preview=false;P.message='정류장을 잇거나 선 중간을 당겨 보세요.';render();},'route-tab');
-      var rc=app().routeStyle(r.num).color,top=el('span',{'class':'route-tab-top'});top.appendChild(PB.Names.swatch(r.num,rc));if(PB.Names.showNumbers())top.appendChild(el('span',{'class':'route-tab-num'},r.num+'번'));if(kind)top.appendChild(el('span',{'class':'route-tab-kind'},kind.trim()));b.appendChild(top);b.appendChild(el('span',{'class':'route-tab-status'},status));
-      b.setAttribute('aria-label',R(r.num)+(kind?' · '+kind.trim():'')+' · '+status+' · '+PB.Names.patternName(PB.Names.pattern(r.num)));b.title=b.getAttribute('aria-label');
+      var rc=app().routeStyle(r.num).color,top=el('span',{'class':'route-tab-top'});top.appendChild(PB.Names.swatch(r.num,rc));if(PB.Names.showNumbers())top.appendChild(el('span',{'class':'route-tab-num'},r.num+'번'));if(kind)top.appendChild(el('span',{'class':'route-tab-kind'},kind.trim()));var fresh=newRoutes.indexOf(r.num)>=0;if(fresh)top.appendChild(el('span',{'class':'new-tag'},'새'));b.appendChild(top);b.appendChild(el('span',{'class':'route-tab-status'},status));
+      b.setAttribute('aria-label',R(r.num)+(fresh?' · 새 노선':'')+(kind?' · '+kind.trim():'')+' · '+status+' · '+PB.Names.patternName(PB.Names.pattern(r.num)));b.title=b.getAttribute('aria-label');
       b.setAttribute('aria-pressed',String(P.editing===r.num));b.style.setProperty('--route',rc);b.classList.add('route-color');if(PB.MapNetwork&&PB.MapNetwork.luminance(rc)>0.35)b.classList.add('light');list.appendChild(b);});
     var add=btn('+ 새 노선','btn-new-route',function(){startRoute();render('.next-stop');});add.disabled=st().draft.routes.length>=S.routeLimit(st());list.appendChild(add);sec.appendChild(list);sec.appendChild(el('p',{'class':'note'},'이번 단계: 노선 최대 '+S.routeLimit(st())+'개 · 버스 '+st().owned+'대'));var r=active();
     if(r){var c=el('div',{'class':'route-card editing','data-num':r.num}),ok=!G.validateRoute(S.graph(st()),r).length;
@@ -294,8 +302,7 @@
   // AI 제안을 적용했을 때의 초안을 미리 만들어 노선·배차·인물 예상을 보여 준다(실제 적용과 같은 함수 사용)
   function recView(rec){
     if(rec._view)return rec._view;
-    var s=st(),pv=Object.assign({},s,{draft:JSON.parse(JSON.stringify(s.draft)),goalHistory:JSON.parse(JSON.stringify(s.goalHistory)),_g:null});
-    S.applyRecommendation(pv,rec);var used=pv.draft.buses.map(function(b){return b.routeNum;});pv.draft.routes=pv.draft.routes.filter(function(r){return used.indexOf(r.num)>=0;});
+    var s=st(),pv=S.previewRec(s,rec);
     var ids=function(d,num){return d.buses.filter(function(b){return b.routeNum===num;}).map(function(b){return b.id;}).join(',');};
     var rows=S.routesInOrder(pv).map(function(r){var old=S.routeByNum(s,r.num);return {num:r.num,route:r,buses:ids(pv.draft,r.num),changed:!old||old.nodes.join()!==r.nodes.join()||ids(s.draft,r.num)!==ids(pv.draft,r.num)};});
     return (rec._view={rows:rows,resting:pv.draft.buses.filter(function(b){return b.routeNum==null;}).map(function(b){return b.id;}),before:S.expected(s),after:S.expected(pv)});
@@ -370,12 +377,27 @@
     var bodyWrap=el('div',{'class':'panel-body'});while(panel.firstChild&&panel.firstChild!==foot)bodyWrap.appendChild(panel.firstChild);panel.insertBefore(bodyWrap,foot);bodyWrap.scrollTop=P.scroll||0;
     P.baseline=snapshot();var r=active();return{selectable:P.preview?[]:nextStops(),selected:P.preview?[]:(r?r.nodes:[]),activeRoute:P.editing,preview:P.preview&&P.rec?P.rec.plan:null};
   };
-  // 출발 확인(2026-11-02 사용자 결정, 재논의 금지): "이대로 출발할까요?"만 묻는다 — 주요 인물 기준 충족 예상·노선 없는 요청·예상 수지 요약,
-  // 운행 구성 목록, 출발 뒤 규칙 문단은 넣지 않는다(P1-5 ① 요약을 되돌림). 예측이 아닌 안전 경고 하나만: 운행하는 버스가 0대면 한 줄
+  /* 출발 확인(2026-11-05 지시서 P0-2 — 11-02 "이대로 출발할까요?만 묻는다" 결정을 사용자 지시서가 뒤집음, 이 커밋만 되돌리면 복구):
+   * 점검 목록 = 운행 버스 0대 · 쉬는 버스와 보유비 · 노선이 없는 정류장(새 정류장 먼저) · 출발지나 목적지가 노선에 없는 인물 · 예상 수지.
+   * 막는 문제(운행 버스 0대)면 제목을 바꾸고 기본 포커스를 ‘노선 고치기’에. 경고는 접지 않고 본문에 최대 3줄, 더 있을 때만 ‘자세히’ — 경고가 없으면 ‘자세히’를 만들지 않는다 */
+  function departLines(s){
+    var c=S.departChecks(s),out=[],W=app().won,N=app().nodeName,F=s.config.finance;
+    function list(a,fmt){return a.slice(0,4).map(fmt).join(', ')+(a.length>4?' 외 '+(a.length-4)+'곳':'');}
+    if(c.noBus)out.push({id:'depart-no-bus',text:'이대로 출발하면 아무도 버스를 탈 수 없어요.'});
+    if(c.resting)out.push({id:'depart-resting',text:'쉬는 버스 '+c.resting+'대 · 이번 단계 보유비 '+c.resting+' x '+W(F.holding)+' = '+W(c.restingCost)+'이 그대로 나가요.'});
+    if(c.restingLeased)out.push({id:'depart-resting-leased',text:'빌린 버스 '+c.restingLeased+'대가 쉬어요 · 임차료 '+W(c.restingLeaseCost)+'이 그대로 나가요.'});
+    if(c.unserved.length)out.push({id:'depart-unserved',text:'노선이 없는 정류장 '+c.unserved.length+'곳: '+list(c.unserved,function(id){return N(id)+(c.newStops.indexOf(id)>=0?'(새)':'');})+'.'});
+    if(c.residents.length)out.push({id:'depart-residents',text:'출발지나 목적지에 노선이 없는 사람: '+c.residents.map(function(r){return r.name+'('+N(r.o)+'→'+N(r.d)+')';}).join(', ')+'.'});
+    return {noBus:c.noBus,lines:out};
+  }
   function departCheck(){
-    var s=st(),body=document.querySelector('#confirm-depart-body');body.textContent='';
-    if(!s.draft.buses.some(function(b){return b.routeNum!=null;}))body.appendChild(el('p',{'class':'callout warn',id:'depart-no-bus'},'운행하는 버스가 없어요. 이대로 출발하면 아무도 버스를 탈 수 없어요.'));
-    document.querySelector('#confirm-depart').showModal();document.querySelector('#confirm-yes').focus();
+    var s=st(),body=document.querySelector('#confirm-depart-body'),c=departLines(s),show=c.lines.slice(0,3),rest=c.lines.slice(3);body.textContent='';
+    document.querySelector('#confirm-depart-h').textContent=c.noBus?'운행하는 버스가 없어요':'이대로 출발할까요?';
+    function put(box,l){box.appendChild(el('li',{id:l.id},l.text));}
+    if(show.length){var ul=el('ul',{id:'depart-checks','class':'callout warn depart-checks'});show.forEach(function(l){put(ul,l);});body.appendChild(ul);}
+    if(rest.length){var more=el('details',{id:'depart-more'});more.appendChild(el('summary',null,'자세히'));var ul2=el('ul',{'class':'depart-checks'});rest.forEach(function(l){put(ul2,l);});more.appendChild(ul2);body.appendChild(more);}
+    if(PB.UI.Econ)body.appendChild(el('p',{id:'depart-profit','class':'note'},'이번 단계 예상 수지 '+PB.UI.Econ.signed(PB.UI.Econ.plan(s).k.total)+' (기본 수요 기준)'));
+    document.querySelector('#confirm-depart').showModal();document.querySelector(c.noBus?'#confirm-no':'#confirm-yes').focus();
   }
   var M=PB.Metrics;
   document.querySelector('#confirm-yes').addEventListener('click',function(){document.querySelector('#confirm-depart').close();if(S.startRun(st()))app().go('run');});

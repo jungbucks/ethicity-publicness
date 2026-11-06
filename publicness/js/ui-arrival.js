@@ -12,12 +12,14 @@
   function $(s) { return document.querySelector(s); }
 
   function arrivalNow(A) { var a = A.arrival, s = A.s; return a && s && a.phase === s.phase && s.stage === 'plan' ? a : null; }
+  // 이번 단계 동안(계획·운행) 남는 ‘새’ 표시(P1-3)
+  function arrivalPhase(A) { var a = A.arrival, s = A.s; return a && s && a.phase === s.phase && (s.stage === 'plan' || s.stage === 'run') ? a : null; }
   function dismissBanner() { var A = app(), a = A.arrival; if (a) a.done = true; var b = $('#map-banner'); if (b) b.remove(); clearTimeout(bannerTimer); document.removeEventListener('pointerdown', onFirst, true); document.removeEventListener('keydown', onFirst, true);
     var p = A._pendingToast; A._pendingToast = null; if (p && ['plan', 'run'].indexOf(document.body.dataset.screen) >= 0) A.toast(p[0], p[1]); } // 배너가 알림 줄에 있는 동안 미룬 알림
   function onFirst(e) { if (e.type === 'keydown' && (e.key === 'Tab' || e.key === 'Shift')) return; dismissBanner(); }
   function netReady(A) { return !A.net || !A.net.ready || A.net.ready(); }
   // 좁은 화면(≤700px) 계획·운행: 지도 바로 아래 늘 비워 둔 알림 줄(#map-strip, index.html). 지도 틀 크기와 무관(좁은 화면 지도 높이는 CSS)
-  function narrowStrip() { var s = $('#map-strip'), bc = document.body.classList; if (s && (bc.contains('phone-p') || bc.contains('phone-l'))) return s; /* 휴대폰 배치(2026-11-02): 계획 = 맨 위 머리말(단계·설정·도움말) 위에 겹치는 알림 줄(조작부를 밀지 않고 시간·수지·인물 카드·지도를 가리지 않음), 운행 = 지도 아래(세로)·오른쪽 패널(가로) 줄 — css/mobile.css */ return s && root.innerWidth <= 700 && s.offsetParent !== null ? s : null; }
+  function narrowStrip() { var s = $('#map-strip'), bc = document.body.classList; if (s && (bc.contains('phone-p') || bc.contains('phone-l') || bc.contains('rail') || bc.contains('sheet'))) return s; /* 넓은 화면(2026-11-05 P1-1): 지도 옆 칸·지도 아래 줄이 늘 비어 있으므로 알림·배너는 지도를 덮지 않고 거기에 */ /* 휴대폰 배치(2026-11-02): 계획 = 맨 위 머리말(단계·설정·도움말) 위에 겹치는 알림 줄(조작부를 밀지 않고 시간·수지·인물 카드·지도를 가리지 않음), 운행 = 지도 아래(세로)·오른쪽 패널(가로) 줄 — css/mobile.css */ return s && root.innerWidth <= 700 && s.offsetParent !== null ? s : null; }
   function banner(A) {
     var a = arrivalNow(A), old = $('#map-banner');
     if (!a || a.done) { if (old) old.remove(); return; }
@@ -34,7 +36,7 @@
     if (netReady(A)) placeBanner(A);
     else if (!a.bannerFallback) a.bannerFallback = setTimeout(function () { var b = $('#map-banner'); if (b && b.style.visibility && !a.done) placeBanner(app()); }, 5000); // 예외: 5초가 지나도 지도가 자리 잡지 못하면 그때 자리로
   }
-  function showBanner(b) { if (!b.style.visibility) return; b.style.visibility = ''; clearTimeout(bannerTimer); bannerTimer = setTimeout(dismissBanner, 3000); }
+  function showBanner(b) { if (!b.style.visibility) return; b.style.visibility = ''; clearTimeout(bannerTimer); bannerTimer = setTimeout(dismissBanner, 6000); }
   /* 지도 위에 띄우는 상자(배너·첫 노선 안내·알림)가 피할 것: 정류장 원(반지름 + 6px, ×10⁶) · 이름표·얼굴·번호 원·시계 묶음(×1000) · 정류장 여백 햇살(×20) */
   function mapRects(A) {
     var SR = (((A.s && A.s.config.ui) || {}).map || { stop: 9 }).stop + 6, rects = [];
@@ -89,6 +91,7 @@
     var W = stage.clientWidth, H = stage.clientHeight, strip = narrowStrip(), key = W + 'x' + H + (strip ? ':strip' : '');
     if (b.dataset.placed === key) { if (b.classList.contains('is-outside') && b._gutter) { var g0 = gutterSpot(stage, b, false); if (g0) { b.style.left = g0.left + 'px'; b.style.top = g0.top + 'px'; } } return; }
     resetInto(b, stage); b._gutter = false;
+    if (strip && (document.body.classList.contains('rail') || document.body.classList.contains('sheet'))) { b.classList.remove('is-compact'); resetInto(b, strip); b.classList.add('in-strip'); strip.insertBefore(b, strip.firstChild); b.dataset.placed = key; showBanner(b); return; }
     var rects = mapRects(A).concat(domRects(stage, '#route-buses .route-bus, #first-coach, #coach-finger'));
     var pick = findSpot(b, W, H, rects, [[W - 12, false], [Math.round(W * 0.62), false], [Math.round(W * 0.45), false], [W - 12, true], [Math.round(W * 0.55), true]], 'is-compact', function (c, bw) { return Math.abs(c.x + bw / 2 - W / 2) * 0.02 + c.y * 0.05; });
     if (!pick || pick.a >= 1000) {
@@ -247,6 +250,8 @@
     if (cfg.service && cfg.service.maxWait != null) rows.push(['대기 기준', '한 번 이동에 버스를 ' + A.duration(cfg.service.maxWait) + ' 넘게 기다리면 그날은 세지 않아요.']);
     rows.push(['학기 말 기준', PB.Narrative.satisfactionText(cfg)]);
     rows.push(['이동 요청', '이동 요청 1건 = 한 사람의 한 번 이동이에요. 지도의 정류장 숫자는 그 정류장에서 출발하거나 도착하는 요청이라, 모두 더하면 이동 요청의 두 배가 돼요. 실제 운행에는 돌발 수요가 더해질 수 있어요.']);
+    rows.push(['서는 곳과 지나가는 곳', '정류장 원 안에 노선 색 점이 있으면 그 노선이 서는 곳이에요. 점 없이 선만 흐리게 지나가면 서지 않아요. 선이 교차해도 같은 정류장에 서지 않으면 갈아탈 수 없어요.']);
+    rows.push(['키보드', '운행 중 Space를 누르면 일시정지·재개돼요. 입력칸이나 버튼에 초점이 있으면 그 칸·버튼이 먼저 받아요.']);
     var dl = el('dl', { 'class': 'kv help-rules' }); rows.forEach(function (r) { dl.appendChild(el('dt', null, r[0])); dl.appendChild(el('dd', null, r[1])); }); box.appendChild(dl);
   }
 
@@ -254,7 +259,7 @@
     var screen = document.body.dataset.screen;
     // 계획·운행이 아닌 화면: 지도 밖(알림 줄·지도 옆 칸)에 놓였던 알림은 지도 안으로 돌려놓는다(지도와 함께 숨음)
     var tn = $('#minimal-toast'), st0 = $('#stage'); if (tn && st0 && screen !== 'plan' && screen !== 'run' && tn.parentNode !== st0) { resetInto(tn, st0); delete tn.dataset.placed; }
-    if (screen !== 'plan') { ['#map-banner', '#first-coach', '#coach-finger'].forEach(function (q) { var n = $(q); if (n) n.remove(); }); clearInterval(coachTimer); coachTimer = null; if (A.net) A.net.setOptions({ newNodes: [] }); return; }
+    if (screen !== 'plan') { ['#map-banner', '#first-coach', '#coach-finger'].forEach(function (q) { var n = $(q); if (n) n.remove(); }); clearInterval(coachTimer); coachTimer = null; var ap = arrivalPhase(A); if (A.net) A.net.setOptions({ newNodes: ap ? ap.changes.places.map(function (n) { return n.id; }) : [], newAt: ap ? (ap.perf || 0) : 0 }); return; }
     banner(A); newMarks(A); coach(A); brief(A);
   }
   // 지도를 다시 그릴 때마다(틀 크기·카메라가 바뀐 뒤) 손가락·말풍선 자리를 다시 맞춘다

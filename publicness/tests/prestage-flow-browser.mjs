@@ -69,7 +69,7 @@ try {
     assert.equal(await page.locator('#btn-begin-plan').count(), 0); assert.equal(await page.locator('#tutorial-dialog:modal').count(), 0);
     assert.equal(s1.screens.length, 4, '인트로 컷 4장 그대로'); assert.ok(s1.clicks <= 5, '타이틀 → 지도 클릭 ' + s1.clicks);
     // 1단계: 배너·코치·HUD
-    assert.match(await page.locator('#map-banner').textContent(), /^1단계 · 학기 초 · 버스 2대 · 노선 최대 2개$/);
+    assert.match(await page.locator('#map-banner').textContent(), /^1단계 · 학기 초 · 버스 2대 · 노선 최대 2개 · 오늘 이동 요청 139건$/);
     await page.locator('#first-coach').waitFor(); assert.equal(await page.locator('#first-coach-text').textContent(), '지도에서 출발할 정류장을 누르세요.');
     const chips = await page.locator('#people-hud .person-chip').allInnerTexts();
     assert.equal(chips.length, 3); chips.forEach(c => assert.match(c.replace(/\s+/g, ' '), /^\S+ \d\d:\d\d \S+→\S+ \d+\/\d+$/, c));

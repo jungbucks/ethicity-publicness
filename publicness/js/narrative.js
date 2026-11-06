@@ -20,7 +20,7 @@
     return (c - 0xac00) % 28 !== 0;
   }
   // 동적 낱말 뒤 조사: josa('다은','은는') → '다은은', josa('고속버스터미널','이었') → '고속버스터미널이었'
-  var PAIRS = { '은는': ['은', '는'], '이가': ['이', '가'], '을를': ['을', '를'], '과와': ['과', '와'], '이었': ['이었', '였'], '으로': ['으로', '로'] };
+  var PAIRS = { '은는': ['은', '는'], '이가': ['이', '가'], '을를': ['을', '를'], '과와': ['과', '와'], '이었': ['이었', '였'], '으로': ['으로', '로'], '이에요': ['이에요', '예요'] };
   function josa(word, kind) {
     var w = String(word), p = PAIRS[kind], c = w.charCodeAt(w.length - 1);
     if (!p) return w;
@@ -104,16 +104,22 @@
     return out;
   }
 
+  /* 2026-11-05 P2: 엔딩 카드 ‘5일 중 5일 왕복’과 컷 ‘기준을 지켜 해낸 하루 4회’가 따로 나와 어긋나 보였다 — 왕복한 날과 기준을 지킨 날을 한 문장으로 */
+  function dayKept(r) { return r.satisfied != null ? !!r.satisfied : r.dayStatus === 'complete'; }
+  function dayLine(config, who, days, complete, kept) {
+    var word = who.itineraries ? '일정' : '왕복', sv = config.service, rule = sv && sv.maxWait != null ? '기준(' + Demand.duration(config, sv.maxWait) + ' 이내)' : '기준';
+    return (days === complete ? word + ' ' + complete + '일 중 ' : days + '일 중 ' + word + ' ' + complete + '일, 그중 ') + rule + '을 지킨 날 ' + kept + '일이에요.';
+  }
   function residentStory(records, residentId, config) {
     if(config.day){
       var who=resident(config,residentId),evidence=records.map(function(r,i){return r?Object.assign({phase:i+1},r):null;}).filter(Boolean);
       if(!who||!evidence.length)return null;
-      var lastDay=evidence[evidence.length-1],complete=evidence.filter(function(r){return r.dayStatus==='complete';}).length;
+      var lastDay=evidence[evidence.length-1],complete=evidence.filter(function(r){return r.dayStatus==='complete';}).length,kept=evidence.filter(dayKept).length,tally=dayLine(config,who,evidence.length,complete,kept);
       if(who.itineraries)return {residentId:residentId,name:who.name,role:who.role,conditionKey:'day.itinerary',evidence:evidence,drop:null,
-        text:josa(who.name,'은는')+' 관측한 '+evidence.length+'일 중 '+complete+'일의 두 이동을 모두 마쳤어요. 마지막 일정은 '+nodeName(config,lastDay.o)+' → '+nodeName(config,lastDay.d)+' → '+josa(nodeName(config,lastDay.finalDestination),'이었')+'어요.',
+        text:josa(who.name,'은는')+' '+tally+' 마지막 일정은 '+nodeName(config,lastDay.o)+' → '+nodeName(config,lastDay.d)+' → '+josa(nodeName(config,lastDay.finalDestination),'이었')+'어요.',
         closing:lastDay.dayStatus==='complete'?'마지막 목적지에 '+Demand.clock(config,lastDay.homeT)+' 도착했어요.':lastDay.dayStatus==='returnIncomplete'?'운동장에는 도착했지만 마지막 이동을 마치지 못했어요.':'운동장까지의 첫 이동을 마치지 못했어요.'};
       return {residentId:residentId,name:who.name,role:who.role,conditionKey:'day.roundTrip',evidence:evidence,drop:null,
-        text:who.name+'의 '+nodeName(config,who.o)+' → '+nodeName(config,who.d)+' → '+nodeName(config,who.o)+' 일정은 '+evidence.length+'일 중 '+complete+'일 왕복을 마쳤어요.',
+        text:who.name+'의 '+nodeName(config,who.o)+' → '+nodeName(config,who.d)+' → '+nodeName(config,who.o)+' 일정은 '+tally,
         closing:lastDay.dayStatus==='complete'?'마지막 운행에서는 '+Demand.clock(config,lastDay.homeT)+'에 돌아왔어요.':lastDay.dayStatus==='returnIncomplete'?'목적지에는 도착했지만 23:00까지 돌아오지 못했어요.':'23:00까지 외출 목적지에 도착하지 못했어요.'};
     }
     var rd = resident(config, residentId), ev = observed(records);
@@ -199,10 +205,10 @@
       daeun:['운동장에 가는 길부터 친구 집, 마지막 터미널까지 두 날 모두 이어졌어요. 돌아갈 길까지 있는 노선이라 좋았어요!','운동장에 가는 버스만으로는 제 일정이 끝나지 않아요. 경기 뒤 친구 집과 터미널로 가는 길도 필요해요.']
     };
     return config.residents.filter(function(r){return thresholds[r.id]!=null;}).map(function(r){
-      var seen={},completed=0;history.forEach(function(h){if(seen[h.phase]||h.phase<r.fromPhase||h.phase>config.phases.length)return;seen[h.phase]=true;var rec=h.residents&&h.residents[r.id];if(rec&&(rec.satisfied!=null?rec.satisfied:rec.dayStatus==='complete'))completed++;});
+      var seen={},completed=0,days=0,finished=0;history.forEach(function(h){if(seen[h.phase]||h.phase<r.fromPhase||h.phase>config.phases.length)return;seen[h.phase]=true;var rec=h.residents&&h.residents[r.id];if(rec)days++;if(rec&&rec.dayStatus==='complete')finished++;if(rec&&(rec.satisfied!=null?rec.satisfied:rec.dayStatus==='complete'))completed++;});
       var satisfied=completed>=thresholds[r.id];
       var line=lines[r.id][satisfied?0:1];if(config.challengeApplied&&r.itineraries&&satisfied)line='운동장에서의 일정 뒤에도 다음 목적지까지 갈 수 있었어요. 돌아가는 길까지 함께 챙겨 줘서 고마워요!';
-      return {id:r.id,name:r.name+' · '+(satisfied?'만족':'불만족'),satisfied:satisfied,completed:completed,threshold:thresholds[r.id],image:images[r.id],text:line+'\n'+'기준을 지켜 해낸 하루 '+completed+'회 · 만족 기준 '+thresholds[r.id]+'회 이상'};
+      return {id:r.id,name:r.name+' · '+(satisfied?'만족':'불만족'),satisfied:satisfied,completed:completed,threshold:thresholds[r.id],image:images[r.id],text:line+'\n'+dayLine(config,r,days,finished,completed)+' 만족 기준은 '+thresholds[r.id]+'일 이상이에요.'};
     });
   }
   function won(n){var r=Math.round(n);return (n<0?'−':'')+(r===0&&n<0?'1':Math.abs(r).toLocaleString('ko-KR'))+'원'+(r===0&&n<0?' 미만':'');}
@@ -211,7 +217,7 @@
     var profit=history.reduce(function(total,h){return total+h.metrics.costs.total;},0);
     var verdict=allSatisfied?'다양한 사람들을 만족시켰다.':'도시 노선을 나름 잘 설계했다. 하지만 이게 최선이었을까?';
     var happy=reactions.filter(function(r){return r.satisfied;}).length,who=reactions.length?'주요 인물 '+reactions.length+'명 중 '+happy+'명이 만족했지만, ':'';
-    if(end&&end.cause==='bankrupt')verdict=who+'학기 말 잔액이 '+won(profit)+'이라 파산했다. 주민의 이동은 지키면서 운영 비용을 다시 설계해 보자.';
+    if(end&&end.cause==='bankrupt')verdict=who+'학기 말 잔액이 '+won(profit)+'이라 파산했어요. 주민의 이동은 지키면서 운영 비용을 다시 설계해 봐요.';
     else if(end&&end.cause==='contract')verdict='단계 적자가 누적 세 번 쌓여 운영 계약이 종료됐다. 그동안 주민이 해낸 이동은 기록에 남아 있다. 어디서 돈이 나갔는지부터 다시 보자.';
     return {name:'솔잎마을의 한 학기',image:'intro-village.webp',allSatisfied:allSatisfied,profit:profit,verdict:verdict,text:verdict+'\n'+(end&&end.cause&&end.cause!=='complete'?'보유 잔액 ':'총 수익 ')+won(profit)+'\n지원금·운임에서 운영 비용을 뺀 '+history.length+'단계 누적 금액'};
   }
@@ -288,24 +294,39 @@
   }
   // 결과와 ‘생각해 보기’ 질문을 잇는 한 줄: 그 단계 질문이 다루는 곳(출발 또는 도착)의 이동 중 도착하지 못한 건수
   var THEME = { 1: ['F'], 2: ['C', 'D'], 3: ['I'], 4: ['H', 'J'], 5: ['K'], 6: ['L'], 7: ['D', 'K', 'F'], 8: ['N'] };
-  /* P0-4(2026-11-02): 연결 문장은 이번 결과로 고른다. 건수는 결과 ‘출발 생활권별 결과’ 표와 같은 출발 기준(p.o)
-   *  · 단계 주제 지역(THEME) 출발 도착률이 90% 미만(또는 출발 이동이 없음) → 지금처럼 그 지역을 짚고 단계 고정 질문(phaseEthics)을 보인다(ethics: true)
-   *  · 90% 이상 → 먼저 인정하고, 도착률이 가장 낮은 출발 생활권(남은 건수가 있는 곳)을 짚는다. 단계 고정 질문은 보이지 않는다(ethics: false) */
-  var FOCUS_RATE = 0.9;
-  function thinkFocus(config, phase, passengers) {
+  /* P0-4(2026-11-02) + 2026-11-05 P0-3: 연결 문장은 이번 결과로 고른다.
+   *  · 첫 줄 수치 = 미도착이 가장 많은 출발 생활권. 결과 ‘자세히’의 ‘가장 많이 남은 곳’(#score-worst)과 같은 값 — mobility(Scores)를 넘기면 그 worst·zones를 그대로 쓴다.
+   *    예전 저장본처럼 mobility가 없으면 승객 기록에서 같은 규칙(미도착 건수 최다, 같으면 정류장 순서)으로 센다
+   *  · 단계 주제 지역(THEME)은 유지. 주제 지역이 최다가 아니면 ‘가장 많이 남은 곳은 X · 이번 단계에서 살펴볼 곳은 Y’로 둘을 구분한다
+   *  · 주제 지역 출발 도착률 90% 미만(또는 출발 이동 없음)이면 단계 고정 질문(phaseEthics)을 보이고(ethics: true), 90% 이상이면 보이지 않는다(ethics: false) */
+  var FOCUS_RATE = 0.9, FOCUS_MIN_N = 5; // 2026-11-06 P1-4: 건수가 너무 적은 곳(1건 중 1건)이 비율로 앞서지 않게. 그런 곳뿐이면 그대로 쓴다
+  function thinkFocus(config, phase, passengers, mobility) {
     var ids = (THEME[phase] || []).filter(function (id) { return config.nodes.some(function (n) { return n.id === id && (n.fromPhase || 1) <= phase; }); });
     if (!ids.length) return { bridge: '', ethics: true };
-    var ps = passengers || [], names = ids.map(function (id) { return nodeName(config, id); }).join('·');
-    function stat(list) { var mine = ps.filter(function (p) { return list.indexOf(p.o) >= 0; }), arrived = mine.filter(function (p) { return p.status === 'arrived'; }).length; return { N: mine.length, arrived: arrived, left: mine.length - arrived, rate: mine.length ? arrived / mine.length : null }; }
-    var t = stat(ids);
-    if (!t.N) return { bridge: '이번에는 ' + names + '에서 출발한 이동이 없었어요.', ethics: true, theme: t };
-    if (t.rate < FOCUS_RATE) return { bridge: '이번에 ' + names + '에서 출발한 이동 ' + t.N + '건 중 ' + t.left + '건이 남았어요.', ethics: true, theme: t };
-    var worst = null;
-    config.nodes.forEach(function (n) { if (ids.indexOf(n.id) >= 0) return; var z = stat([n.id]); if (!z.N || !z.left) return; z.id = n.id; if (!worst || z.rate < worst.rate || (z.rate === worst.rate && z.left > worst.left)) worst = z; });
-    var first = josa(names, '은는') + ' 이번에 ' + (t.left ? '출발한 이동 ' + t.N + '건 중 ' + t.arrived + '건이 도착했어요.' : '출발한 이동 ' + t.N + '건이 모두 도착했어요.');
-    return { bridge: first + (worst ? ' 대신 ' + nodeName(config, worst.id) + ' 출발 ' + worst.N + '건 중 ' + worst.left + '건이 남았어요. 다음에는 누구의 이동을 살필까요?' : ''), ethics: false, theme: t, worst: worst };
+    var ps = passengers || [], names = ids.map(function (id) { return nodeName(config, id); }).join('·'), zones = mobility && mobility.zones;
+    function stat(list) {
+      var N = 0, arrived = 0;
+      if (zones) list.forEach(function (id) { var z = zones[id]; if (z) { N += z.N; arrived += z.done; } });
+      else ps.forEach(function (p) { if (list.indexOf(p.o) >= 0) { N++; if (p.status === 'arrived') arrived++; } });
+      return { N: N, arrived: arrived, left: N - arrived, rate: N ? arrived / N : null };
+    }
+    /* 2026-11-06 P1-4: 데이터 줄은 남은 비율이 가장 큰 출발지 먼저(같으면 남은 건수), 비율까지 같은 둘째 곳도 함께. 주제 지역 줄은 그다음. 주제 지역이 가장 나쁠 때만 한 줄 */
+    var t = stat(ids), pool = config.nodes.map(function (n) { var z = stat([n.id]); z.id = n.id; return z; }).filter(function (z) { return z.left > 0; });
+    var enough = pool.filter(function (z) { return z.N >= FOCUS_MIN_N; }); if (enough.length) pool = enough;
+    pool.sort(function (a, b) { return b.left / b.N - a.left / a.N || b.left - a.left; });
+    var worst = pool[0] || null, tied = pool[1] && pool[1].left / pool[1].N === worst.left / worst.N ? pool[1] : null;
+    var themeIsWorst = !!worst && ids.length === 1 && (ids[0] === worst.id || (!!tied && ids[0] === tied.id)), ethics = !t.N || t.rate < FOCUS_RATE, line = '';
+    if (worst) {
+      var one = function (z) { return nodeName(config, z.id) + '(' + z.N + '건 중 ' + z.left + '건 미도착)'; };
+      line = tied ? '남은 비율이 가장 큰 곳은 ' + one(worst) + '과 ' + one(tied) + '이에요.' : '남은 비율이 가장 큰 곳은 ' + josa(nodeName(config, worst.id), '이에요') + '. 출발한 이동 ' + worst.N + '건 중 ' + worst.left + '건이 가지 못했어요(미도착).';
+    }
+    if (!t.N) line += (line ? ' ' : '') + '이번에는 ' + names + '에서 출발한 이동이 없었어요.';
+    else if (!worst) line = names + '에서 출발한 이동 ' + t.N + '건이 모두 도착했어요.';
+    else if (!themeIsWorst) line += ' 이번 단계에서 살펴볼 곳은 ' + josa(names, '이에요') + '(' + (t.left ? '출발 ' + t.N + '건 중 ' + t.left + '건 미도착' : '출발 ' + t.N + '건 모두 도착') + ').';
+    if (!ethics && worst) line += ' 다음에는 누구의 이동을 살필까요?';
+    return { bridge: line, ethics: ethics, theme: t, worst: worst };
   }
-  function bridgeLine(config, phase, passengers) { return thinkFocus(config, phase, passengers).bridge; }
+  function bridgeLine(config, phase, passengers, mobility) { return thinkFocus(config, phase, passengers, mobility).bridge; }
   // 인물 결과 한 줄: 어느 이동인지, 어디서 얼마나 기다렸는지, 만차·노선 없음, 그 노선의 버스 수·간격
   // routeInfo(routeId) → {num, buses, headway} | null (화면이 운행 계획에서 찾아 넘긴다. 없으면 노선 정보 생략)
   function residentLine(config, rd, rec, passengers, routeInfo) {

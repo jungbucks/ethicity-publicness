@@ -52,9 +52,9 @@
     if (!m.N) return '평가할 이동 수요가 없어요.';
     if (m.done === m.N) return '평가 대상 이동을 모두 마쳤어요.';
     var o = m.outer, oMiss = o.N - o.done, overall = rate(m), focus;
-    if (oMiss > 0 && rate(o) < overall) focus = PB.Narrative.josa(names(App, o.ids), '을를') + ' 오가는 이동 ' + o.N + '건 중 ' + oMiss + '건이 남았어요';
-    else if (m.worst) focus = App.nodeName(m.worst.id) + '에서 출발한 이동 ' + m.worst.N + '건 중 ' + m.worst.missed + '건이 남았어요';
-    else focus = (m.N - m.done) + '건이 남았어요';
+    if (oMiss > 0 && rate(o) < overall) focus = PB.Narrative.josa(names(App, o.ids), '을를') + ' 오가는 이동 ' + o.N + '건 중 ' + oMiss + '건이 가지 못했어요(미도착)';
+    else if (m.worst) focus = App.nodeName(m.worst.id) + '에서 출발한 이동 ' + m.worst.N + '건 중 ' + m.worst.missed + '건이 가지 못했어요(미도착)';
+    else focus = (m.N - m.done) + '건이 가지 못했어요(미도착)';
     if (m.score >= 80) return '전체 이동은 대부분 완료했지만, ' + focus + '.';
     return '평가 수요 ' + m.N + '건 중 ' + (m.N - m.done) + '건을 마치지 못했어요. ' + focus + '.';
   }
@@ -98,6 +98,18 @@
     d.appendChild(el('p', { 'class': 'note' }, (opts.defNote ? opts.defNote + ' ' : '') + '아직 받지 않은 공공서비스 수행분은 잔액에 넣지 않고, 임차료는 그 단계 정산에서 한 번만 빠져요. 두 점수는 합치지 않아요 — 돈을 많이 남겨도 놓친 이동이 메워지지 않아요.'));
     return d;
   }
+  function countWhy(h, m, unreal) {
+    var N = h.N, pct = Math.round(h.arrivalRate * 100), round = m.N && pct !== m.score ? '요약 ' + pct + '%는 반올림, 점수 ' + m.score + '점은 소수점 버림이에요.' : '';
+    if (!m.N || m.N === N) return round;
+    return countLine(N, m, unreal) + (round ? ' ' + round : '');
+  }
+  function countLine(N, m, unreal) {
+    var parts = [];
+    if (unreal) parts.push('첫 이동을 마치지 못해 생기지 않은 돌아오는 이동 ' + unreal + '건을 더하고');
+    if (m.excluded) parts.push('운행 종료 직전이라 어떤 계획으로도 도착할 수 없는 ' + m.excluded + '건을 빼서');
+    if (N + unreal - m.excluded !== m.N || !parts.length) return '요약은 실제로 생긴 이동 ' + N + '건, 점수는 평가 대상 이동 ' + m.N + '건을 세서 건수가 달라요.';
+    return '요약은 실제로 생긴 이동 ' + N + '건을 세고, 점수는 ' + parts.join(' ').replace(/더하고$/, '더해서') + ' ' + m.N + '건을 세요.';
+  }
   var NOTE = '두 점수는 운영 결과를 돌아보고 다음 계획을 고치기 위한 참고 지표예요. 윤리성이나 성적을 재는 점수가 아니에요.';
 
   // 단계 결과(결과 화면 맨 위). h = 이번 단계 기록(h.scores), routes = Metrics.routeReport 행
@@ -115,6 +127,8 @@
     if (sc.mobility.N) sec.appendChild(publicList(App, sc.mobility));
     var tips = tipList(App, PB.Scores.suggestions(App.s.config, sc.mobility, routes)); if (tips) sec.appendChild(tips);
     var unreal = (sc.mobility.reasons.parentFailed || 0) + (sc.mobility.reasons.lateParent || 0);
+    /* 2026-11-06 P1-3: 요약(실제로 생긴 이동)과 점수(평가 수요)는 일부러 기준이 다르다 — 건수가 다를 때만 왜 다른지 한 줄 */
+    var why = countWhy(h.metrics, sc.mobility, unreal); if (why) sec.appendChild(el('p', { 'class': 'note', id: 'score-count-why' }, why));
     sec.appendChild(method(App, sc, {
       cost: '수입 ' + App.won(k.subsidyBase + k.subsidyService + k.fare) + ' − 비용 ' + App.won(k.holding + k.lease + k.op + k.fuel) + ' = 회차 수지 ' + App.won(k.total) + ' (항목별 표는 아래 ‘전체 통계와 재정 보기’)',
       defNote: '아래 ‘발생한 이동 요청’은 운행 중 실제로 생긴 요청만 세요.' + (unreal ? ' 점수의 평가 수요에는 선행 이동을 못 마쳐 생기지 않은 돌아오는 이동 ' + unreal + '건도 들어 있어요 — 첫 이동을 놓쳐도 분모가 줄지 않아요.' : '')
