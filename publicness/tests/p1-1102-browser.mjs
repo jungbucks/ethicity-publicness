@@ -106,7 +106,7 @@ try {
     await page.locator('#confirm-depart[open]').waitFor();
     assert.equal(await page.locator('#confirm-depart-h').innerText(), '이대로 출발할까요?');
     assert.equal(await page.locator('#depart-summary, .depart-plan, #depart-rule').count(), 0, '예상 요약·운행 구성·규칙 문단 없음');
-    /* 2026-11-05 UI/UX 지시서 P0-2: 점검 목록과 예상 수지 한 줄은 보인다(인물별 기준 충족 예상은 없음) */assert.doesNotMatch(await page.locator('#confirm-depart').innerText(), /기준 충족/);
+    /* 2026-11-06 사용자 결정: 경고만 보이고 인물 기준·예상 수지는 넣지 않는다 */assert.doesNotMatch(await page.locator('#confirm-depart').innerText(), /기준 충족|예상 수지/);
     await page.locator('#confirm-yes').click(); await page.waitForTimeout(600);
     assert.equal(await page.locator('#run-next').getAttribute('aria-label'), '다음 멈춤까지', phase + '단계 버튼 이름');
     const note = await page.evaluate(() => [...document.querySelectorAll('#panel .note')].map(n => n.textContent).find(t => /정원/.test(t)) || '');

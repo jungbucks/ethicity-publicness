@@ -44,7 +44,7 @@ try {
     await page.evaluate(() => { const A = PB.App, S = PB.Session, s = A.s; const set = (num, nodes) => { let r = s.draft.routes.find(x => x.num === num); r.nodes = nodes; r.stops = nodes.map(() => true); r.autoPlaced = true; }; set(1, ['F', 'C', 'B', 'D']); set(2, ['A', 'G', 'E']); s.draft.buses[0].routeNum = 1; s.draft.buses[1].routeNum = 2; A.render(); });
     await page.waitForTimeout(200); await page.locator('#btn-depart').click();
     assert.equal(await page.locator('#confirm-depart-h').innerText(), '이대로 출발할까요?'); assert.equal(await page.evaluate(() => document.activeElement.id), 'confirm-yes');
-    assert.equal(await page.locator('#confirm-depart-body details').count(), 0, '빈 자세히 없음'); assert.equal(await page.locator('#depart-checks').count(), 0); assert.match(await page.locator('#depart-profit').innerText(), /예상 수지/);
+    assert.equal(await page.locator('#confirm-depart-body details').count(), 0, '빈 자세히 없음'); assert.equal(await page.locator('#depart-checks').count(), 0); assert.equal(await page.locator('#depart-profit').count(), 0, '예상 수지 없음(2026-11-06 사용자 결정)');
     ok('2 정상 계획: 경고·자세히 없음, 포커스 이대로 출발'); await page.locator('#confirm-no').click(); await page.close();
   }
   // ── 지도 틀: 상태를 바꿔도 같은 크기 ──

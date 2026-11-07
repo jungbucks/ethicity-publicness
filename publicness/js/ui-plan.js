@@ -378,7 +378,7 @@
     P.baseline=snapshot();var r=active();return{selectable:P.preview?[]:nextStops(),selected:P.preview?[]:(r?r.nodes:[]),activeRoute:P.editing,preview:P.preview&&P.rec?P.rec.plan:null};
   };
   /* 출발 확인(2026-11-05 지시서 P0-2 — 11-02 "이대로 출발할까요?만 묻는다" 결정을 사용자 지시서가 뒤집음, 이 커밋만 되돌리면 복구):
-   * 점검 목록 = 운행 버스 0대 · 쉬는 버스와 보유비 · 노선이 없는 정류장(새 정류장 먼저) · 출발지나 목적지가 노선에 없는 인물 · 예상 수지.
+   * 점검 목록 = 운행 버스 0대 · 쉬는 버스와 보유비 · 노선이 없는 정류장(새 정류장 먼저) · 출발지나 목적지가 노선에 없는 인물. 예상 수지는 넣지 않는다(2026-11-06 사용자 결정, 계획 화면에 있음).
    * 막는 문제(운행 버스 0대)면 제목을 바꾸고 기본 포커스를 ‘노선 고치기’에. 경고는 접지 않고 본문에 최대 3줄, 더 있을 때만 ‘자세히’ — 경고가 없으면 ‘자세히’를 만들지 않는다 */
   function departLines(s){
     var c=S.departChecks(s),out=[],W=app().won,N=app().nodeName,F=s.config.finance;
@@ -396,7 +396,7 @@
     function put(box,l){box.appendChild(el('li',{id:l.id},l.text));}
     if(show.length){var ul=el('ul',{id:'depart-checks','class':'callout warn depart-checks'});show.forEach(function(l){put(ul,l);});body.appendChild(ul);}
     if(rest.length){var more=el('details',{id:'depart-more'});more.appendChild(el('summary',null,'자세히'));var ul2=el('ul',{'class':'depart-checks'});rest.forEach(function(l){put(ul2,l);});more.appendChild(ul2);body.appendChild(more);}
-    if(PB.UI.Econ)body.appendChild(el('p',{id:'depart-profit','class':'note'},'이번 단계 예상 수지 '+PB.UI.Econ.signed(PB.UI.Econ.plan(s).k.total)+' (기본 수요 기준)'));
+    
     document.querySelector('#confirm-depart').showModal();document.querySelector(c.noBus?'#confirm-no':'#confirm-yes').focus();
   }
   var M=PB.Metrics;
