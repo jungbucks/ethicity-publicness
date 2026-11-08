@@ -37,6 +37,11 @@
       var E=UI.Econ,count=function(q){return q.draft.buses.filter(function(b){return b.routeNum===tx.num;}).length;};
       return {km:E.routeKm(s,tx.num),before:E.plan(before).k.total,after:E.plan(s).k.total,headwayBefore:E.headway(before,tx.num,count(before)),headwayAfter:E.headway(s,tx.num,count(s))};
     },
+    /* 끌기가 아무것도 안 바꾸고 끝났을 때 한 줄 이유(2026-11-09): 빈 곳·이미 있는 정류장·규칙 */
+    fail:function(tx,snap){if(!this.enabled()||!tx)return;var name=function(id){return app().nodeName(id);};
+      if(JSON.stringify(tx.route)!==JSON.stringify(tx.original)&&!this.valid(tx.route)){linkFail(S.routeRule(st(),tx.num)+' '+LINK_HINT);return;}
+      if(snap&&tx.original.nodes.indexOf(snap)>=0){linkFail(PB.Narrative.josa(name(snap),'은는')+' 이미 '+R(tx.num)+'에 있어요. '+(tx.mode.index!=null?'선을 다른 정류장 위에 놓으면 사이에 들어가요.':'노선에 없는 정류장 위에 놓으면 이어져요.'));return;}
+      linkFail(tx.mode.index!=null?'선은 정류장 위에 놓아야 그 사이에 들어가요.':'끝은 다른 정류장 위에 놓아야 이어져요.');},
     commit:function(tx){
       if(!this.enabled()||snapshot()!==tx.base||!this.valid(tx.route)||JSON.stringify(tx.route)===JSON.stringify(tx.original))return false;
       var r=S.routeByNum(st(),tx.num);changed();r.nodes=tx.route.nodes.slice();r.stops=tx.route.stops.slice();
@@ -138,16 +143,43 @@
         else if(placed)P.message+=' 대기 버스가 없어 '+R(r.num)+'은 운행 대기예요 — 다른 노선의 버스를 옮겨 주세요.';}
     }render(focus);
   }
+  /* 지도 끌기로 잇기(2026-11-09 교사 플레이테스트 — ‘대학교–산업·일자리에 구도심 시장을 넣으려니 산업·일자리 끝에서만 이어짐’):
+   *  · 정류장을 노선 선 위에 놓으면 그 구간 두 정류장 사이에 들어간다(고른 노선이 아니어도 그 노선으로)
+   *  · 고른 노선의 머리·꼬리 어느 쪽 정류장에서 끌어도 그쪽 끝으로 이어진다(예전엔 머리에서 끌면 정류장 교체), 반대쪽 끝에 놓으면 순환
+   *  · 안 이어지면 조용히 끝내지 않고 한 줄로 이유와 되는 방법을 알린다(linkFail)
+   *  뜻 정하기는 PB.RouteEdit.link(순수), 규칙 검사는 UI.routeEdit.valid(S.routeFits + 그래프 검사) — 중복 정류장은 순환 닫기만 */
+  var LINK_HINT='노선 끝이나 선 위로 끌어 놓으면 이어져요.';
+  function minimalToast(text){var b=document.body.classList;if(b.contains('minimal-ui')&&!b.contains('minimal-text'))app().toast(text);}
+  function linkFail(text){P.message=text;render();/* 같은 실패를 또 해도 알림이 다시 뜨게(미니멀 화면은 문장이 바뀔 때만 알림) */minimalToast(text);}
+  UI.planLinkFail=linkFail;UI.LINK_HINT=LINK_HINT;
+  function commitLink(r,next,at,msg){
+    if(!UI.routeEdit.valid(next)){linkFail(S.routeRule(st(),r.num)+' '+LINK_HINT);return false;}
+    changed();P.editing=r.num;r.nodes=next.nodes.slice();r.stops=next.stops.slice();P.anchor=at;P.message=msg;render();return true;
+  }
   function link(from,to){
-    if(!to||!to.node||!from)return;var r;
-    if(from.route!=null){r=S.routeByNum(st(),from.route);if(!r||r.nodes.indexOf(to.node)>=0)return;
+    if(!from)return;var r,res,name=function(id){return app().nodeName(id);};
+    if(!to){linkFail(LINK_HINT);return;}
+    if(from.route!=null){r=S.routeByNum(st(),from.route);if(!r)return;
+      if(!to.node){linkFail('선은 정류장 위에 놓아야 그 사이에 들어가요.');return;}
+      if(r.nodes.indexOf(to.node)>=0){linkFail(PB.Narrative.josa(name(to.node),'은는')+' 이미 '+R(r.num)+'에 있어요. 선을 다른 정류장 위에 놓으면 사이에 들어가요.');return;}
       if(!canAddStop(r,to.node))return;
-      changed();P.editing=r.num;r.nodes.splice(from.index+1,0,to.node);r.stops.splice(from.index+1,0,true);P.anchor=from.index+1;P.message=PB.Narrative.josa(app().nodeName(to.node),'을를')+' 경유하도록 바꿨어요.';render();return;}
-    if(!from.node||from.node===to.node)return;r=active();
+      changed();P.editing=r.num;r.nodes.splice(from.index+1,0,to.node);r.stops.splice(from.index+1,0,true);P.anchor=from.index+1;P.message=PB.Narrative.josa(name(to.node),'을를')+' 경유하도록 바꿨어요.';render();return;}
+    if(!from.node)return;
+    // 정류장을 노선 선 위에 놓기 → 그 두 정류장 사이에
+    if(to.route!=null){r=S.routeByNum(st(),to.route);if(!r||r.nodes[to.index+1]==null){linkFail(LINK_HINT);return;}
+      res=PB.RouteEdit.link(r,from.node,{index:to.index});
+      if(!res||res.fail){linkFail(PB.Narrative.josa(name(from.node),'은는')+' 이미 '+R(r.num)+'에 있어요. 다른 정류장을 선 위에 놓으면 사이에 들어가요.');return;}
+      commitLink(r,res.route,to.index+1,name(from.node)+' 정류장을 '+name(r.nodes[to.index])+'–'+name(r.nodes[to.index+1])+' 사이에 넣었어요.');return;}
+    if(from.node===to.node){linkFail(LINK_HINT);return;}
+    r=active();
     if(st().config.challengeApplied&&(from.node==='N'||to.node==='N')&&(!r||r.num!==6)){P.message=S.routeRule(st(),6);render();return;}
     if(!r||r.nodes.indexOf(from.node)<0){if(r&&!r.nodes.length){changed();r.nodes=[from.node];r.stops=[true];}else {r=startRoute();if(!r){render();return;}r.nodes=[from.node];r.stops=[true];}P.editing=r.num;P.anchor=0;insert(to.node);return;}
     var i=r.nodes.indexOf(from.node);
     if(st().config.challengeApplied&&r.num===6&&r.nodes.length===2&&r.nodes.indexOf(to.node)<0){var pair=r.nodes.slice();pair[i]=to.node;if(!S.routeFits(st(),6,{nodes:pair})){P.message=S.routeRule(st(),6);render();return;}changed();S.updateRoute(st(),6,{nodes:pair,stops:[true,true]});P.anchor=i;P.message='광역버스의 마을 정류장을 바꿨어요.';render();return;}
+    // 양 끝 어느 쪽에서든 잇기 · 끝에서 반대쪽 끝으로 = 순환
+    res=PB.RouteEdit.link(r,from.node,{node:to.node});
+    if(res){var head=res.kind==='head';
+      commitLink(r,res.route,head?0:res.route.nodes.length-1,res.kind==='loop'?'순환 노선으로 연결했어요. 표시된 순서로 돌아요.':name(from.node)+' 쪽 끝에 '+PB.Narrative.josa(name(to.node),'을를')+' 이었어요.');return;}
     if(i===r.nodes.length-1&&!G.isLoop(r)&&(r.nodes.indexOf(to.node)<0||(to.node===r.nodes[0]&&r.nodes.length>=3))){P.anchor=i;insert(to.node);return;}
     if(r.nodes.indexOf(to.node)>=0){moveStop(r,i,r.nodes.indexOf(to.node));return;}
     var proposed=r.nodes.slice();proposed[i]=to.node;if(i===0&&proposed[proposed.length-1]===from.node)proposed[proposed.length-1]=to.node;if(!S.routeFits(st(),r.num,{nodes:proposed})){P.message=S.routeRule(st(),r.num);render();return;}
@@ -248,7 +280,7 @@
         var b=btn(app().nodeName(id),'stop-'+i,function(){P.anchor=i;P.message=app().nodeName(id)+' 다음에 추가할 곳을 고르세요.';render('#stop-'+i);},'stop-anchor');
         b.setAttribute('aria-pressed',String(P.anchor===i));li.appendChild(b);var del=btn('×','remove-stop-'+i,function(){removeAt(r,i);},'btn-ghost');del.setAttribute('aria-label',app().nodeName(id)+' 정류장 제거');li.appendChild(del);ol.appendChild(li);});c.appendChild(ol);
       // 순서 바꾸기·경유지 편집은 정류장이 세 곳 이상일 때 의미가 있어 그때만 안내한다
-      if(ns.length>=3)c.appendChild(el('p',{id:'edit-tips','class':'note'},'↕ 손잡이를 끌면 정류장 순서가 바뀌어요. 지도에서는 정류장을 끌어 교체하거나 선 중간을 당겨 경유지를 추가하세요. 선을 두 번 누르면 그 구간(두 정류장 사이 길)만 없어져요. 잘못 고쳤다면 되돌리기를 누르세요.'));
+      if(ns.length>=3)c.appendChild(el('p',{id:'edit-tips','class':'note'},'↕ 손잡이를 끌면 정류장 순서가 바뀌어요. 지도에서는 노선 양 끝 어디서든 이어 가고, 정류장을 선 위로 끌어 놓으면(또는 선 중간을 정류장으로 당기면) 그 사이에 들어가요. 가운데 정류장을 끌면 교체돼요. 선을 두 번 누르면 그 구간(두 정류장 사이 길)만 없어져요. 잘못 고쳤다면 되돌리기를 누르세요.'));
       if(G.isLoop(r))c.appendChild(el('p',{'class':'note'},'마지막 정류장에서 '+PB.Narrative.josa(app().nodeName(r.nodes[0]),'으로')+' 돌아와요.'));
       if(r.nodes.length){
         var origin=r.nodes[P.anchor==null?0:P.anchor],needs={};

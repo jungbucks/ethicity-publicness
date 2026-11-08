@@ -52,9 +52,9 @@
     if (!m.N) return '평가할 이동 수요가 없어요.';
     if (m.done === m.N) return '평가 대상 이동을 모두 마쳤어요.';
     var o = m.outer, oMiss = o.N - o.done, overall = rate(m), focus;
-    if (oMiss > 0 && rate(o) < overall) focus = PB.Narrative.josa(names(App, o.ids), '을를') + ' 오가는 이동 ' + o.N + '건 중 ' + oMiss + '건이 가지 못했어요(미도착)';
-    else if (m.worst) focus = App.nodeName(m.worst.id) + '에서 출발한 이동 ' + m.worst.N + '건 중 ' + m.worst.missed + '건이 가지 못했어요(미도착)';
-    else focus = (m.N - m.done) + '건이 가지 못했어요(미도착)';
+    if (oMiss > 0 && rate(o) < overall) focus = PB.Narrative.josa(names(App, o.ids), '을를') + ' 오가는 이동 ' + o.N + '건 중 ' + oMiss + '건은 목적지까지 못 갔어요';
+    else if (m.worst) focus = App.nodeName(m.worst.id) + '에서 출발한 이동 ' + m.worst.N + '건 중 ' + m.worst.missed + '건은 목적지까지 못 갔어요';
+    else focus = (m.N - m.done) + '건은 목적지까지 못 갔어요';
     if (m.score >= 80) return '전체 이동은 대부분 완료했지만, ' + focus + '.';
     return '평가 수요 ' + m.N + '건 중 ' + (m.N - m.done) + '건을 마치지 못했어요. ' + focus + '.';
   }

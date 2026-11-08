@@ -142,6 +142,9 @@ body[data-screen=run] .person-chip-time, body[data-screen=run] .person-chip-trip
 #result-details > summary::before { content: "▸"; display: inline-block; width: 1.2em; color: var(--text-mute); }
 #result-details[open] > summary::before { content: "▾"; }
 #result-details[open] { padding-bottom: 72px; }
+.result-rerun { margin: 12px 0 0; padding: 10px 14px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border); font-size: 15px; line-height: 1.6; word-break: keep-all; } /* 2026-11-09 같은 단계 지난 운행과 비교 */
+.result-rerun p { margin: 0; }
+.result-rerun .note { margin-top: 4px; }
 .result-first-tip { margin: 12px 0 0; padding: 10px 14px; border-left: 3px solid var(--border); font-size: 15px; word-break: keep-all; }
 .result-ai { margin: 0 0 24px; padding: 16px 18px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
 .result-ai h3 { margin: 0 0 8px; font-size: var(--fs-title); }

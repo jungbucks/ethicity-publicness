@@ -820,7 +820,7 @@
 
     if (root.ResizeObserver) new root.ResizeObserver(function () { fit(); frame(); }).observe(container);
 
-    root.PB.RoutePointer.attach(renderer.domElement,function(x,y){return root.PB.RoutePointer.pick(renderer.domElement,project,nodes,currentRoutes,x,y,function(a,b,num){var o=laneWorld(a,b,num);return{x:o.x/K,y:o.z/K};});},opts);
+    root.PB.RoutePointer.attach(renderer.domElement,function(x,y,po){return root.PB.RoutePointer.pick(renderer.domElement,project,nodes,currentRoutes,x,y,function(a,b,num){var o=laneWorld(a,b,num);return{x:o.x/K,y:o.z/K};},po);},opts);
 
     return {
       kind: '3d', ok: true, setScene: setScene, setRoutes: setRoutes, setSelectable: setSelectable, setSelected: setSelected,

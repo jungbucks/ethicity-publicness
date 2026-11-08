@@ -20,7 +20,7 @@ try {
       return { first: first.querySelector('#btn-tutorial-replay') ? 'replay' : first.className, items, open: document.querySelector('#help-more').open, rules: document.querySelector('#help-rules').textContent, longVisible: [...d.querySelectorAll('#help-more h3')].some(x => x.checkVisibility()) };
     });
     assert.equal(r.first, 'replay', '맨 위 = 첫 노선 안내 다시 보기');
-    assert.deepEqual(r.items.map(x => x.b), ['노선 만들기', '버스 옮기기', '출발·배속', '돈']); assert.ok(r.items.every(x => x.icon && x.vis && [...x.t].length <= 16), JSON.stringify(r.items));
+    assert.deepEqual(r.items.map(x => x.b), ['노선 만들기', '버스 옮기기', '출발·배속', '돈', '구간 지우기']); /* 2026-11-09 교사 플레이테스트 3: 구간 지우기 칸 추가 */ assert.ok(r.items.every(x => x.icon && x.vis && [...x.t].length <= 16), JSON.stringify(r.items));
     assert.equal(r.open, false, 'open ' + await page.evaluate(() => document.body.className)); assert.equal(r.longVisible, false, '긴 규칙은 접힌 안');
     ['버스·노선', '기본 지원', '공공서비스 수행분', '재정 규칙', '대기 기준', '학기 말 기준'].forEach(k => assert.ok(r.rules.includes(k), '규칙표 그대로: ' + k));
     await page.screenshot({ path: `${SHOT}/_shot-help-${w}.png` });

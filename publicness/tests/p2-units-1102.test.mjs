@@ -17,7 +17,7 @@ test('도움말 모의 AI 설명·도전 모드 재정 알림에 -습니다가 �
 
 test('이동 요청 단위는 건: 미도착 지역 버튼·주민 청원·돌발 수요 소식·버스를 탄 요청', () => {
   const result = read('js/ui-result.js'), run = read('js/ui-run.js'), tr = read('js/ui-transition.js');
-  assert.match(result, /' · 미도착 '\+\(g\.noLink\+g\.full\+g\.time\)\+'건 — 지도에서 보기'/);
+  assert.match(result, /' · 목적지까지 못 간 이동 '\+\(g\.noLink\+g\.full\+g\.time\)\+'건 — 지도에서 보기'/);
   assert.doesNotMatch(result + tr, /건 중 ' ?\+ ?h\.petition\.count ?\+ ?'명/);
   assert.match(result, /h\.petition\.count \+ '건이 아직 도착하지 못했어요\.'/); assert.match(tr, /h\.petition\.count\+'건이 아직 도착하지 못했어요\.'/);
   assert.match(result, /\['버스를 탄 요청\(한 번 이상 탐\)', m\.users \+ '건 \/ ' \+ m\.N \+ '건'\]/); assert.doesNotMatch(result, /이용자\(한 번 이상 탄 사람\)/);

@@ -111,13 +111,14 @@
     <li><svg class="help-ico" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" focusable="false"><rect x="4" y="4" width="16" height="13" rx="3"/><path d="M4 11h16M8 4v7M16 4v7"/><circle cx="8" cy="19.5" r="1.6"/><circle cx="16" cy="19.5" r="1.6"/></svg><b>버스 옮기기</b><span>버스를 노선으로 끌어요</span></li>
     <li><svg class="help-ico" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" focusable="false"><path d="M4 6v12l7-6zM12 6v12l7-6z"/></svg><b>출발·배속</b><span>출발하면 하루가 흘러요</span></li>
     <li><svg class="help-ico" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8.5"/><path d="M8 9l2 6 2-5 2 5 2-6M7.5 12h9"/></svg><b>돈</b><span>버스마다 보유비가 들어요</span></li>
+    <li><svg class="help-ico" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" focusable="false"><circle cx="4" cy="12" r="2.4"/><circle cx="20" cy="12" r="2.4"/><path d="M6.4 12h2.8M14.8 12h2.8M10.6 9.4l2.8 5.2M13.4 9.4l-2.8 5.2"/></svg><b>구간 지우기</b><span>선을 두 번 누르면 지워져요</span></li><!-- 2026-11-09 교사 플레이테스트 3 -->
   </ul>
   <details id="help-more">
     <summary>자세히 보기</summary>
     <h3>어떻게 하나요?</h3>
     <ul>
       <li>정류장 두 곳 이상을 이어 노선을 만들면 대기 버스 1대가 바로 운행해요. 지도 아래 대기 버스를 노선으로 끌어 놓으면 증차, 노선 위 색 점(2대 이상이면 ×2처럼 표시)을 대기로 끌면 회수, 다른 노선에 놓으면 이동이에요(누르고 고르기·키보드로도 돼요). 같은 노선의 버스는 자동으로 간격을 두고 출발해요. AI 제안은 지도에서 미리 보고 적용할 수 있어요.</li>
-      <li>지도에서 정류장을 누르거나 드래그해서 자유롭게 연결해요. 선 중간을 정류장으로 당기면 경유지가 추가되고, 선을 두 번 누르면(더블클릭·두 번 탭) 그 구간(두 정류장 사이 길)만 없어져요(↶ 되돌리기로 복구). 시작점으로 연결하면 순환하고, 열린 노선은 왕복해요.</li>
+      <li>지도에서 정류장을 누르거나 드래그해서 자유롭게 연결해요. 노선 양 끝 어디서든 이어 갈 수 있고, 정류장을 선 위로 끌어 놓으면(또는 선 중간을 정류장으로 당기면) 그 두 정류장 사이에 들어가요. 선을 두 번 누르면(더블클릭·두 번 탭) 그 구간(두 정류장 사이 길)만 없어져요(↶ 되돌리기로 복구). 선 위에 마우스를 올리거나 손가락으로 길게 누르면 이 방법을 다시 알려 줘요. 시작점으로 연결하면 순환하고, 열린 노선은 왕복해요.</li>
       <li>노선은 번호 대신 색과 선 모양으로 구분해요 — 빨강 실선, 초록 이중선, 주황 점선, 하늘 동글 점선. 번호가 필요하면 설정에서 ‘노선 번호 표시’를 켜요.</li>
       <li>두 노선이 <b>모두 정차하는</b> 정류장에서만 한 번 갈아탈 수 있어요. 지도에서 선이 겹치기만 하는 곳은 환승 정류장이 아니에요.</li>
       <li>출발한 뒤에는 3단계부터 오전·오후 한 번씩 버스 한 대만 옮길 수 있어요. 노선 모양은 다음 단계에서 고쳐요.</li>
@@ -203,6 +204,7 @@
 <script src="js/ui-result.js"></script>
 <script src="js/ui-scores.js"></script>
 <script src="js/ui-economy.js"></script>
+<script src="js/run-compare.js"></script>
 <script src="js/ui-transition.js"></script>
 <script src="js/ui-ending.js"></script>
 <script src="js/cutscene.js"></script>

@@ -7,7 +7,7 @@
   * 금액·기준은 지금 세팅 값으로 채운다. 전문은 도움말 ‘규칙과 재정’ */
  function cfgNow(){return PB.App&&PB.App.s?PB.App.s.config:PB.config;}
  function won(n){return PB.Narrative.won(n);}
- var tips={bus:'버스 칩을 노선 위로 옮겨 보세요.',
+ var tips={bus:'버스 칩을 노선 위로 옮겨 보세요.',cut:'선을 두 번 누르면 그 구간만 지워져요.',/* 2026-11-09 교사 플레이테스트 3: 구간 지우기를 몰랐음 — 첫 노선 뒤 버스 안내 다음에 한 번 */
   service:function(){var c=cfgNow(),F=c.finance.service,s=PB.App&&PB.App.s,list=F.stops.filter(function(x){return !s||x.fromPhase<=s.phase;}).map(function(x){return x.label;});return list.join('·')+'에 버스가 '+F.minStops+'번 이상 서면 곳마다 '+won(F.amount)+'을 받아요.';},
   lease:'빌린 버스는 이번 단계만 써요.',
   subsidy:function(){var F=cfgNow().finance;return '기본 지원은 버스 1대에 '+won(F.basePerBus)+', 보유비는 1대에 '+won(F.holding)+'이에요.';},
@@ -93,7 +93,7 @@
   var lease=$('#btn-lease');if(lease&&root.MINIMAL_UI&&!full){lease.setAttribute('aria-label',lease.textContent+' · '+($('#lease-note')?.textContent||''));var label=lease.getAttribute('aria-label');PB.Icons.label(lease,'plus','버스 빌리기 · '+s.config.finance.lease.fee.toLocaleString('ko-KR')+'원');lease.setAttribute('aria-label',label);}
   document.querySelectorAll('.depot-bus,#btn-lease').forEach(function(b){b.title=($('#lease-note')?.textContent||'')+' · '+($('.depot-head .depot-cost')?.textContent||'');});
   var message=$('#map-plan-message');if(message&&lastMessage!==message.textContent){if(lastMessage&&root.MINIMAL_UI&&!full)toast(message.textContent);lastMessage=message.textContent;}
-  var draft=JSON.stringify(s.draft.routes);if(draft!==lastDraft){lastDraft=draft;if(s.stage==='plan'&&s.draft.routes.some(function(r){return r.nodes.length>1;}))tip('bus');}
+  var draft=JSON.stringify(s.draft.routes);if(draft!==lastDraft){lastDraft=draft;if(s.stage==='plan'&&s.draft.routes.some(function(r){return r.nodes.length>1;})){tip('bus');tip('cut');}}
   signals();if(!full&&s.stage==='plan'){var r=PB.UI.routeEdit.active();if(r&&r.num===5)tip('express');else if(r&&r.num===6)tip('regional');else if(r&&crossesRiver(s,r))tip('river');else if(seen.bus&&(PB.UI.Econ.plan(s).k.service||[]).some(function(c){return c.stops>0;}))tip('service');}
  }
  function init(){

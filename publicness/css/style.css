@@ -266,6 +266,7 @@ body[data-screen="plan"] .stage::after { content: attr(data-caption); position: 
 body[data-screen="plan"] .stage.previewing::after { background: var(--accent-soft); color: var(--accent-ink); padding: 8px 12px; border-radius: 6px; }
 body[data-screen="plan"] .stage-svg, body[data-screen="plan"] .stage-3d canvas { touch-action: none; }
 .route-drag-guide { position: fixed; height: 3px; background: var(--accent); transform-origin: 0 50%; pointer-events: none; z-index: 999; }
+.route-drag-guide.on-line { height: 5px; margin-top: -1px; box-shadow: 0 0 0 2px #fff; } /* 2026-11-09: 정류장을 선 위로 — 놓으면 사이에 들어감 */
 .route-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
 .route-tab { padding: 7px 11px; }
 .route-summary { font-size: .9rem; color: var(--text-mute); margin-bottom: 8px; }
@@ -733,6 +734,7 @@ body[data-screen="run"] .stage { height:min(66vh, 650px); }
 .route-end-handle { position:absolute; transform:translate(-50%,-50%); width:56px; height:56px; min-height:56px; padding:0; border:0; background:none; border-radius:50%; pointer-events:auto; touch-action:none; cursor:grab; }
 .route-end-handle::after { content:''; position:absolute; inset:14px; border:3px solid var(--handle-color); border-radius:50%; box-shadow:0 0 0 2px #fff; }
 .route-end-handle:focus-visible { outline:2px solid var(--accent); }
+#route-line-tip { position:absolute; max-width:min(260px,calc(100% - 12px)); padding:6px 10px; border-radius:8px; background:#1F2937; color:#fff; font-size:13px; line-height:1.4; pointer-events:none; box-shadow:0 2px 8px #0003; } /* 2026-11-09 구간 지우기 말풍선 */
 #route-edit-tooltip { position:absolute; max-width:min(340px,calc(100% - 12px)); padding:7px 10px; border-radius:8px; background:#fff; color:var(--text); box-shadow:0 2px 8px #0003; font-size:12px; line-height:1.5; }
 #stage { touch-action:none; }
 .route-bus { transform:translate(-50%,-50%); }

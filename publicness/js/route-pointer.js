@@ -15,14 +15,14 @@
       if(!gesture||gesture.id!==e.pointerId)return;var dx=e.clientX-gesture.x,dy=e.clientY-gesture.y;
       if(Math.hypot(dx,dy)<7&&!gesture.moved)return;gesture.moved=true;
       if(!guide){guide=document.createElement('div');guide.className='route-drag-guide';document.body.appendChild(guide);}
-      guide.style.left=gesture.x+'px';guide.style.top=gesture.y+'px';guide.style.width=Math.hypot(dx,dy)+'px';guide.style.transform='rotate('+Math.atan2(dy,dx)+'rad)';
+      /* 2026-11-09: 정류장에서 끌어 노선 선 위에 오면 안내선이 굵어진다(놓으면 그 사이에 들어감) */if(gesture.from.node){var over=pick(e.clientX,e.clientY,{slop:dropSlop(e)});guide.classList.toggle('on-line',!!(over&&over.route!=null));}guide.style.left=gesture.x+'px';guide.style.top=gesture.y+'px';guide.style.width=Math.hypot(dx,dy)+'px';guide.style.transform='rotate('+Math.atan2(dy,dx)+'rad)';
     });
     surface.addEventListener('pointerup',function(e){
-      if(!gesture||gesture.id!==e.pointerId)return;var g=gesture,to=pick(e.clientX,e.clientY);clear();suppress=true;
+      if(!gesture||gesture.id!==e.pointerId)return;var g=gesture,to=pick(e.clientX,e.clientY,g.moved?{slop:dropSlop(e)}:null);clear();suppress=true;
       if(surface.hasPointerCapture(e.pointerId))surface.releasePointerCapture(e.pointerId);
       // 사용자가 누른 시각(이벤트 시각) 기준 — 첫 클릭 뒤 다시 그리기가 오래 걸려도(3D·느린 기기) 두 번 누름을 놓치지 않게
       var now=e.timeStamp,tap=lastTap;lastTap=null;
-      if(g.moved){if(to&&opts.onLink)opts.onLink(g.from,to);}else if(g.from.node&&opts.onNode)opts.onNode(g.from.node);
+      if(g.moved){if(opts.onLink)opts.onLink(g.from,to||null);}/* 빈 곳에 놓아도 알린다 — 받는 쪽이 이유 한 줄(2026-11-09) */else if(g.from.node&&opts.onNode)opts.onNode(g.from.node);
       else if(g.from.route!=null){
         if(tap&&tap.route===g.from.route&&tap.index===g.from.index&&now-tap.t<DOUBLE_MS&&Math.hypot(e.clientX-tap.x,e.clientY-tap.y)<DOUBLE_PX&&opts.onRouteDouble){opts.onRouteDouble(g.from.route,g.from.index);return;}
         lastTap={route:g.from.route,index:g.from.index,t:now,x:e.clientX,y:e.clientY};if(opts.onRoute)opts.onRoute(g.from.route,g.from.index);
@@ -34,7 +34,9 @@
       var p=pick(e.clientX,e.clientY);if(p&&p.node&&opts.onNode)opts.onNode(p.node);else if(p&&p.route!=null&&opts.onRoute)opts.onRoute(p.route,p.index);
     });
   }
-  function pick(surface,project,nodes,routes,x,y,offset){
+  /* 끌어 놓는 자리는 선 판정을 조금 넓게(손가락은 더) — 누르기 판정 12px은 그대로 */
+  function dropSlop(e){return e.pointerType==='touch'?24:18;}
+  function pick(surface,project,nodes,routes,x,y,offset,o){
     // 정류장 선택 영역: 가장 가까운 정류장 하나만 고르고(겹침 없음), 반경은 이웃 정류장과의 화면 거리 절반까지 넓힌다(25~56px)
     var box=surface.getBoundingClientRect(),point={x:x-box.left,y:y-box.top},best=null,ids=Object.keys(nodes);
     var sp=ids.map(function(id){var n=nodes[id];return {id:id,p:project(n.x,n.y)};});
@@ -42,7 +44,7 @@
     if(cand){var gap=Infinity;sp.forEach(function(q){if(q!==cand)gap=Math.min(gap,Math.hypot(q.p.left-cand.p.left,q.p.top-cand.p.top));});
       if(near<Math.max(25,Math.min(56,gap/2)))best={node:cand.id};}
     var distance;
-    if(best)return best;distance=12;
+    if(best)return best;distance=o&&o.slop||12;
     routes.forEach(function(r){if(r.preview)return;for(var i=0;i<r.route.nodes.length-1;i++){
       var a=nodes[r.route.nodes[i]],b=nodes[r.route.nodes[i+1]];if(!a||!b)continue;
       var o=offset?offset(r.route.nodes[i],r.route.nodes[i+1],r.num):{x:0,y:0};

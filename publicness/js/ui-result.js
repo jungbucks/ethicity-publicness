@@ -62,7 +62,7 @@
     var mark=el('span',{'class':'resident-expand','aria-hidden':'true'});mark.appendChild(PB.Icons.create('plus'));head.appendChild(mark);head.setAttribute('aria-expanded','false');card.appendChild(head);
     card.addEventListener('toggle',function(){mark.replaceChildren(PB.Icons.create(card.open?'minus':'plus'));head.setAttribute('aria-expanded',String(card.open));});
     var body=el('div',{'class':'resident-journey'});
-    data.legs.forEach(function(leg){body.appendChild(el('p',{'class':'journey-leg'},(leg.state==='도착'?'✓ ':leg.state==='미도착'?'✕ ':'— ')+App.nodeName(leg.o)+' → '+App.nodeName(leg.d)+' · '+leg.state));});
+    data.legs.forEach(function(leg){body.appendChild(el('p',{'class':'journey-leg'},(leg.state==='도착'?'✓ ':leg.state==='아직 못 감'?'✕ ':'— ')+App.nodeName(leg.o)+' → '+App.nodeName(leg.d)+' · '+leg.state));});
     if(data.reason)body.appendChild(el('p',{'class':'journey-reason'},data.reason));
     // 작은 지도: 펼칠 때 한 번 그린다(이번 단계 운행 노선은 옅게, 이 사람의 구간은 굵게 깜빡임)
     var mm=el('figure',{'class':'resident-minimap'}),res=App.s.current.result,info=routeInfoFor(App),mmRoutes=PB.Hud?PB.Hud.routesNow():[],mmState=App.s;body.appendChild(mm);
@@ -71,7 +71,7 @@
       mm.appendChild(el('figcaption',{'class':'note'},App.nodeName(f.o)+' → '+App.nodeName(f.d)+(f.legs?'':' · 잇는 노선 없음')));});
     if(t)body.appendChild(el('p',{'class':'note'},'엔딩 기준 · 누적 '+t.completed+'/'+t.threshold+'회'+(t.completed>=t.threshold?' · 기준 달성':' · 남은 '+t.remaining+'단계')));
     var times=el('details',{'class':'resident-times'});times.appendChild(el('summary',null,'도착 시각 기록'));
-    times.appendChild(el('p',{'class':'note'},'첫 도착 '+(r.arriveT!=null?App.clock(r.arriveT):'미도착')+' · 최종 도착 '+(r.homeT!=null?App.clock(r.homeT):'미도착')));body.appendChild(times);card.appendChild(body);
+    times.appendChild(el('p',{'class':'note'},'첫 도착 '+(r.arriveT!=null?App.clock(r.arriveT):'아직 못 감')+' · 최종 도착 '+(r.homeT!=null?App.clock(r.homeT):'아직 못 감')));body.appendChild(times);card.appendChild(body);
     // 눌러서 닫은 뒤에는 마우스가 카드를 떠날 때까지 올려 두기만으로 다시 펼치지 않는다(펼친 내용·작은 지도로 카드 높이가 바뀌어도 닫힌 채)
     var pinned=false,closedByClick=false;
     head.addEventListener('click',function(e){e.preventDefault();pinned=!pinned;closedByClick=!pinned;card.open=pinned;});
@@ -144,13 +144,13 @@
     Object.keys(reasons).forEach(function(id){
       var g=reasons[id],li=el('li'),parts=[];
       if(g.noLink)parts.push('탈 수 있는 노선 없음 '+g.noLink+'건');
-      if(g.full)parts.push('만차로 못 탄 경험이 있는 미도착 '+g.full+'건');
+      if(g.full)parts.push('만차로 못 탄 적이 있는 이동 '+g.full+'건');
       if(g.time)parts.push('운행 종료까지 대기·이동 중 '+g.time+'건');
       var b=el('button',{type:'button','class':'btn reason-location','data-origin':id,onclick:function(){
         App.view.setSelected([id]);App.view.flash(id);
         document.querySelector('#reason-focus').textContent=App.nodeName(id)+' 출발 정류장을 지도에 표시했어요. '+parts.join(' · ');
         document.querySelector('#stage').dataset.reasonOrigin=id;
-      }},App.nodeName(id)+' · 미도착 '+(g.noLink+g.full+g.time)+'건 — 지도에서 보기');
+      }},App.nodeName(id)+' · 목적지까지 못 간 이동 '+(g.noLink+g.full+g.time)+'건 — 지도에서 보기');
       li.appendChild(b);li.appendChild(el('p',{'class':'note'},parts.join(' · ')));outcomes.appendChild(li);
     });
     if(!outcomes.children.length)outcomes.appendChild(el('li',null,'모든 지역의 요청이 목적지에 도착했어요.'));

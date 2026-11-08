@@ -228,7 +228,7 @@ try {
     const txt = await page.locator('#panel').innerText();
     assert.doesNotMatch(txt, /도착 \d+명/);
     const units = await page.evaluate(() => ({ loc: [...document.querySelectorAll('.reason-location')].map(b => b.textContent), all: document.querySelector('#panel').textContent }));
-    assert.ok(units.loc.length && units.loc.every(t => /· 미도착 \d+건 — 지도에서 보기$/.test(t)), '미도착 지역 버튼 단위 건 ' + units.loc.join(' | '));
+    assert.ok(units.loc.length && units.loc.every(t => /· 목적지까지 못 간 이동 \d+건 — 지도에서 보기$/.test(t)), '미도착 지역 버튼 단위 건 ' + units.loc.join(' | '));
     assert.match(units.all, /버스를 탄 요청\(한 번 이상 탐\)\d+건 \/ \d+건/); assert.doesNotMatch(units.all, /이용자\(한 번 이상 탄 사람\)|건 중 \d+명/);
     await page.screenshot({ path: `${SHOT}/_shot-p2-result-${w}.png`, fullPage: true });
     // 컷신이 결과 화면 위에 뜨면 스크롤 잠금

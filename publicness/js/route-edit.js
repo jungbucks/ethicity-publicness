@@ -19,6 +19,20 @@
     if(head){r.nodes.unshift(id);r.stops.unshift(true);}else{r.nodes.push(id);r.stops.push(true);}
     return r;
   }
-  var api={copy:copy,end:end,visit:visit};root.PB=root.PB||{};root.PB.RouteEdit=api;
+  /* 지도 끌기 한 번의 뜻(2026-11-09 교사 플레이테스트 — ‘대학교–산업·일자리에 구도심 시장을 사이에 못 넣음’).
+   *  · 정류장을 노선 선(target.index 구간) 위에 놓기 → 그 두 정류장 사이에 끼움(순환도 닫는 정류장은 그대로). 이미 노선에 있으면 {fail:'already'}
+   *  · 열린 노선의 머리·꼬리 정류장에서 끌기 → 그쪽 끝으로 이음, 반대쪽 끝에 놓으면(3곳+) 순환
+   *  · 그 밖(가운데 정류장·노선 밖 정류장·순환·두 곳 노선의 끝↔끝)은 null — 부르는 쪽이 예전 규칙(교체·순서·새 노선)대로 */
+  function link(route,from,target){
+    if(!route||!target)return null;var n=route.nodes.length;
+    if(target.index!=null){if(route.nodes.indexOf(from)>=0)return {fail:'already'};if(target.index<0||target.index>=n-1)return null;return {route:visit(route,{index:target.index},from),kind:'insert'};}
+    var i=route.nodes.indexOf(from),to=target.node;if(i<0||!to||n<2||route.nodes[0]===route.nodes[n-1])return null;
+    var end=i===0?'head':i===n-1?'tail':null;if(!end)return null;
+    var other=route.nodes[end==='head'?n-1:0];
+    if(route.nodes.indexOf(to)<0)return {route:visit(route,{end:end},to),kind:end};
+    if(to===other&&n>=3)return {route:visit(route,{end:end},to),kind:'loop'};
+    return null;
+  }
+  var api={copy:copy,end:end,visit:visit,link:link};root.PB=root.PB||{};root.PB.RouteEdit=api;
   if(typeof module!=='undefined')module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);

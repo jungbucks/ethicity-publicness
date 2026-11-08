@@ -112,7 +112,7 @@ try {
     // P0-4: 숫자는 출발 생활권 표와 같다
     if (phase === 1) {
       assert.equal(r.zoneF.left, 0, '재현 1단계 외곽 마을 출발 모두 도착');
-      assert.match(r.bridge, /^남은 비율이 가장 큰 곳은 .+(이에요|예요)\. (출발한 이동 \d+건 중 \d+건이 가지 못했어요\(미도착\)\. )?이번 단계에서 살펴볼 곳은 외곽 마을이에요\(출발 \d+건 모두 도착\)\. 다음에는 누구의 이동을 살필까요\?$/); /* 11-05 P0-3 */
+      assert.match(r.bridge, /^남은 비율이 가장 큰 곳은 .+(이에요|예요)\. (출발한 이동 \d+건 중 \d+건은 목적지까지 못 갔어요\. )?이번 단계에서 살펴볼 곳은 외곽 마을이에요\(출발 \d+건 모두 도착\)\. 다음에는 누구의 이동을 살필까요\?$/); /* 11-05 P0-3 */
       assert.deepEqual(r.prompt, [], '외곽 마을을 문제처럼 묻는 고정 문구 없음');
     } else {
       const N = r.zoneC.N + r.zoneD.N, left = r.zoneC.left + r.zoneD.left;
@@ -128,7 +128,7 @@ try {
     const page = await fresh('no3d=1', { width: 1280, height: 900 });
     await play(page, 1, { only: 2, then: 'result' });
     const bridge = await page.locator('#think-bridge').textContent(), e = stories.phaseEthics[0];
-    assert.match(bridge, /가지 못했어요\(미도착\)|건 미도착\)/); assert.match(bridge, /외곽 마을/); assert.equal(await page.locator('#think-prompt').textContent(), e.title + '. ' + e.text);
+    assert.match(bridge, /목적지까지 못 갔어요|건 목적지까지 못 감\)/); assert.match(bridge, /외곽 마을/); assert.equal(await page.locator('#think-prompt').textContent(), e.title + '. ' + e.text);
     ok('P0-4 2번 노선만: “' + bridge + '” + ‘' + e.title + '’'); await page.close();
   }
   { // 기본 화면(?minimal=0): 버튼이 패널을 접고 펼친다(화면이 바뀜)

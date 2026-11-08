@@ -213,7 +213,7 @@
     }
     function laneOffset(a, b, num) { var o = offsetFor(a, b, num); return { dx: o.x, dy: o.y }; }
 
-    root.PB.RoutePointer.attach(svg,function(x,y){return root.PB.RoutePointer.pick(svg,project,nodes,currentRoutes,x,y,function(a,b,num){var o=offsetFor(a,b,num);return{x:o.x/U,y:o.y/U};});},opts);
+    root.PB.RoutePointer.attach(svg,function(x,y,po){return root.PB.RoutePointer.pick(svg,project,nodes,currentRoutes,x,y,function(a,b,num){var o=offsetFor(a,b,num);return{x:o.x/U,y:o.y/U};},po);},opts);
     return {
       kind: '2d', ok: true, setScene: setScene, setRoutes: setRoutes, setSelectable: setSelectable, setSelected: setSelected,
       setBuses: setBuses, setWaiting: setWaiting, flash: flash, project: project, laneOffset: laneOffset,

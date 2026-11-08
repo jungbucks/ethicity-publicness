@@ -112,6 +112,15 @@
   box.appendChild(row);if(!last)box.appendChild(el('p',{'class':'note'},'고른 답은 다음 단계 지도 위에 ‘이번 목표’로 보여요.'));sec.appendChild(box);
   return sec;
  }
+ /* 2026-11-09 교사 플레이테스트 4: 같은 조건으로 다시 한 게임의 같은 단계와 비교 한두 줄(js/run-compare.js — 이미 계산된 숫자만).
+  * s.runId = 게임 구분(세션 선택 필드, 예전 저장본엔 없어 여기서 붙임 — App.save가 저장). 기록은 localStorage ethicity.publicness.stageRuns */
+ function compareLines(App,s,h){
+  var RC=PB.RunCompare,store=null;if(!RC)return null;try{store=root.localStorage;}catch(e){return null;}if(!store)return null;
+  if(!s.runId)s.runId=RC.newId();
+  var key=RC.scenarioKey(s,(s.config&&s.config.SCENARIO_VERSION)||PB.config.SCENARIO_VERSION),cur=RC.summary(h,s.draft),prev=RC.previous(store,key,h.phase,s.runId);
+  RC.remember(store,key,h.phase,s.runId,cur,Date.now());
+  return prev?RC.lines(prev.sum,cur,{duration:App.duration,won:App.won,route:PB.Names.route,name:App.nodeName}):null;
+ }
  PB.UI.result=function(App,panel){
   var result=original(App,panel),s=App.s,h=s.history[s.history.length-1],m=h.metrics,k=m.costs,res=s.current.result,last=s.phase>=s.config.phases.length||!!(s.end&&s.end.cause==='contract');
   var eyebrow=q(panel,'.eyebrow'),title=q(panel,'h2'),scores=q(panel,'#scores'),family=q(panel,'#family-result'),summary=q(panel,'#resident-summary'),notice=q(panel,'#finance-status');
@@ -132,6 +141,8 @@
    var c=el('div',{'class':'result-stat',id:r[3]});c.appendChild(el('span',{'class':'stat-label'},r[0]));var v=c.appendChild(el('strong',{'class':'stat-value'},r[1]));c.appendChild(el('span',{'class':'stat-sub'},r[2]));
    if(r[3]==='result-stat-profit'&&k.total<0)v.classList.add('negative');big.appendChild(c);});
   head.appendChild(big);
+  var cmp=compareLines(App,s,h);if(cmp){var cbox=el('div',{id:'result-rerun','class':'result-rerun'});cbox.appendChild(el('p',{id:'result-rerun-numbers'},cmp.numbers));cbox.appendChild(el('p',{id:'result-rerun-plan','class':'note'},cmp.plan));head.appendChild(cbox);}
+
   /* 2026-11-06 P0-1: 다음 행동 제안의 첫 줄은 접힌 기록 밖에도(같은 문장) */
   var firstTip=scores&&scores.querySelector('#score-tips li');if(firstTip)head.appendChild(el('p',{id:'result-first-tip','class':'result-first-tip'},firstTip.textContent));
   /* P1-4: 운행 중 → 종료 정산 → 최종 3줄 + 지금 추세로 학기 말 잔액. 숫자는 정산표 그대로 나눠 보이기만 한다 */
@@ -155,7 +166,7 @@
   put(scores);
   var most=res.passengers.reduce(function(a,p){return !a||p.waitTotal>a.waitTotal?p:a;},null),rd=most&&s.config.residents.filter(function(r){return r.id===most.residentId;})[0];
   var key=el('section',{id:'result-key-metrics','class':'result-key-metrics'});key.appendChild(el('h3',null,'가장 오래 기다린 사람'));key.appendChild(el('p',null,most?App.duration(most.waitTotal)+' · '+(rd?rd.name:App.nodeName(most.o)+' 출발 승객'):'발생한 요청 없음'));
-  key.appendChild(el('p',{'class':'note'},'미도착자의 운행 종료까지 기다린 시간도 포함해요. 잇는 노선이 없는 요청은 대기 시간과 별도로 상세 기록에서 확인해요.'));put(key);
+  key.appendChild(el('p',{'class':'note'},'목적지까지 못 간 사람이 운행이 끝날 때까지 기다린 시간도 포함해요. 잇는 노선이 없는 요청은 대기 시간과 별도로 상세 기록에서 확인해요.'));put(key);
   put(summary);
   var decisions=(s.emergencyLog||[]).filter(function(a){return a.phase===s.phase;});
   if(decisions.length){var report=el('section',{id:'emergency-report'});report.appendChild(el('h3',null,'운행 중 바꾼 것'));decisions.forEach(function(a){var applied=res.log.filter(function(e){return e.type==='reassign'&&e.bus===a.busId&&e.t>=a.at;})[0];report.appendChild(el('p',null,App.clock(a.at)+' · '+(a.busId==null?'변경 없이 계속':'버스 한 대 → '+PB.Names.route(a.routeNum)+(applied?' · '+App.clock(applied.data.starts)+'부터 투입':' · 운행 종료까지 안전하게 옮길 기회가 없었어요.'))));});

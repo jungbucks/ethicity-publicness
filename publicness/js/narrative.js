@@ -225,7 +225,7 @@
   function residentResult(rd,r,passengers,window){
     var complete=r.dayStatus==='complete',first=complete||r.dayStatus==='returnIncomplete';
     if(r.satisfied!=null){
-      var legsV=[{o:r.o||rd.o,d:r.d||rd.d,state:first?'도착':'미도착'},{o:r.d||rd.d,d:r.finalDestination||rd.returnTo||rd.o,state:complete?'도착':first?'미도착':'아직 시작하지 못함'}];
+      var legsV=[{o:r.o||rd.o,d:r.d||rd.d,state:first?'도착':'아직 못 감'},{o:r.d||rd.d,d:r.finalDestination||rd.returnTo||rd.o,state:complete?'도착':first?'아직 못 감':'아직 시작하지 못함'}];
       var labelV=r.satisfied?(rd.itineraries?'일정 완료 · 기준 충족':'왕복 완료 · 기준 충족'):complete?'이동은 마쳤지만 기준 미충족':first?(rd.itineraries?'다음 목적지에 도착하지 못했어요':'집에 돌아오지 못했어요'):'첫 목적지에 도착하지 못했어요';
       return {complete:!!r.satisfied,label:labelV,reason:(r.reasons||[]).map(function(x){return x.text;}).join(' '),legs:legsV};
     }
@@ -239,7 +239,7 @@
       else reason='운행 종료까지 이동을 마치지 못했어요. 연결 구간과 차량 배정을 살펴보세요.';
     }
     return {complete:complete,label:complete?(rd.itineraries?'일정 완료':'왕복 완료'):first?(rd.itineraries?'다음 목적지에 도착하지 못했어요':'집에 돌아오지 못했어요'):'첫 목적지에 도착하지 못했어요',reason:reason,
-      legs:[{o:r.o||rd.o,d:r.d||rd.d,state:first?'도착':'미도착'},{o:r.d||rd.d,d:r.finalDestination||rd.returnTo||rd.o,state:complete?'도착':first?'미도착':'아직 시작하지 못함'}]};
+      legs:[{o:r.o||rd.o,d:r.d||rd.d,state:first?'도착':'아직 못 감'},{o:r.d||rd.d,d:r.finalDestination||rd.returnTo||rd.o,state:complete?'도착':first?'아직 못 감':'아직 시작하지 못함'}]};
   }
   // 운영 종료(파산·계약 종료) 화면의 재정 돌아보기 — 기록된 운행 수치만 쓴다(새 사건·추정 없음)
   // 사건 영향 = 돌발 수요 승객이 낸 운임(청원은 재정에 직접 영향 없음), 나머지 비용·운임은 노선과 버스 배치(선택)에서 나온다
@@ -295,8 +295,8 @@
   // 결과와 ‘생각해 보기’ 질문을 잇는 한 줄: 그 단계 질문이 다루는 곳(출발 또는 도착)의 이동 중 도착하지 못한 건수
   var THEME = { 1: ['F'], 2: ['C', 'D'], 3: ['I'], 4: ['H', 'J'], 5: ['K'], 6: ['L'], 7: ['D', 'K', 'F'], 8: ['N'] };
   /* P0-4(2026-11-02) + 2026-11-05 P0-3: 연결 문장은 이번 결과로 고른다.
-   *  · 첫 줄 수치 = 미도착이 가장 많은 출발 생활권. 결과 ‘자세히’의 ‘가장 많이 남은 곳’(#score-worst)과 같은 값 — mobility(Scores)를 넘기면 그 worst·zones를 그대로 쓴다.
-   *    예전 저장본처럼 mobility가 없으면 승객 기록에서 같은 규칙(미도착 건수 최다, 같으면 정류장 순서)으로 센다
+   *  · 첫 줄 수치 = 목적지까지 못 간 이동이 가장 많은 출발 생활권. 결과 ‘자세히’의 ‘가장 많이 남은 곳’(#score-worst)과 같은 값 — mobility(Scores)를 넘기면 그 worst·zones를 그대로 쓴다.
+   *    예전 저장본처럼 mobility가 없으면 승객 기록에서 같은 규칙(못 간 이동 건수 최다, 같으면 정류장 순서)으로 센다
    *  · 단계 주제 지역(THEME)은 유지. 주제 지역이 최다가 아니면 ‘가장 많이 남은 곳은 X · 이번 단계에서 살펴볼 곳은 Y’로 둘을 구분한다
    *  · 주제 지역 출발 도착률 90% 미만(또는 출발 이동 없음)이면 단계 고정 질문(phaseEthics)을 보이고(ethics: true), 90% 이상이면 보이지 않는다(ethics: false) */
   var FOCUS_RATE = 0.9, FOCUS_MIN_N = 5; // 2026-11-06 P1-4: 건수가 너무 적은 곳(1건 중 1건)이 비율로 앞서지 않게. 그런 곳뿐이면 그대로 쓴다
@@ -317,12 +317,12 @@
     var worst = pool[0] || null, tied = pool[1] && pool[1].left / pool[1].N === worst.left / worst.N ? pool[1] : null;
     var themeIsWorst = !!worst && ids.length === 1 && (ids[0] === worst.id || (!!tied && ids[0] === tied.id)), ethics = !t.N || t.rate < FOCUS_RATE, line = '';
     if (worst) {
-      var one = function (z) { return nodeName(config, z.id) + '(' + z.N + '건 중 ' + z.left + '건 미도착)'; };
-      line = tied ? '남은 비율이 가장 큰 곳은 ' + one(worst) + '과 ' + one(tied) + '이에요.' : '남은 비율이 가장 큰 곳은 ' + josa(nodeName(config, worst.id), '이에요') + '. 출발한 이동 ' + worst.N + '건 중 ' + worst.left + '건이 가지 못했어요(미도착).';
+      var one = function (z) { return nodeName(config, z.id) + '(' + z.N + '건 중 ' + z.left + '건 목적지까지 못 감)'; };
+      line = tied ? '남은 비율이 가장 큰 곳은 ' + one(worst) + '과 ' + one(tied) + '이에요.' : '남은 비율이 가장 큰 곳은 ' + josa(nodeName(config, worst.id), '이에요') + '. 출발한 이동 ' + worst.N + '건 중 ' + worst.left + '건은 목적지까지 못 갔어요.';
     }
     if (!t.N) line += (line ? ' ' : '') + '이번에는 ' + names + '에서 출발한 이동이 없었어요.';
     else if (!worst) line = names + '에서 출발한 이동 ' + t.N + '건이 모두 도착했어요.';
-    else if (!themeIsWorst) line += ' 이번 단계에서 살펴볼 곳은 ' + josa(names, '이에요') + '(' + (t.left ? '출발 ' + t.N + '건 중 ' + t.left + '건 미도착' : '출발 ' + t.N + '건 모두 도착') + ').';
+    else if (!themeIsWorst) line += ' 이번 단계에서 살펴볼 곳은 ' + josa(names, '이에요') + '(' + (t.left ? '출발 ' + t.N + '건 중 ' + t.left + '건 목적지까지 못 감' : '출발 ' + t.N + '건 모두 도착') + ').';
     if (!ethics && worst) line += ' 다음에는 누구의 이동을 살필까요?';
     return { bridge: line, ethics: ethics, theme: t, worst: worst };
   }
