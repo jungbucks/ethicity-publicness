@@ -15,7 +15,7 @@ test('저장 이전: 성찰 화면에서 멈춘 저장본 → 그 단계 계획 
   assert.equal(r.stage, 'plan'); assert.equal(r.phase, 2); assert.equal('transitionStep' in r, false);
   assert.deepEqual(r.choices, { 1: 'longest' }, '2단계 전 카드 = 1단계 결과에서 고른 답(2단계 지도 목표)');
   assert.equal(r.reflections[3], '외곽 마을에서 기다리는 사람도 살피겠다.', '자유 서술 보존');
-  assert.equal(2 in r.reflections, false, '카드 문구는 자유 서술 칸에서 빠짐');
+  assert.equal(r.reflections[2], '오래 기다린 사람부터', '옛 선택 문구도 원본 기록으로 보존');
   assert.equal(r.owned, s.owned); assert.deepEqual(r.draft, JSON.parse(JSON.stringify(s.draft)), '초안·버스는 새 단계 값 그대로');
   assert.ok(S.startRun(r), '이전한 계획으로 바로 출발 가능');
 });
@@ -27,7 +27,7 @@ test('저장 이전: 「마을이 달라졌어요」·1단계 안내 저장본�
   assert.equal(one.stage, 'plan'); assert.equal(one.phase, 1);
   playPhase(s); playPhase(s); s.transitionStep = 'changes'; s.choices = { 2: 'many' }; s.reflections = { 3: '더 많은 사람을 빠르게' };
   const r = S.restore(JSON.parse(JSON.stringify(S.serialize(s))), cfg);
-  assert.equal(r.stage, 'plan'); assert.equal(r.phase, 3); assert.deepEqual(r.choices, { 2: 'many' }); assert.deepEqual(r.reflections, {});
+  assert.equal(r.stage, 'plan'); assert.equal(r.phase, 3); assert.deepEqual(r.choices, { 2: 'many' }); assert.deepEqual(r.reflections, {3:'더 많은 사람을 빠르게'});
   // 계획·결과 저장본은 그대로
   S.beginPlan(s); delete s.transitionStep; const p = S.restore(JSON.parse(JSON.stringify(S.serialize(s))), cfg); assert.equal(p.stage, 'plan');
   assert.equal(S.migrateTransition(p), false, '새 저장본은 바꿀 것이 없음');

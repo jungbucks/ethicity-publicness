@@ -34,14 +34,21 @@
     return PB.Names.route(num) + ' · 한 바퀴 ' + km(len) + ' · 버스 ' + n + '대 · 약 ' + app().duration(E.headway(s, num, n)) + ' 간격 · 운영·연료 약 ' + won(row ? row.cost : 0) +
       ' · 운임 약 ' + won(row ? row.fare : 0) + ' → 손익 ' + signed(row ? row.profit : 0) + ' (기본 수요 기준 예상)';
   };
-  // 공공서비스 수행 조건 목록(달성 여부·정차 횟수·금액)
+  // Presentation only: counts are capped visually, raw stops remain available in the title.
+  E.serviceProgress = function(c, count, state) {
+    var met=count>=c.need, progress=Math.min(count,c.need)+'/'+c.need+'회';
+    var reward=state==='paid'&&c.met?'+'+won(c.amount)+' 지급':met?(state==='expected'?'보상 '+won(c.amount)+' · 달성 예상':'달성'):'보상 '+won(c.amount);
+    if(state==='expected')progress='예상 '+progress;
+    return {progress:progress,reward:reward,done:met,text:c.label+' · '+progress+' · '+reward,title:c.label+' · '+(state==='expected'?'예상 ':'')+'정차 '+count+'회 / 목표 '+c.need+'회 · '+reward};
+  };
   E.conditions = function (k, expected) {
     var ul = el('ul', { 'class': 'plain service-checks' });
     (M.costParts(k).service || []).forEach(function (c) {
-      var li = el('li', { 'data-node': c.id, 'class': c.met ? 'met' : 'unmet' });
-      li.appendChild(el('b', null, (c.met ? '✓ ' : '· ') + c.label));
-      li.appendChild(document.createTextNode(' · 하루 ' + c.stops + '/' + c.need + '회 정차 · ' + (c.met ? won(c.amount) + (expected ? ' 받을 예정' : ' 받음') : (expected ? '지금 계획으로는 못 받아요' : '받지 못함'))));
-      ul.appendChild(li);
+      var data=E.serviceProgress(c,c.stops,expected?'expected':'paid');
+      var li = el('li', { 'data-node': c.id, 'class': c.met ? 'met' : 'unmet',title:data.title });
+      li.appendChild(el('span',null,c.label+' · '));
+      li.appendChild(el('strong',{'class':'service-progress'},data.progress));
+      li.appendChild(el('span',{'class':'service-reward'},' · '+data.reward));ul.appendChild(li);
     });
     return ul;
   };

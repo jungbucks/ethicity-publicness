@@ -3,7 +3,7 @@
  *  1. 한 줄 요약 + 큰 숫자 2개(도착률 · 이번 단계 수지, 숫자마다 라벨)
  *  2. 인물 카드(만족/불만족 + 구체적인 이유 한 줄, 누적 n/m · 기준 달성 불가, 누르면 작은 지도) — ui-result.js residentCard
  *  3. 이번 운행에서 생긴 일(돌발 수요·청원·긴급 조정, 시각, 최대 3줄)
- *  4. 생각해 보기: 결과와 잇는 한 줄 + 그 단계 실제 AI 사례 카드(문구·출처 그대로) + 단계 질문 + 두 가지 선택형 답 + 글쓰기(선택)
+ *  4. 다음 운행 목표: 실제 결과에 근거한 한 줄 + 두 가지 선택형 답(글쓰기·사례는 최종 회고로)
  *  3-1. AI라면?(2026-11-06): 이번 계획의 출처 + 다음 단계 입력으로 돌린 AI 제안 세 기준이 각각 무엇을 바꾸자고 하는지(aiCard)
  *  5. 「자세한 기록 보기」(두 점수·지역별·노선 이용·운행 기록·예상과 실제·생활권 표·주민·운행 중 들린 말(연속 반복 ×N)·재정) — 다음 단계 버튼은 아래 고정 바
  * 예전 단계 전 화면(성찰 ‘다음에는 누구의 이동을 살필까요?’·「마을이 달라졌어요」)은 없다. 그 선택은 실제 효과가 없어서(0단계 조사)
@@ -69,16 +69,17 @@
    });
   });
  }
- // 고른 답과 가까운 기준의 줄을 표시(색과 글자 둘 다). 세 추천이 같으면 줄이 하나라 표시하지 않는다
+ // 고른 목표의 추천 한 줄과 접힌 세 기준 비교. 계산 캐시를 그대로 읽는다
  function aiMark(sec,choice){
   var goal=AI_PICK[choice];
+  if(sec._aiCard){var card=sec._aiCard,entry=(sec._aiSession.goalHistory||[]).filter(function(e){return e.phase===sec._aiPhase;})[0];goal=goal||AI_PICK[(sec._aiSession.choices||{})[sec._aiPhase-1]]||(entry&&entry.goal)||'time';var r=card.rows.filter(function(r){return r.goal===goal;})[0]||card.rows[0];q(sec,'#result-ai-summary').textContent='['+r.name+'] AI는 '+r.change+' 추천해요. ('+r.num+')';}
   sec.querySelectorAll('[data-goal]').forEach(function(li){var on=li.dataset.goal===goal,tag=li.querySelector('.ai-picked-tag');li.classList.toggle('ai-picked',on);if(tag)tag.hidden=!on;});
  }
  function aiPaint(sec,card,s,h,last){
-  var box=q(sec,'#result-ai-body');box.textContent='';box.appendChild(el('p',{id:'result-ai-source'},card.source));
+  var body=q(sec,'#result-ai-body');body.textContent='';sec._aiCard=card;sec._aiSession=s;sec._aiPhase=h.phase;body.appendChild(el('p',{id:'result-ai-summary'}));var box=el('details',{id:'result-ai-more'});box.appendChild(el('summary',null,'AI 비교 더 보기'));body.appendChild(box);box.appendChild(el('p',{id:'result-ai-source'},card.source));
   var ul=el('ul',{id:'result-ai-rows','class':'plain'});
-  if(card.same){var r=card.rows[0],li=el('li',{id:'result-ai-same'});li.appendChild(el('b',null,'이번에는 세 기준의 추천이 같았어요. '));li.appendChild(document.createTextNode('AI는 '+r.change+' 추천해요. ('+r.total+')'));ul.appendChild(li);}
-  else card.rows.forEach(function(r){var li=el('li',{'data-goal':r.goal});li.appendChild(el('b',null,'['+r.name+'] '));li.appendChild(document.createTextNode('AI는 '+r.aim+' '+r.change+' 추천해요. ('+r.num+')'));var tag=el('span',{'class':'ai-picked-tag'},'내가 고른 기준');tag.hidden=true;li.appendChild(tag);ul.appendChild(li);});
+  if(card.same)box.appendChild(el('p',{id:'result-ai-same','class':'note'},'이번에는 세 기준의 추천이 같았어요.'));
+  card.rows.forEach(function(r){var li=el('li',{'data-goal':r.goal});li.appendChild(el('b',null,'['+r.name+'] '));li.appendChild(document.createTextNode('AI는 '+r.aim+' '+r.change+' 추천해요. ('+r.num+')'));var tag=el('span',{'class':'ai-picked-tag'},'내가 고른 기준');tag.hidden=true;li.appendChild(tag);ul.appendChild(li);});
   box.appendChild(ul);
   box.appendChild(el('p',{'class':'note',id:'result-ai-note'},'AI 추천은 정답이 아니라, 무엇을 중요하게 보느냐에 따라 달라져요. 예상 수치는 '+(last?'이번':'다음')+' 단계 기본 수요 기준이에요.'));
   aiMark(sec,(s.choices||{})[h.phase]);
@@ -98,11 +99,8 @@
  }
  function think(App,s,h,last){
   var sec=el('section',{id:'result-think','class':'result-think','aria-labelledby':'result-think-h','data-phase':h.phase});
-  sec.appendChild(el('h3',{id:'result-think-h'},'생각해 보기'));
+  sec.appendChild(el('h3',{id:'result-think-h'},'다음 운행 목표'));
   var focus=PB.Narrative.thinkFocus(s.config,h.phase,s.current.result.passengers,h.scores&&h.scores.mobility);if(focus.bridge)sec.appendChild(el('p',{'class':'think-bridge',id:'think-bridge'},focus.bridge));/* P0-4·11-05 P0-3: 이번 결과로 고른 연결 문장(첫 줄 = 자세히의 가장 많이 남은 곳) */
-  PB.App.renderLearning(sec,h.phase);
-  var ethics=PB.stories.phaseEthics[h.phase-1];
-  if(ethics&&focus.ethics){var pr=el('p',{'class':'reflection-prompt',id:'think-prompt'});pr.appendChild(el('b',null,ethics.title+'. '));pr.appendChild(document.createTextNode(ethics.text));sec.appendChild(pr);}
   // 두 가지 선택형 답 — 자유 서술(reflections)과 따로 저장(고르면 글이 지워지던 문제 고침)
   var box=el('fieldset',{id:'think-choice','class':'think-choice'});box.appendChild(el('legend',null,last?'다음 학기라면 누구의 이동을 먼저 살필까요?':'다음에는 누구의 이동을 살필까요?'));
   var row=el('div',{'class':'think-options'});
@@ -112,10 +110,6 @@
    row.appendChild(b);
   });
   box.appendChild(row);if(!last)box.appendChild(el('p',{'class':'note'},'고른 답은 다음 단계 지도 위에 ‘이번 목표’로 보여요.'));sec.appendChild(box);
-  sec.appendChild(el('label',{'for':'reflection-answer'},'내 생각을 한두 문장으로 남겨 보세요.'));
-  var answer=el('textarea',{id:'reflection-answer',rows:'3',maxlength:'1000'});answer.value=(s.reflections||{})[h.phase]||'';
-  answer.addEventListener('input',function(){s.reflections=s.reflections||{};if(answer.value)s.reflections[h.phase]=answer.value;else delete s.reflections[h.phase];PB.App.save();});sec.appendChild(answer);
-  sec.appendChild(el('p',{'class':'note'},'정답이나 점수는 없어요. 비워 두고 다음으로 가도 돼요.'));
   return sec;
  }
  PB.UI.result=function(App,panel){

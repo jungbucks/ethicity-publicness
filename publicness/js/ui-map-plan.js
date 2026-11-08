@@ -7,7 +7,7 @@
   var PB=root.PB,S=PB.Session,original=PB.UI.plan,state={session:null,phase:null,text:false,ai:false,bus:null,from:null,person:null};
   var SPRITE='assets/art/bus-sprite.webp',HIT=44,MARGIN=12,HINT_KEY='ethicity.publicness.busHint',drag=null;
   function app(){return PB.App;}
-  function button(id,text,fn){return app().el('button',{id:id,type:'button','class':'btn',onclick:fn},text);}
+  function button(id,text,fn){var b=app().el('button',{id:id,type:'button','class':'btn',onclick:fn},text);return text==='×'?PB.Icons.label(b,'close','닫기'):id==='btn-lease'?PB.Icons.label(b,'plus',text.replace(/^\+\s*/,'')):b;}
   function redraw(){app().keepFocus=true;app().render();}
   function say(text){var m=document.querySelector('#map-plan-message');if(m)m.textContent=PB.Names?PB.Names.text(text):text;}
   /* 노선·버스는 번호 대신 색 이름(js/route-names.js, 2026-11-02) — R(2) = ‘초록 노선’, B(id) = ‘초록 버스’·‘대기 버스’ */

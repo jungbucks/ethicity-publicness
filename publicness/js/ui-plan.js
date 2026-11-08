@@ -4,7 +4,7 @@
   var PB=root.PB,cfg=PB.config,S=PB.Session,G=PB.Graph,UI=PB.UI=PB.UI||{};
   var P={session:null,phase:null,editing:null,anchor:null,rec:null,preview:false,busy:false,token:0,message:''};
   function app(){return PB.App;} function st(){return app().s;} function el(t,a,x){return app().el(t,a,x);}
-  function btn(text,id,fn,cls){return el('button',{type:'button',id:id,'class':'btn '+(cls||''),onclick:fn},text);}
+  function btn(text,id,fn,cls){var b=el('button',{type:'button',id:id,'class':'btn '+(cls||''),onclick:fn},text),icon={'btn-undo':'undo','btn-reset-routes':'reset','btn-new-route':'plus'}[id]||(/^drag-stop-/.test(id)?'move':/^remove-stop-/.test(id)?'close':null);return icon?PB.Icons.label(b,icon,text==='↕'?'순서 이동':text==='×'?'제거':text.replace(/^[↶+]\s*/,'')):b;}
   function render(focus){var pb=document.querySelector('.panel-body');P.scroll=pb?pb.scrollTop:0;app().keepFocus=true;app().render();if(focus){var n=document.querySelector(focus);if(n)n.focus({preventScroll:true});}}
   function active(){return S.routeByNum(st(),P.editing);}
   function canAddStop(r,id){
@@ -224,10 +224,10 @@
     /* 노선 칩(2026-11-02 휴대폰 정리): ‘1번 · 운행 대기’ 대신 색·선 모양 견본 + 상태(운행 대기·미배정·버스 N대) — 지도에서 노선 번호를 뺀 것과 같게. 이름(빨강 노선 등)은 aria-label·title.
      * 설정 ‘노선 번호 표시’를 켜면 견본 옆에 번호. 같은 크기 칩(css), 고른 노선만 테두리 */
     var newRoutes=app().phaseChanges(st()).newRouteNums;/* 이번 단계에 새로 생긴 노선 칩(P1-3) */
-    S.routesInOrder(st()).forEach(function(r){var on=assigned(r.num).length,kind=(S.stopLimit(st(),r.num)===2?'광역 ':S.stopLimit(st(),r.num)===3?'직행 ':'')+(G.isLoop(r)?'순환 ':''),status=!on?(r.nodes.length>=2?'운행 대기':'미배정'):'버스 '+on+'대';
+    S.routesInOrder(st()).forEach(function(r){var on=assigned(r.num).length,kind=(S.stopLimit(st(),r.num)===2?'광역 ':S.stopLimit(st(),r.num)===3?'직행 ':'')+(G.isLoop(r)?'순환 ':''),status=!on?'미배정':'버스 '+on+'대';
       var b=btn('','route-'+r.num,function(){P.editing=r.num;P.anchor=null;P.mapSegment=null;P.mapEnd=null;P.preview=false;P.message='정류장을 잇거나 선 중간을 당겨 보세요.';render();},'route-tab');
-      var rc=app().routeStyle(r.num).color,top=el('span',{'class':'route-tab-top'});top.appendChild(PB.Names.swatch(r.num,rc));if(PB.Names.showNumbers())top.appendChild(el('span',{'class':'route-tab-num'},r.num+'번'));if(kind)top.appendChild(el('span',{'class':'route-tab-kind'},kind.trim()));var fresh=newRoutes.indexOf(r.num)>=0;if(fresh)top.appendChild(el('span',{'class':'new-tag'},'새'));b.appendChild(top);b.appendChild(el('span',{'class':'route-tab-status'},status));
-      b.setAttribute('aria-label',R(r.num)+(fresh?' · 새 노선':'')+(kind?' · '+kind.trim():'')+' · '+status+' · '+PB.Names.patternName(PB.Names.pattern(r.num)));b.title=b.getAttribute('aria-label');
+      var rc=app().routeStyle(r.num).color,top=el('span',{'class':'route-tab-top'});top.appendChild(PB.Names.swatch(r.num,rc));top.appendChild(el('span',{'class':'route-tab-name'},C(r.num)));var fresh=newRoutes.indexOf(r.num)>=0;b.appendChild(top);b.appendChild(el('span',{'class':'route-tab-meta'},[kind.trim(),fresh?'새 노선':''].filter(Boolean).join(' · ')));b.appendChild(el('span',{'class':'route-tab-status'},status));
+      b.setAttribute('aria-label',R(r.num)+(fresh?' · 새 노선':'')+(kind?' · '+kind.trim():'')+' · '+status);b.title=b.getAttribute('aria-label');
       b.setAttribute('aria-pressed',String(P.editing===r.num));b.style.setProperty('--route',rc);b.classList.add('route-color');if(PB.MapNetwork&&PB.MapNetwork.luminance(rc)>0.35)b.classList.add('light');list.appendChild(b);});
     var add=btn('+ 새 노선','btn-new-route',function(){startRoute();render('.next-stop');});add.disabled=st().draft.routes.length>=S.routeLimit(st());list.appendChild(add);sec.appendChild(list);sec.appendChild(el('p',{'class':'note'},'이번 단계: 노선 최대 '+S.routeLimit(st())+'개 · 버스 '+st().owned+'대'));var r=active();
     if(r){var c=el('div',{'class':'route-card editing','data-num':r.num}),ok=!G.validateRoute(S.graph(st()),r).length;

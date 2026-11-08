@@ -216,7 +216,7 @@
   function beginPlan(s) { if (s.stage === 'reveal') s.stage = 'plan'; }
   /* 단계 전 화면 정리(2026-11-01): 성찰(transitionStep 'reflect')·「마을이 달라졌어요」('changes') 화면이 없어졌다. 그 화면에서 저장된 진행은
    * 그 단계 지도 계획 화면으로 보낸다(초안·버스는 nextPhase가 이미 새 단계 값으로 만들어 둠). 성찰 답 reflections[n]은 n단계 결과 화면의
-   * 「생각해 보기」 글쓰기 칸으로 그대로 이어진다(같은 사례 learning[n−1]에 대한 답). 옛 선택 카드 문구가 들어 있으면 자유 서술이 아니라
+   * 과거 결과 조회에 그대로 남는다. 최종 회고(finalReflection)와 합치지 않는다. 옛 선택 카드 문구가 들어 있으면 자유 서술이 아니라
    * 선택이므로 choices[n−1](= n−1단계 결과에서 고른 답, n단계 지도의 ‘이번 목표’)로 옮긴다. 이미 고른 답이 있으면 덮지 않는다 */
   var CHOICES = { many: '더 많은 사람을 빠르게', longest: '오래 기다린 사람부터' };
   function choiceKey(text) { var t = String(text || '').trim(); for (var k in CHOICES) if (CHOICES[k] === t) return k; return null; }
@@ -228,8 +228,8 @@
       var key = choiceKey(s.reflections[k]), n = Number(k);
       if (!key) return;
       s.choices = s.choices || {};
-      if (n > 1 && s.choices[n - 1] == null) s.choices[n - 1] = key;
-      delete s.reflections[k]; moved = true;
+      if (n > 1 && s.choices[n - 1] == null) { s.choices[n - 1] = key; moved = true; }
+      // Keep the original legacy text as historical evidence, even when it also maps to a choice.
     });
     return moved;
   }

@@ -11,8 +11,11 @@
 <link rel="stylesheet" href="css/minimal.css">
 <link rel="stylesheet" href="css/prestage.css">
 <link rel="stylesheet" href="css/mobile.css">
+<link rel="stylesheet" href="css/simplified.css">
 </head>
-<body data-screen="title">
+<body data-screen="title" class="minimal-ui">
+<!-- Match the initial presentation before the title can paint; game initialization is unchanged. -->
+<script>if(new URLSearchParams(location.search).get('minimal')==='0')document.body.classList.remove('minimal-ui');</script>
 <a class="skip-link" href="#panel">오른쪽 안내로 건너뛰기</a>
 
 <!-- 시작 화면 -->
@@ -21,8 +24,8 @@
     <p class="eyebrow" id="title-sub">AI 마을버스 운영단</p>
     <h1 id="title-h1">이번 정류장은…</h1>
     <p class="title-en" id="title-en">This stop is…</p>
-    <p class="hook" id="hook-1"></p>
-    <p class="hook hook-strong" id="hook-2"></p>
+    <p class="hook" id="hook-1">버스 2대, 첫 운행 예정 이동 139건.</p>
+    <p class="hook hook-strong" id="hook-2">아직 정해진 길은 없어요. 우리 마을의 첫 노선을 직접 연결해 보세요.</p>
     <fieldset class="setting">
       <legend>마을 세팅</legend>
       <label class="radio"><input type="radio" name="setting" value="default" checked> <span><b>기본 · 교육용 5단계</b> <span class="mode-desc">같은 지도와 사건으로 시작해요. 재정은 학기 말 잔액으로 평가해요</span></span></label>
@@ -33,6 +36,7 @@
     <p class="note" id="continue-note"></p>
     <button type="button" class="btn btn-primary btn-lg" id="btn-start">첫 운행 계획하기</button>
     <p class="note">진행은 이 브라우저에 자동으로 저장돼요. 새로고침하거나 창을 닫았다가 열어도 ‘이어하기’로 계속할 수 있어요.</p>
+    <button type="button" class="btn" id="title-text-toggle" aria-pressed="false">설명 보기</button>
   </div>
   <figure class="title-art" aria-hidden="true">
     <img id="title-img" src="assets/art/title-two-stops.webp" alt="" onerror="this.parentNode.classList.add('placeholder'); this.remove();">
@@ -166,6 +170,7 @@
 </dialog>
 
 <script src="js/config.js"></script>
+<script src="js/icons.js"></script>
 <script src="js/route-names.js"></script>
 <script src="js/rng.js"></script>
 <script src="js/graph.js"></script>

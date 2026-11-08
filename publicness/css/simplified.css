@@ -1,0 +1,42 @@
+.ui-icon { display:inline-block; width:22px; height:22px; flex:none; vertical-align:middle; pointer-events:none; }
+.btn:has(> .ui-icon) { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:44px; min-width:44px; }
+#run-controls .btn { min-width:44px; min-height:44px; }
+#run-controls [id^="speed-"] { font-variant-numeric:tabular-nums; }
+#plan-toolbar .route-tab.route-color, .route-tabs .route-tab.route-color { display:grid; grid-template-rows:auto 1fr auto; align-items:center; gap:3px; min-height:64px; }
+.route-tab-top { display:flex; align-items:center; gap:5px; }
+.route-tab-name { color:var(--text); font-size:13px; font-weight:700; }
+.route-tab-meta { display:block; min-height:15px; font-size:11px; font-weight:400; color:var(--text-mute); }
+.route-tab-status { display:block; text-align:center; font-size:12px; font-weight:500; }
+.service-progress { font-weight:700; font-variant-numeric:tabular-nums; }
+.service-reward { font-size:.85em; font-weight:400; }
+.net-service .service-reward { display:block; }
+.net-service { white-space:nowrap; text-align:left; }
+#game-review { max-width:48rem; margin:auto; padding-bottom:90px; }
+#game-review .review-case { margin:20px 0; }
+#game-review p { line-height:1.7; }
+#final-reflection { display:block; width:100%; box-sizing:border-box; margin:12px 0; min-height:110px; }
+.review-actions { display:flex; flex-wrap:wrap; gap:8px; margin:20px 0; }
+#review-done-bar { position:static; background:var(--bg,#fff); padding:12px 0; border-top:1px solid var(--border,#ddd); }
+#result-ai-summary { line-height:1.65; }
+#result-ai-more { margin-top:8px; }
+@media(max-width:700px){
+  #game-review { padding-bottom:30px; }
+  #game-review .learning-source { overflow-wrap:anywhere; }
+  .route-tab .route-swatch-svg { width:20px; }
+  #plan-toolbar .route-tab.route-color { min-width:94px; }
+}
+.net-casing.selected-route line { stroke:var(--accent); opacity:.35; }
+body.review-open[data-screen="ending"] .stage-col { display:none !important; }
+body.review-open[data-screen="ending"] .game { display:block !important; }
+body.review-open[data-screen="ending"] #panel { max-width:52rem; margin:auto; max-height:none; overflow:visible; }
+body.phone-p #plan-toolbar .route-tab.route-color, body.phone-l #plan-toolbar .route-tab.route-color, body.rail #plan-toolbar .route-tab.route-color, body.sheet #plan-toolbar .route-tab.route-color { min-width:0; height:66px; min-height:66px; }
+/* Route identity uses a solid swatch and name; selection is common to every route. */
+#plan-toolbar .route-tab.route-color, .route-tabs .route-tab.route-color { background:#fff; color:var(--text); border:1px solid var(--border); box-shadow:none; }
+#plan-toolbar .route-tab.route-color[aria-pressed="true"], .route-tabs .route-tab.route-color[aria-pressed="true"] { background:var(--accent-soft,#eff6ff); border-color:var(--accent,#2563eb); box-shadow:inset 0 0 0 1px var(--accent,#2563eb); }
+#plan-toolbar .route-tab.route-color .route-tab-top { justify-content:center; }
+#plan-toolbar .route-tab.route-color .route-tab-status { color:var(--text); }
+
+#game-review label { display:block; margin-top:24px; font-weight:600; line-height:1.7; }
+/* The desktop rail reserves 52px for route controls; keep all three lines inside it. */
+body.rail #plan-toolbar .route-tab.route-color { height:52px; min-height:52px; grid-template-rows:16px 12px 14px; gap:0; }
+body.rail .route-tab-meta { min-height:12px; line-height:12px; }

@@ -1,14 +1,13 @@
 /* 노선·버스를 번호 대신 색 이름으로 부르기(2026-11-02 휴대폰 화면 정리 — 지도에서 노선 번호 배지를 뺐다).
  * 화면 글자만 바꾼다(엔진·저장·점수는 그대로 번호를 쓴다).
  *  · 노선: config.ui.routeNames(빨강·초록·주황·하늘·보라·갈색 — 노선 색 routeColors와 같은 순서). 도전 모드 5번=직행, 6번=광역
- *  · 선 모양(색약 학생용): 1 실선 · 2 이중선 · 3 점선(짧은 줄) · 4 점(동글) — 5 직행·6 광역은 원래 가운데 줄
+ *  · 선 모양: 모두 같은 굵기의 실선. 색과 보이는 노선 이름으로 구분
  *  · 버스: 지금 달리는 노선 색으로 ‘초록 버스’, 쉬는 버스는 ‘대기 버스’, 빌린 버스는 ‘빌린 버스’, 도전 모드 7=직행 버스·9=광역 버스
  *  · 설정 ‘노선 번호 표시’(기본 끔, localStorage)를 켜면 이름 뒤에 번호를 붙이고 지도 배지에도 번호가 다시 나온다
  * '번'과 '노선'은 모두 받침(ㄴ)으로 끝나고 '호차'와 '버스'는 모두 받침 없이 끝나서, 바꿔 넣어도 뒤 조사(을/를·이/가·은/는)가 맞는다. */
 (function (root) {
   'use strict';
   var KEY = 'ethicity.publicness.routeNumbers', mem = null;
-  var PATTERNS = ['solid', 'double', 'dash', 'dot'];
   function cfgOf(s) { return (s && s.config) || (root.PB && root.PB.config) || {}; }
   function sess(s) { return s || (root.PB && root.PB.App && root.PB.App.s) || null; }
   var N = {};
@@ -24,7 +23,7 @@
     return base + (N.showNumbers() ? '(' + num + '번)' : '');
   };
   N.route = function (num, s) { return N.color(num, s) + ' 노선'; };
-  N.pattern = function (num, s) { var c = cfgOf(sess(s)); if (c.challengeApplied && (num === 5 || num === 6)) return 'solid'; return PATTERNS[(num - 1) % PATTERNS.length]; };
+  N.pattern = function () { return 'solid'; };
   N.patternName = function (p) { return { solid: '실선', double: '이중선', dash: '점선', dot: '동글 점선' }[p] || ''; };
   // 버스 이름 — routeNum을 주면 그 노선 기준(운행 중 그 순간의 노선), 안 주면 초안 배정
   N.bus = function (id, s, routeNum) {
@@ -41,18 +40,12 @@
     if (str == null) return str; s = sess(s);
     return String(str).replace(/(\d+)번 노선/g, function (m, n) { return N.route(Number(n), s); }).replace(/(\d+)호차/g, function (m, n) { return N.bus(Number(n), s); });
   };
-  // 노선 견본(작은 SVG): 흰 바탕 띠 + 노선 색 선 모양 — 노선 칩·범례용
+  // 노선 견본(작은 SVG): 같은 굵기의 노선 색 실선 — 노선 칩·범례용
   N.swatch = function (num, color, s) {
-    var NS = 'http://www.w3.org/2000/svg', svg = root.document.createElementNS(NS, 'svg'), p = N.pattern(num, s), c = cfgOf(sess(s));
+    var NS = 'http://www.w3.org/2000/svg', svg = root.document.createElementNS(NS, 'svg');
     svg.setAttribute('viewBox', '0 0 28 12'); svg.setAttribute('width', '28'); svg.setAttribute('height', '12'); svg.setAttribute('class', 'route-swatch-svg'); svg.setAttribute('aria-hidden', 'true'); svg.setAttribute('focusable', 'false');
     function ln(attrs) { var e = root.document.createElementNS(NS, 'line'); e.setAttribute('x1', 3); e.setAttribute('y1', 6); e.setAttribute('x2', 25); e.setAttribute('y2', 6); for (var k in attrs) e.setAttribute(k, attrs[k]); svg.appendChild(e); return e; }
-    ln({ stroke: '#fff', 'stroke-width': 9, 'stroke-linecap': 'round' });
-    var a = { stroke: color, 'stroke-width': 6, 'stroke-linecap': p === 'dot' ? 'round' : p === 'dash' ? 'butt' : 'round' };
-    if (p === 'dash') a['stroke-dasharray'] = '6 3'; if (p === 'dot') { a['stroke-dasharray'] = '0 7.5'; a['stroke-width'] = 6; }
-    ln(a);
-    if (p === 'double') ln({ stroke: '#fff', 'stroke-width': 2, 'stroke-linecap': 'round' });
-    if (c.challengeApplied && num === 5) ln({ stroke: '#fff', 'stroke-width': 2, 'stroke-dasharray': '1.5 3', 'stroke-linecap': 'round' });
-    if (c.challengeApplied && num === 6) ln({ stroke: 'rgba(26,29,36,.75)', 'stroke-width': 1.6 });
+    ln({ stroke: color, 'stroke-width': 4, 'stroke-linecap': 'round' });
     return svg;
   };
   root.PB = root.PB || {};

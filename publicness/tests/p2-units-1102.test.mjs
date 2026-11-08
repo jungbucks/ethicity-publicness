@@ -41,5 +41,5 @@ test('재검증(11-02): AI에게 예상 물어보기의 미도착 지역·결과
 
 test('재검증(11-02): 그날 마지막 멈춤 안내는 꺼진 ⏭ 대신 ▶·⏩', () => {
   const run = read('js/ui-run.js');
-  assert.match(run, /\(stopsLeft\(\) \? '▶ 재개하면 ' \+ App\.speed \+ '배속, ⏭ 누르면 ' \+ nextLabel\(R\.s\) \+ ' 빨리 가요\.' : '남은 멈춤이 없어요\. ▶ 재개하거나 ⏩ 끝까지 가요\.'\)/);
+  assert.match(run, /\(stopsLeft\(\) \? '재개하면 ' \+ App\.speed \+ '배속, 다음 멈춤을 누르면 ' \+ nextLabel\(R\.s\) \+ ' 빨리 가요\.' : '남은 멈춤이 없어요\. 재개하거나 끝까지 가요\.'\)/);
 });

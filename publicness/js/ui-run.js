@@ -218,7 +218,7 @@
       if (PB.Hud && PB.Hud.render) PB.Hud.render(App);
       /* 2026-11-02 재검증 P1-2: 그날 마지막 멈춤(예: 20:45 하늘 왕복 완료)이면 ⏭는 꺼져 있다(‘남은 멈춤 없음’) — 안내문도 ⏭ 대신 ▶·⏩를 말한다 */
       var cp = nextCheckpoint();
-      setStatus(App.clock(stopAt.t) + ' ' + why + ' ' + (stopsLeft() ? '▶ 재개하면 ' + App.speed + '배속, ⏭ 누르면 ' + nextLabel(R.s) + ' 빨리 가요.' : '남은 멈춤이 없어요. ▶ 재개하거나 ⏩ 끝까지 가요.') + (cp != null ? ' 다음 긴급 조정은 ' + App.clock(cp) + '이에요.' : ''), true);
+      setStatus(App.clock(stopAt.t) + ' ' + why + ' ' + (stopsLeft() ? '재개하면 ' + App.speed + '배속, 다음 멈춤을 누르면 ' + nextLabel(R.s) + ' 빨리 가요.' : '남은 멈춤이 없어요. 재개하거나 끝까지 가요.') + (cp != null ? ' 다음 긴급 조정은 ' + App.clock(cp) + '이에요.' : ''), true);
     }
     syncControls();
   }
@@ -597,13 +597,13 @@
     return R.mode === 'next' ? 'next' : R.speed;
   }
   // 운행 조작은 지도 모서리의 작은 아이콘 묶음 — 글자는 aria-label·툴팁으로(2026-10-27 시각 위계)
-  function iconLabel(b, icon, text) { b.textContent = ''; b.appendChild(el('span', { 'aria-hidden': 'true' }, icon)); b.appendChild(el('span', { 'class': 'btn-text' }, text)); b.setAttribute('aria-label', text); if (!b.title) b.title = text; return b; }
+  function iconLabel(b, icon, text) { PB.Icons.label(b, icon, text); if (!b.title) b.title = text; return b; }
   function syncControls() {
     var shown = shownSpeed();
     SPEEDS.forEach(function (n) { var b = $('#speed-' + n); if (b) b.setAttribute('aria-pressed', String(n === shown)); });
     syncNext();
     var pb = $('#run-pause'), paused = !!(R && !R.done && R.paused);
-    if (pb) { iconLabel(pb, paused ? '▶' : '⏸', paused ? '재개' : '일시정지'); pb.setAttribute('aria-pressed', String(paused)); }
+    if (pb) { iconLabel(pb, paused ? 'play' : 'pause', paused ? '재개' : '일시정지'); pb.setAttribute('aria-pressed', String(paused)); }
     var rc = $('#run-controls'); if (rc) rc.classList.toggle('is-paused', paused); // 멈춘 동안은 ▶만 강조, 배속은 고른 값만 옅게(P1-2)
   }
   function syncNext() {
@@ -632,7 +632,7 @@
     if (!R || R.done || R.finishing) return;
     if (R.pendingEmergency != null) { focusEmergency(); return; }
     release(); R.mode = 'next';
-    setStatus('⏭ ' + nextLabel(R.s) + ' 빨리 가는 중…');
+    setStatus('' + nextLabel(R.s) + ' 빨리 가는 중…');
     syncControls();
   }
 
@@ -671,16 +671,16 @@
       if (R.paused) { release(); setStatus('운행 중 · ' + R.speed + '배속'); }
       else { R.paused = true; R.last = root.performance.now(); setStatus('일시정지 중 · 재개하면 ' + R.speed + '배속으로 이어져요.'); }
       syncControls();
-    } }), paused ? '▶' : '⏸', paused ? '재개' : '일시정지'));
+    } }), paused ? 'play' : 'pause', paused ? '재개' : '일시정지'));
     var dayMs = W * cfg.playback.msPerMinute;
     SPEEDS.forEach(function (speed) {
-      var sb = iconLabel(el('button', { type: 'button', id: 'speed-' + speed, 'class': 'btn', 'aria-pressed': String((App.speed || 1) === speed), title: speed + '배속 · 하루를 ' + Math.round(dayMs / speed / 1000) + '초에 보기', onclick: function () { tick(); setSpeed(speed); } }), speed + '×', speed + '배');
-      sb.firstChild.className = 'speed-icon'; sb.setAttribute('aria-label', speed + '배속'); speeds.appendChild(sb);
+      var sb = el('button', { type: 'button', id: 'speed-' + speed, 'class': 'btn', 'aria-pressed': String((App.speed || 1) === speed), title: speed + '배속 · 하루를 ' + Math.round(dayMs / speed / 1000) + '초에 보기', onclick: function () { tick(); setSpeed(speed); } }, speed + '×');
+      sb.setAttribute('aria-label', speed + '배속'); speeds.appendChild(sb);
     });
     // ‘다음 멈춤까지’(P1-2): 모든 단계 같은 이름 — 긴급 조정 창과 주요 인물 판정(왕복 완료·오늘 기준 초과)에서 멈춤
-    speeds.appendChild(iconLabel(el('button', { type: 'button', id: 'run-next', 'class': 'btn', 'aria-pressed': 'false', title: NEXT_TITLE, onclick: nextDecision }), '⏭', '다음 멈춤'));
-    speeds.appendChild(iconLabel(el('button',{type:'button',id:'run-skip','class':'btn',title:'끝까지 건너뛰기',onclick:skipToEnd}),'⏩','끝까지'));
-    speeds.appendChild(iconLabel(el('button', { type: 'button', id: 'run-sound', 'class': 'btn', 'aria-pressed': String(App.sound), title: '효과음 켜기/끄기', onclick: function () { App.setSound(!App.sound); if (App.sound) App.sfx('person'); } }), App.sound ? '🔊' : '🔇', '소리'));
+    speeds.appendChild(iconLabel(el('button', { type: 'button', id: 'run-next', 'class': 'btn', 'aria-pressed': 'false', title: NEXT_TITLE, onclick: nextDecision }), 'next', '다음 멈춤'));
+    speeds.appendChild(iconLabel(el('button',{type:'button',id:'run-skip','class':'btn',title:'끝까지 건너뛰기',onclick:skipToEnd}),'forward','끝까지'));
+    speeds.appendChild(iconLabel(el('button', { type: 'button', id: 'run-sound', 'class': 'btn', 'aria-pressed': String(App.sound), title: '효과음 켜기/끄기', onclick: function () { App.setSound(!App.sound); if (App.sound) App.sfx('person'); } }), App.sound ? 'sound' : 'mute', '소리'));
     panel.appendChild(el('p', { id: 'run-status', 'class': 'h-small', role: 'status' }, '운행 시작'));
     if (!$('#run-statusbar-text') || !$('#run-statusbar-text').textContent) { if (statusBar()) $('#run-statusbar-text').textContent = '운행 시작'; }
     var live = el('section', { id: 'run-live', 'aria-labelledby': 'run-live-h' });

@@ -82,8 +82,6 @@
     }
     sec.appendChild(gl);
 
-    sec.appendChild(el('label', { 'for': 'next-change', 'class': 'h-small' }, '다음 운영에서 바꾸고 싶은 점(선택)'));
-    sec.appendChild(el('textarea', { id: 'next-change', rows: '3', 'class': 'textarea' }));
     return sec;
   }
 
@@ -138,7 +136,38 @@
     return sec;
   }
 
+  function reviewCase(data) {
+    var card=el('article',{'class':'review-case'});
+    card.appendChild(el('h3',null,data.title));
+    if(data.subtitle)card.appendChild(el('p',{'class':'note'},data.subtitle));
+    card.appendChild(el('p',null,data.text));
+    var sources=el('p',{'class':'note'});
+    [{label:data.source,url:data.url}].concat(data.extraSources||[]).forEach(function(source){
+      if(sources.childNodes.length)sources.appendChild(document.createTextNode(' · '));
+      sources.appendChild(el('a',{'class':'learning-source',href:source.url,target:'_blank',rel:'noopener noreferrer'},source.label));
+    });card.appendChild(sources);return card;
+  }
+  function openEnding(App, review) {
+    App._reviewFor=review?App.s:null;App.go('ending');$('#panel').scrollTop=0;root.scrollTo(0,0);
+  }
+  function gameReview(App,panel) {
+    var s=App.s,sec=el('section',{id:'game-review'});
+    sec.appendChild(el('h2',null,'게임 돌아보기'));
+    sec.appendChild(el('p',{'class':'note'},'선택 활동이에요. 읽거나 쓰지 않아도 운행 결과는 이미 완료되어 있어요.'));
+    var skip=el('button',{type:'button','class':'btn',id:'btn-review-skip',onclick:function(){openEnding(App,false);}},'건너뛰기 · 결과로');sec.appendChild(skip);
+    (PB.stories.learning||[]).slice(0,2).forEach(function(data){sec.appendChild(reviewCase(data));});
+    var more=el('details',{id:'review-more-cases'});more.appendChild(el('summary',null,'다른 AI 사례 더 보기'));
+    (PB.stories.learning||[]).slice(2).forEach(function(data){var item=el('details');item.appendChild(el('summary',null,data.title));item.appendChild(reviewCase(data));more.appendChild(item);});sec.appendChild(more);
+    sec.appendChild(el('label',{'for':'final-reflection'},'처음과 비교해 누구의 이동을 더 살피게 되었나요? 내 운영 결과를 근거로 한두 문장 남겨 보세요.'));
+    var answer=el('textarea',{id:'final-reflection',rows:3,'class':'textarea'});answer.value=typeof s.finalReflection==='string'?s.finalReflection:'';
+    answer.addEventListener('input',function(){s.finalReflection=answer.value;App.save();});sec.appendChild(answer);
+    sec.appendChild(el('p',{'class':'note'},'선택 입력 · 이 브라우저에 자동 저장돼요. 점수와 보상에는 영향을 주지 않아요.'));
+    var bar=el('div',{id:'review-done-bar'});bar.appendChild(el('button',{type:'button','class':'btn btn-primary',id:'btn-review-done',onclick:function(){openEnding(App,false);}},'완료 · 결과로'));sec.appendChild(bar);panel.appendChild(sec);return {};
+  }
+
   UI.ending = function (App, panel) {
+    document.body.classList.toggle('review-open',App._reviewFor===App.s);
+    if(App._reviewFor===App.s)return gameReview(App,panel);
     var s = App.s, sum = S.endingSummary(s);
     cfg=s.config;
     var end=s.end||{cause:'complete'},failed=end.cause==='bankrupt'||end.cause==='contract';
@@ -161,6 +190,10 @@
     panel.appendChild(el('p', {id:'ending-verdict','class':'outcome-lead'}, conclusion.verdict));
     panel.appendChild(el('p', {id:'ending-profit'}, (failed?'보유 잔액 ':'총 수익 ')+App.won(conclusion.profit)+' · 지원금 포함 누적 손익'));
     if (UI.finalScores) panel.appendChild(UI.finalScores(App, s));
+    var reviewActions=el('div',{'class':'review-actions'});
+    reviewActions.appendChild(el('button',{type:'button','class':'btn btn-primary',id:'btn-game-review',onclick:function(){openEnding(App,true);}},'돌아보기'));
+    reviewActions.appendChild(el('button',{type:'button','class':'btn',id:'btn-skip-review',onclick:function(){$('#btn-restart').scrollIntoView({block:'center'});$('#btn-restart').focus();}},'건너뛰기'));
+    panel.appendChild(reviewActions);
     if(failed)panel.appendChild(failureReport(App,s));
     var families=s.history.reduce(function(a,h){var f=h.metrics.families;if(f){a.total+=f.total;a.complete+=f.complete;}return a;},{total:0,complete:0});
     if(families.total)panel.appendChild(el('p',{id:'ending-families'},'호수공원 가족 일정 '+families.total+'팀 중 '+families.complete+'팀 전원 방문·귀가 완료'));
@@ -178,17 +211,9 @@
     rec.querySelector('#rec-h').setAttribute('tabindex', '-1');
     panel.appendChild(rec);
 
-    var rf = el('section', { id: 'reflection', 'aria-labelledby': 'refl-h' });
-    rf.appendChild(el('h3', { id: 'refl-h' }, '생각해 보기'));
-    rf.appendChild(el('p', { 'class': 'note' }, '답은 선택이에요. 이 창에만 남고 저장·전송되지 않아요.'));
-    PB.stories.reflection.forEach(function (q, i) {
-      rf.appendChild(el('label', { 'for': 'refl-' + i }, (i + 1) + '. ' + q));
-      rf.appendChild(el('textarea', { id: 'refl-' + i, rows: '3', 'class': 'textarea' }));
-    });
-    panel.appendChild(rf);
     panel.appendChild(el('p', { id: 'end-seed', 'class': 'note' }, '사건 세팅: ' + (s.mode === 'random' ? '랜덤' : s.mode === 'fixed' ? '지정' : '기본') + ' ' + s.seed + ' · 시나리오 ' + cfg.SCENARIO_VERSION));
     panel.appendChild(el('button', { type: 'button', 'class': 'btn', id: 'btn-restart', onclick: function () { $('#confirm-restart').showModal(); } }, '처음부터 다시'));
-    if(!s.endingReactionsShown){s.endingReactionsShown=true;showReactions();}
+    // Summary is shown first; resident scenes remain available through replay.
     return {};
   };
 })(window);

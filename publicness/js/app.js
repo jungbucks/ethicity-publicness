@@ -386,7 +386,7 @@
     S.routesInOrder(s).forEach(function (r) {
       var st = routeStyle(r.num), buses = s.draft.buses.filter(function (b) { return b.routeNum === r.num; });
       var ok = PB.Graph.validateRoute(g, r).length === 0;
-      var li = el('li', null, PB.Names.route(r.num) + '(' + PB.Names.patternName(PB.Names.pattern(r.num)) + '): ' + App.describeRoute(r) +
+      var li = el('li', null, PB.Names.route(r.num) + ': ' + App.describeRoute(r) +
         (ok ? ' · 한 바퀴 ' + App.duration(PB.Graph.cycleMinutes(g, r)) : ' · 아직 완성되지 않음') +
         ' · ' + (buses.length ? '버스 ' + buses.length + '대' : '배정된 버스 없음'));
       ul.appendChild(li);
@@ -538,7 +538,7 @@
   App.setSound = function (on) {
     App.sound = !!on; PB.Storage.writeSound(App.sound);
     var c = document.querySelector('#opt-sound'); if (c) c.checked = App.sound;
-    var b = document.querySelector('#run-sound'); if (b) { b.setAttribute('aria-pressed', String(App.sound)); b.querySelector('[aria-hidden]').textContent = (App.sound ? '🔊' : '🔇') + ' '; }
+    var b = document.querySelector('#run-sound'); if (b) { b.setAttribute('aria-pressed', String(App.sound)); PB.Icons.label(b, App.sound ? 'sound' : 'mute', '소리'); }
   };
   App.audioCreated = function () { return !!audio; };
 
@@ -616,6 +616,7 @@
       newGame();
     });
     App.newGame = newGame;
+    PB.Icons.label($('#btn-settings'),'settings','설정'); PB.Icons.label($('#btn-help'),'help','도움말');
     $('#btn-help').addEventListener('click', function () { $('#btn-tutorial-replay').hidden = !App.s; if (PB.Arrival) PB.Arrival.fillHelp(App); var more = $('#help-more'), bc = document.body.classList; if (more) more.open = !bc.contains('minimal-ui') || bc.contains('minimal-text'); /* 텍스트 모드·기본 화면은 자세히를 펼친 채(정보를 줄이지 않음) */ $('#help').showModal(); });
     $('#btn-tutorial-replay').addEventListener('click', function () { $('#help').close(); App.showTutorial(); });
     $('#btn-settings').addEventListener('click', function () { $('#settings').showModal(); });

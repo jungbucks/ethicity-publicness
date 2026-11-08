@@ -59,8 +59,8 @@
     if(t){var cs=PB.Narrative.criterionState(t),tl=words.appendChild(el('span',{'class':'resident-tally'+(cs==='impossible'?' impossible':cs==='done'?' done':'')},'누적 '+t.completed+'/'+t.threshold+'회'+(cs==='impossible'?' · 기준 달성 불가':cs==='done'?' · 기준 달성':' · 남은 '+t.remaining+'단계')));tl.dataset.state=cs;}
     head.appendChild(words);
     // 펼침 표시(2026-11-01): 펼치면 ＋ → −, aria-expanded도 함께
-    var mark=el('span',{'class':'resident-expand','aria-hidden':'true'},'＋');head.appendChild(mark);head.setAttribute('aria-expanded','false');card.appendChild(head);
-    card.addEventListener('toggle',function(){mark.textContent=card.open?'−':'＋';head.setAttribute('aria-expanded',String(card.open));});
+    var mark=el('span',{'class':'resident-expand','aria-hidden':'true'});mark.appendChild(PB.Icons.create('plus'));head.appendChild(mark);head.setAttribute('aria-expanded','false');card.appendChild(head);
+    card.addEventListener('toggle',function(){mark.replaceChildren(PB.Icons.create(card.open?'minus':'plus'));head.setAttribute('aria-expanded',String(card.open));});
     var body=el('div',{'class':'resident-journey'});
     data.legs.forEach(function(leg){body.appendChild(el('p',{'class':'journey-leg'},(leg.state==='도착'?'✓ ':leg.state==='미도착'?'✕ ':'— ')+App.nodeName(leg.o)+' → '+App.nodeName(leg.d)+' · '+leg.state));});
     if(data.reason)body.appendChild(el('p',{'class':'journey-reason'},data.reason));

@@ -60,22 +60,16 @@
       }
       st.routes.forEach(function (r) {
         var gRoute = svgEl('g', { 'class': 'net-route', 'data-route': r.num }, routeSvg), gCase = svgEl('g', { 'class': 'net-casing' }, gRoute), gLine = svgEl('g', { 'class': 'net-lines' }, gRoute), routeSegs = [];
-        var ns = r.route.nodes, w = r.active ? Math.min(T.lineActive, 6) : Math.min(T.line, 4), casing = Math.min(T.casing, 1), dash = r.preview ? '10 7' : null;
+        var ns = r.route.nodes, w = Math.min(T.line, 4), casing = Math.min(T.casing, 1), dash = r.preview ? '10 7' : null;
         for (var i = 1; i < ns.length; i++) {
           var a = st.nodes[ns[i - 1]], b = st.nodes[ns[i]]; if (!a || !b) continue;
           var p = lanePoint(a, b, r.num, 0), q = lanePoint(a, b, r.num, 1);
           routeSegs.push({ x1: p.left, y1: p.top, x2: q.left, y2: q.top, pad: w / 2 + casing });
-          if (!r.preview) { svgEl('line', { x1: p.left, y1: p.top, x2: q.left, y2: q.top, 'stroke-width': w + casing * 2 }, gCase); segs.push(routeSegs[routeSegs.length - 1]); }
+          if (!r.preview) { svgEl('line', { x1: p.left, y1: p.top, x2: q.left, y2: q.top, 'stroke-width': w + (r.active ? 6 : casing * 2) }, gCase); if(r.active)gCase.classList.add('selected-route'); segs.push(routeSegs[routeSegs.length - 1]); }
           var ln = svgEl('line', { x1: p.left, y1: p.top, x2: q.left, y2: q.top, stroke: r.color, 'stroke-width': r.preview ? T.line * 0.6 : w, 'data-route': r.num }, gLine);
           if (dash) ln.setAttribute('stroke-dasharray', dash);
           if (r.active) ln.setAttribute('class', 'active');
-          /* 노선마다 선 모양(2026-11-02 휴대폰 정리 — 빨강·초록을 구분하기 어려운 학생용): 1 실선 · 2 이중선(가운데 흰 줄) · 3 점선 · 4 동글 점선. 흰 테두리(casing)가 틈을 채운다 */
-          var pat = !r.preview && root.PB.Names ? root.PB.Names.pattern(r.num) : 'solid';
-          if (pat === 'dash') { ln.setAttribute('stroke-dasharray', (w * 2.2).toFixed(1) + ' ' + (w * 1.1).toFixed(1)); ln.setAttribute('stroke-linecap', 'butt'); ln.classList.add('pat-dash'); }
-          else if (pat === 'dot') { ln.setAttribute('stroke-dasharray', '0 ' + (w * 1.75).toFixed(1)); ln.setAttribute('stroke-width', w + 0.6); ln.classList.add('pat-dot'); }
-          else if (pat === 'double') svgEl('line', { x1: p.left, y1: p.top, x2: q.left, y2: q.top, 'class': 'double-stripe', 'stroke-width': Math.max(1.4, w * 0.32) }, gLine);
-          if (!r.preview && r.kind === 'express') svgEl('line', { x1: p.left, y1: p.top, x2: q.left, y2: q.top, 'class': 'express-stripe', 'stroke-width': Math.max(2, w * 0.3) }, gLine);
-          if (!r.preview && r.kind === 'regional') { ln.setAttribute('stroke-width', w + 3); svgEl('line', { x1: p.left, y1: p.top, x2: q.left, y2: q.top, 'class': 'regional-stripe', 'stroke-width': Math.max(1.5, w * 0.22) }, gLine); }
+
         }
         if (!r.preview) ns.forEach(function (id, i) { if (r.route.stops[i] && st.nodes[id]) (at[id] = at[id] || []).indexOf(r.color) < 0 && at[id].push(r.color); });
         // 이 노선이 서지 않는 정류장을 지나는가: 정류장 원 + 여유 안으로 선이 들어오면 그 둘레만 흐리게
@@ -179,7 +173,7 @@
         if (narrow && n.short) { el.title = n.name; el.setAttribute('aria-label', n.name); }
         if (st.newNodes.indexOf(id) >= 0) { var nb = document.createElement('span'); nb.className = 'net-new'; nb.textContent = narrow ? '새' : '새 정류장'; el.appendChild(nb); el.classList.add('is-new'); }
         // P1-4(2026-11-02): 공공서비스 정류장(외곽 마을·병원 등)은 계획 중에도 정차 횟수와 지원금 조건을 이름표 옆에(6회를 채우면 색이 바뀜)
-        if (st.service[id]) { var sv = document.createElement('span'); sv.className = 'net-service' + (st.service[id].done ? ' done' : ''); sv.textContent = narrow && st.service[id].short ? st.service[id].short : st.service[id].text; /* 좁은 지도는 ‘4/6회’만(P1-8: 긴 pill 때문에 이름표가 자기 정류장에서 멀어졌다) */ sv.title = st.service[id].title || sv.textContent; el.appendChild(sv);
+        if (st.service[id]) { var sv = document.createElement('span'); sv.className = 'net-service' + (st.service[id].done ? ' done' : ''); var progress=document.createElement('strong'),reward=document.createElement('span');progress.className='service-progress';progress.textContent=st.service[id].progress||st.service[id].text;reward.className='service-reward';reward.textContent=st.service[id].reward||'';sv.append(progress,reward); sv.title = st.service[id].title || sv.textContent; el.appendChild(sv);
           // 정차 횟수 글이 짧아져도(6회 채움 ✓) 처음 폭을 지켜 이름 글자가 움직이지 않게(P1-5 ②)
           if (keep.svc[id]) sv.style.minWidth = keep.svc[id] + 'px'; }
         labels.appendChild(el);
