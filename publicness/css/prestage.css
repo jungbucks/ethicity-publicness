@@ -145,7 +145,7 @@ body[data-screen=run] .person-chip-time, body[data-screen=run] .person-chip-trip
 .result-rerun { margin: 12px 0 0; padding: 10px 14px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border); font-size: 15px; line-height: 1.6; word-break: keep-all; } /* 2026-11-09 같은 단계 지난 운행과 비교 */
 .result-rerun p { margin: 0; }
 .result-rerun .note { margin-top: 4px; }
-.result-first-tip { margin: 12px 0 0; padding: 10px 14px; border-left: 3px solid var(--border); font-size: 15px; word-break: keep-all; }
+.result-first-tip { margin: 12px 0 0; padding: 10px 14px; border: 1px solid var(--border); border-radius: 10px; font-size: 15px; word-break: keep-all; }
 .result-ai { margin: 0 0 24px; padding: 16px 18px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
 .result-ai h3 { margin: 0 0 8px; font-size: var(--fs-title); }
 #result-ai-body { min-height: 96px; }
@@ -155,3 +155,17 @@ body[data-screen=run] .person-chip-time, body[data-screen=run] .person-chip-trip
 #result-ai-rows li.ai-picked { background: #fff; box-shadow: inset 3px 0 0 var(--accent, var(--text)); }
 .ai-picked-tag { margin-left: 6px; font-size: 13px; font-weight: 700; color: var(--text-mute); white-space: nowrap; }
 .ai-picked-tag[hidden] { display: none; }
+/* 2026-11-09 테스터 6번: 단계별 생각 쓰기(#think-note · #ai-note) — 문장 안 빈칸, 쓴 낱말에 맞춰 조사가 바뀜. 카드 안에 또 상자를 만들지 않고 윗줄로만 나눔 */
+.think-note { margin: 16px 0 0; padding: 14px 0 0; border-top: 1px solid var(--border); }
+.think-note h4 { margin: 0 0 2px; font-size: 17px; }
+.think-note > .note { margin: 0 0 8px; }
+.note-line { margin: 0 0 6px; line-height: 2.3; word-break: keep-all; }
+.note-blank { width: 9.5em; max-width: 100%; min-height: 40px; padding: 4px 8px; font: inherit; font-size: 16px; border: 1px solid #9aa0aa; border-radius: var(--radius-in); background: #fff; color: var(--text); vertical-align: middle; box-sizing: border-box; }
+.note-blank.note-reason { width: calc(100% - 5.5em); min-width: 10em; }
+.note-blank:focus-visible { outline: 2px solid var(--sem-action); outline-offset: 1px; border-color: var(--sem-action); }
+.note-josa { margin-left: 1px; }
+.note-views { display: inline-flex; flex-wrap: wrap; gap: 6px; vertical-align: middle; margin: 0 4px; }
+.note-view { min-height: 44px; padding: 6px 12px; }
+.note-view[aria-pressed="true"] { border: 2px solid var(--sem-action); background: var(--accent-soft); color: var(--accent-ink); }
+.note-saved { min-height: 1.4em; margin: 0; }
+@media (max-width: 600px) { .note-blank { width: 8em; } .note-blank.note-reason { width: 100%; } }

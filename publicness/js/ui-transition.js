@@ -12,12 +12,13 @@
  'use strict';var PB=root.PB,S=PB.Session,original=PB.UI.result;
  function el(t,a,x){return PB.App.el(t,a,x);}
  function q(panel,sel){return panel.querySelector(sel);}
- // 이번 운행에서 생긴 일(시각순): 돌발 수요·청원·긴급 조정
+ // 이번 운행에서 생긴 일(시각순): 돌발 수요·청원·운행 중 노선 고치기(2026-11-09, 예전 저장본은 긴급 조정 줄)
  function events(App,s,h){
   var out=[];
   if(h.event&&h.event.type==='demand'){var od=PB.Demand.directional(s.config,h.phase)[h.event.odIndex];if(od)out.push({t:h.event.t,text:App.clock(h.event.t)+' · '+App.nodeName(od.o)+'→'+App.nodeName(od.d)+' 요청이 12건 늘었어요(추가 수요).'});}
   if(h.petition)out.push({t:h.petition.t,text:App.clock(h.petition.t)+' · '+App.nodeName(h.petition.zone)+' 주민 청원: 그때까지 요청 '+h.petition.total+'건 중 '+h.petition.count+'건이 아직 도착하지 못했어요.'});
   (s.emergencyLog||[]).filter(function(a){return a.phase===s.phase;}).forEach(function(a){out.push({t:a.at,text:App.clock(a.at)+' · 긴급 조정 · '+(a.busId==null?'변경 없이 계속':'버스 한 대 → '+PB.Names.route(a.routeNum))});});
+  (s.midChanges||[]).filter(function(c){return c.phase===s.phase;}).forEach(function(c){out.push({t:c.at,text:PB.UI.midLine(App,c)});});
   return out.sort(function(a,b){return a.t-b.t;});
  }
  // 운행 중 들린 말: 같은 사람(주민)·같은 문장이 연속이면 한 줄로 ×N
@@ -86,7 +87,7 @@
  }
  function aiCard(App,s,h,last){
   var sec=el('section',{id:'result-ai','class':'result-ai','aria-labelledby':'result-ai-h'});sec.appendChild(el('h3',{id:'result-ai-h'},'AI라면?'));
-  var box=el('div',{id:'result-ai-body'});sec.appendChild(box);
+  var box=el('div',{id:'result-ai-body'});sec.appendChild(box);sec.appendChild(aiNote(s,h));
   var key=planSig(s.current.plan)+'#'+h.metrics.arrived,saved=(s.aiCards||{})[h.phase];
   if(saved&&saved.key===key){aiPaint(sec,saved,s,h,last);return sec;}
   box.appendChild(el('p',{'class':'note',role:'status',id:'result-ai-wait'},'AI가 세 기준으로 다시 짜 보고 있어요.'));
@@ -110,7 +111,36 @@
    row.appendChild(b);
   });
   box.appendChild(row);if(!last)box.appendChild(el('p',{'class':'note'},'고른 답은 다음 단계 지도 위에 ‘이번 목표’로 보여요.'));sec.appendChild(box);
+  sec.appendChild(myNote(s,h));
   return sec;
+ }
+ /* 2026-11-09 테스터 6번(6-A): 단계별 생각 쓰기 — 문장 틀 빈칸(비워도 됨, 점수·진행과 상관없음). 입력마다 s.stageNotes[단계]에 저장(js/stage-notes.js), 다시 그리면 그대로.
+  * 학생은 낱말만 쓰고 뒤 조사(을/를·이/가)는 쓴 낱말에 맞춰 바뀐다. 마지막 엔딩 보고서에 문장으로 모인다 */
+ function noteBox(id,title){var box=el('div',{id:id,'class':'think-note',role:'group','aria-labelledby':id+'-h'});box.appendChild(el('h4',{id:id+'-h'},title));box.appendChild(el('p',{'class':'note'},'빈칸을 채워 보세요. 비워도 괜찮아요. 점수와는 상관없어요.'));return box;}
+ function noteSaved(box){var st=box.querySelector('.note-saved');if(st)st.textContent='저장했어요.';}
+ function blank(s,h,box,field,id,label,kind,max){
+  var NT=PB.StageNotes,inp=el('input',{type:'text',id:id,'class':'note-blank'+(kind?'':' note-reason'),maxlength:String(max||40),autocomplete:'off','aria-label':label,placeholder:kind?'누구·무엇':'짧게'});
+  inp.value=NT.get(s,h.phase)[field];var frag=document.createDocumentFragment();frag.appendChild(inp);
+  var js=kind?el('span',{id:id+'-josa','class':'note-josa'},NT.particle(inp.value,kind)):null;if(js)frag.appendChild(js);
+  inp.addEventListener('input',function(){NT.set(s,h.phase,field,inp.value);if(js)js.textContent=NT.particle(inp.value,kind);PB.App.save();noteSaved(box);});
+  return frag;
+ }
+ function line(parts){var p=el('p',{'class':'note-line'});parts.forEach(function(x){p.appendChild(typeof x==='string'?document.createTextNode(x):x);});return p;}
+ function myNote(s,h){
+  var box=noteBox('think-note','내 생각 남기기');
+  box.appendChild(line(['이번에 나는 ',blank(s,h,box,'kept','note-kept','먼저 챙긴 사람이나 것','을를'),' 먼저 챙겼다.']));
+  box.appendChild(line(['그 대신 ',blank(s,h,box,'lost','note-lost','손해를 본 사람이나 것','이가'),' 손해를 봤다.']));
+  box.appendChild(el('p',{'class':'note note-saved',role:'status'}));return box;
+ }
+ function aiNote(s,h){
+  var NT=PB.StageNotes,box=noteBox('ai-note','AI 제안에 대한 내 생각');
+  box.appendChild(line(['AI는 ',blank(s,h,box,'aiWhat','note-ai-what','AI가 바꾸자고 한 것','을를'),' 바꾸자고 했다.']));
+  var pick=el('span',{'class':'note-views',role:'group','aria-label':'AI와 같은 생각인지 다른 생각인지'});
+  Object.keys(NT.VIEWS).forEach(function(k){var b=el('button',{type:'button','class':'btn note-view','data-ai-view':k,'aria-pressed':String(NT.get(s,h.phase).aiView===k)},NT.VIEWS[k]);
+   b.addEventListener('click',function(){NT.set(s,h.phase,'aiView',NT.get(s,h.phase).aiView===k?'':k);var now=NT.get(s,h.phase).aiView;pick.querySelectorAll('[data-ai-view]').forEach(function(n){n.setAttribute('aria-pressed',String(n.dataset.aiView===now));});PB.App.save();noteSaved(box);});pick.appendChild(b);});
+  box.appendChild(line(['나는 ',pick,'이다.']));
+  box.appendChild(line(['왜냐하면 ',blank(s,h,box,'aiWhy','note-ai-why','그렇게 생각한 까닭',null,120)]));
+  box.appendChild(el('p',{'class':'note note-saved',role:'status'}));return box;
  }
  /* 2026-11-09 교사 플레이테스트 4: 같은 조건으로 다시 한 게임의 같은 단계와 비교 한두 줄(js/run-compare.js — 이미 계산된 숫자만).
   * s.runId = 게임 구분(세션 선택 필드, 예전 저장본엔 없어 여기서 붙임 — App.save가 저장). 기록은 localStorage ethicity.publicness.stageRuns */
@@ -123,6 +153,7 @@
  }
  PB.UI.result=function(App,panel){
   var result=original(App,panel),s=App.s,h=s.history[s.history.length-1],m=h.metrics,k=m.costs,res=s.current.result,last=s.phase>=s.config.phases.length||!!(s.end&&s.end.cause==='contract');
+  if(PB.StageNotes)PB.StageNotes.logPlan(s,h.phase,s.draft);/* 보고서가 노선을 색 이름으로 부르게 출발 계획을 남김(결과 화면에서 초안 = 출발한 계획) */
   var eyebrow=q(panel,'.eyebrow'),title=q(panel,'h2'),scores=q(panel,'#scores'),family=q(panel,'#family-result'),summary=q(panel,'#resident-summary'),notice=q(panel,'#finance-status');
   var details=q(panel,'#result-details'),next=q(panel,'#btn-next-phase'),cards=q(panel,'#resident-day-results');
   var callouts=[].slice.call(panel.querySelectorAll(':scope > p.callout')).filter(function(n){return n!==family&&n!==notice;});
@@ -168,9 +199,10 @@
   var key=el('section',{id:'result-key-metrics','class':'result-key-metrics'});key.appendChild(el('h3',null,'가장 오래 기다린 사람'));key.appendChild(el('p',null,most?App.duration(most.waitTotal)+' · '+(rd?rd.name:App.nodeName(most.o)+' 출발 승객'):'발생한 요청 없음'));
   key.appendChild(el('p',{'class':'note'},'목적지까지 못 간 사람이 운행이 끝날 때까지 기다린 시간도 포함해요. 잇는 노선이 없는 요청은 대기 시간과 별도로 상세 기록에서 확인해요.'));put(key);
   put(summary);
-  var decisions=(s.emergencyLog||[]).filter(function(a){return a.phase===s.phase;});
-  if(decisions.length){var report=el('section',{id:'emergency-report'});report.appendChild(el('h3',null,'운행 중 바꾼 것'));decisions.forEach(function(a){var applied=res.log.filter(function(e){return e.type==='reassign'&&e.bus===a.busId&&e.t>=a.at;})[0];report.appendChild(el('p',null,App.clock(a.at)+' · '+(a.busId==null?'변경 없이 계속':'버스 한 대 → '+PB.Names.route(a.routeNum)+(applied?' · '+App.clock(applied.data.starts)+'부터 투입':' · 운행 종료까지 안전하게 옮길 기회가 없었어요.'))));});
-   if(s.current.baseline)report.appendChild(el('p',{'class':'note'},'같은 사건에서 조정하지 않았다면 도착 '+s.current.baseline.arrived+'건 → 조정 후 '+m.arrived+'건. 출발 전 예상과는 돌발 수요 조건이 달라요.'));put(report);}
+  var decisions=(s.emergencyLog||[]).filter(function(a){return a.phase===s.phase;}),mids=(s.midChanges||[]).filter(function(c){return c.phase===s.phase;});
+  if(decisions.length||mids.length){var report=el('section',{id:'emergency-report'});report.appendChild(el('h3',null,'운행 중 바꾼 것'));
+   mids.forEach(function(c){var applied=c.kind==='move'&&res.log.filter(function(e){return e.type==='reassign'&&e.bus===c.busId&&e.t>=c.at;})[0];report.appendChild(el('p',{'class':'mid-change-line'},PB.UI.midLine(App,c)+(c.kind!=='move'?' · 그 뒤 이 노선 버스는 바뀐 정류장을 따랐어요(이번 운행만).':applied?' · '+App.clock(applied.data.starts)+'부터 달림':' · 운행이 끝날 때까지 옮겨 가지 못했어요.')));});decisions.forEach(function(a){var applied=res.log.filter(function(e){return e.type==='reassign'&&e.bus===a.busId&&e.t>=a.at;})[0];report.appendChild(el('p',null,App.clock(a.at)+' · '+(a.busId==null?'변경 없이 계속':'버스 한 대 → '+PB.Names.route(a.routeNum)+(applied?' · '+App.clock(applied.data.starts)+'부터 투입':' · 운행 종료까지 안전하게 옮길 기회가 없었어요.'))));});
+   if(s.current.baseline)report.appendChild(el('p',{'class':'note'},'같은 날 고치지 않았다면 도착 '+s.current.baseline.arrived+'건 → 고친 뒤 '+m.arrived+'건. 출발 전 예상과는 돌발 수요 조건이 달라요.'));put(report);}
   callouts.forEach(put);
   ['#route-report','#run-log'].forEach(function(id){put(q(panel,id));});
   if(news){var sec=news.querySelector('section'),old=sec.querySelector('#bubble-replay');sec.replaceChild(bubbles(App,s),old);details.appendChild(news);}

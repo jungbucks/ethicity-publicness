@@ -1,6 +1,6 @@
 // 2026-11-02 P1(중간)·P2(사소) 개선 검증(헤드리스 Edge). 지시서 재현 플레이(1단계 1번 F-C-B-D·2번 A-G-E / 2단계 3번 E-H-B-A / 3단계 4번 I-A)
 //  P1-1 계획 중 지도 틀 고정: 1단계 정류장 4곳 잇기·AI 제안 열고 닫기 동안 #stage 박스 그대로, 안내 상자는 정류장·얼굴과 안 겹침, AI 패널은 지도 위에 겹침
-//  P1-2 ‘다음 멈춤까지’: 모든 단계 같은 이름, 1·2단계는 만차·대기 사건에서 안 멈추고 주요 인물 판정(왕복 완료·기준 초과)에서만, 3단계 첫 누름 = 오전 긴급 조정,
+//  P1-2 ‘다음 멈춤까지’: 모든 단계 같은 이름, 1·2단계는 만차·대기 사건에서 안 멈추고 주요 인물 판정(왕복 완료·기준 초과)에서만, 3단계는 11:00(노선 고치기 시작, 2026-11-09)에서도 한 번,
 //       남은 멈춤이 없으면 비활성 + ‘남은 멈춤 없음’, 멈춘 동안 ▶만 강조
 //  P1-3 운행 중 인물 칩 누적이 왕복을 마친 순간 바뀌고 결과 학기 누적과 같음
 //  P1-4 2단계 시작 배너에 보유비, 예상 수지 내역(지원금·운임·보유비·운영·연료비), 공공서비스 정류장 이름표 옆 ‘N/6회 · 6회면 +20,000원’,
@@ -57,7 +57,7 @@ async function arrive(page, phase) {
 }
 async function runToEnd(page) { // 남은 멈춤이 없으면 끝까지 건너뛰기
   for (let i = 0; i < 20 && await page.evaluate(() => document.body.dataset.screen) === 'run'; i++) {
-    if (await page.locator('#emergency-dialog[open]').count()) { await page.locator('#emergency-continue').click(); await page.waitForTimeout(200); continue; }
+    if (await page.locator('#emergency-dialog[open]').count()) { await page.locator('#fix-cancel').click(); await page.waitForTimeout(200); continue; }
     if (await page.locator('#run-next').isDisabled()) { await page.locator('#run-skip').click(); if (await page.locator('#confirm-skip[open]').count()) await page.locator('#confirm-skip button[value="yes"], #skip-yes, #confirm-skip .btn-primary').first().click(); await page.waitForTimeout(1500); continue; }
     await page.locator('#run-next').click(); await page.waitForFunction(() => { const r = PB.UI.runState(); return !r || r.hold || document.body.dataset.screen !== 'run' || document.querySelector('#emergency-dialog[open]'); }, null, { timeout: 60000 }).catch(() => {});
   }
@@ -110,8 +110,8 @@ try {
     await page.locator('#confirm-yes').click(); await page.waitForTimeout(600);
     assert.equal(await page.locator('#run-next').getAttribute('aria-label'), '다음 멈춤까지', phase + '단계 버튼 이름');
     const note = await page.evaluate(() => [...document.querySelectorAll('#panel .note')].map(n => n.textContent).find(t => /정원/.test(t)) || '');
-    assert.match(note, /‘⏭ 다음 멈춤까지’는 (다음 긴급 조정이나 )?주요 인물이 왕복을 마치거나 오늘 대기 기준을 넘긴 순간까지 빨리 간 뒤 멈춰요./, phase + '단계 안내문'); assert.doesNotMatch(note, /다음 결정까지|다음 사건까지|만차·대기/);
-    assert.equal(/다음 긴급 조정이나/.test(note), phase >= 3, '긴급 조정은 3단계부터');
+    assert.match(note, /‘⏭ 다음 멈춤까지’는 (노선을 고칠 수 있게 되는 11:00이나 )?주요 인물이 왕복을 마치거나 오늘 대기 기준을 넘긴 순간까지 빨리 간 뒤 멈춰요./, phase + '단계 안내문'); assert.doesNotMatch(note, /다음 결정까지|다음 사건까지|만차·대기/);
+    assert.equal(/노선을 고칠 수 있게 되는 11:00이나/.test(note), phase >= 3, '노선 고치기는 3단계부터(2026-11-09)');
     const stops = [], runMarks = [];
     for (let i = 0; i < 10 && !(await page.locator('#run-next').isDisabled()); i++) {
       await page.locator('#run-next').click();
@@ -119,7 +119,8 @@ try {
       const r = await page.evaluate(() => ({ t: PB.App.clock(PB.UI.runState().tf), em: !!document.querySelector('#emergency-dialog[open]'), status: document.querySelector('#run-status').textContent, paused: document.querySelector('#run-controls').classList.contains('is-paused'),
         chips: Object.fromEntries([...document.querySelectorAll('.person-chip')].map(c => [c.dataset.resident, c.querySelector('.person-chip-count').textContent])) }));
       stops.push(r);
-      if (r.em) { await page.locator('#emergency-continue').click(); await page.waitForTimeout(200); continue; }
+      if (r.em) { await page.locator('#fix-cancel').click(); await page.waitForTimeout(200); continue; }
+      if (/노선을 한 번 고칠 수 있어요/.test(r.status) && !/(왕복을 마쳐서|을 넘어서)/.test(r.status)) { assert.ok(phase >= 3 && r.t === '11:00', '11:00 멈춤은 3단계부터: ' + r.t); continue; } // 2026-11-09 노선 고치기 시작 멈춤
       assert.match(r.status, /(왕복을 마쳐서|을 넘어서)/, '멈춘 이유 = 주요 인물 판정: ' + r.status); assert.doesNotMatch(r.status, /만차|대기 10명/);
       assert.ok(r.paused, '멈춘 동안 ▶만 강조(배속은 옅게)');
       const loud = await page.evaluate(() => { const cs = e => getComputedStyle(e), play = cs(document.querySelector('#run-pause')); return [...document.querySelectorAll('#run-controls .btn:not(#run-pause)')].filter(b => cs(b).backgroundColor === play.backgroundColor || (cs(b).boxShadow !== 'none' && cs(b).boxShadow === play.boxShadow)).map(b => b.id); });
@@ -128,8 +129,8 @@ try {
     }
     const sameSize = runMarks.filter(m => m.size === runMarks[0].size), runShift = sameSize.slice(1).flatMap(m => moved(sameSize[0], m));
     assert.deepEqual(runShift, [], phase + '단계 운행 중 이름표 글자·얼굴 그대로(대기 pill이 붙어도)');
-    if (phase === 3) assert.ok(stops[0].em && stops[0].t === '10:06', '3단계 첫 누름 = 오전 긴급 조정 ' + JSON.stringify(stops[0]));
-    else assert.ok(stops.every(x => !x.em));
+    if (phase === 3) assert.ok(stops.some(x => x.t === '11:00' && /노선을 한 번 고칠 수 있어요/.test(x.status)) && stops.every(x => !x.em), '3단계: ⏭가 11:00에 한 번 멈춤(창은 저절로 안 열림) ' + JSON.stringify(stops.map(x => x.t)));
+    else assert.ok(stops.every(x => !x.em && !/노선을 한 번 고칠/.test(x.status)));
     assert.ok(await page.locator('#run-next').isDisabled()); assert.equal(await page.locator('#run-next').getAttribute('title'), '남은 멈춤 없음');
     const lastChips = stops[stops.length - 1].chips;
     await runToEnd(page);

@@ -1,0 +1,52 @@
+/* 엔딩 ‘내 운영 보고서’(2026-11-09 테스터 6번, js/ui-report.js) — 화면 + 인쇄(A4 흑백). 투명성 편 보고서와 같은 방식 */
+body.report-open[data-screen="ending"] .stage-col { display: none !important; }
+body.report-open[data-screen="ending"] .game { display: block !important; }
+body.report-open[data-screen="ending"] #panel { max-width: 52rem; margin: auto; max-height: none; overflow: visible; }
+.report { max-width: 48rem; margin: 0 auto; padding-bottom: 40px; }
+.report-head { margin: 0 0 16px; }
+.report-game { margin: 0; color: var(--text-mute); font-size: 14px; }
+.report-head h2 { margin: 4px 0 8px; }
+.report-meta { margin: 0 0 4px; line-height: 1.6; word-break: keep-all; }
+.report-name { display: flex; align-items: center; gap: 8px; margin: 12px 0 4px; font-weight: 700; }
+.report-name input { flex: 0 1 14em; min-width: 0; min-height: 44px; padding: 6px 10px; font: inherit; font-size: 16px; font-weight: 400; border: 1px solid #9aa0aa; border-radius: var(--radius-in); background: #fff; color: var(--text); }
+.report-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 20px; }
+.report-actions .note { flex: 1 1 100%; margin: 0; }
+.report-stage { margin: 0 0 14px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 12px; background: #fff; }
+.report-stage h3 { margin: 0 0 8px; font-size: 18px; }
+.report-row { display: grid; grid-template-columns: 9.5em minmax(0, 1fr); column-gap: 12px; padding: 6px 0; border-top: 1px solid var(--border); }
+.report-row:first-of-type { border-top: 0; }
+.report-k { margin: 0; color: var(--text-mute); font-size: 14px; font-weight: 700; word-break: keep-all; }
+.report-v { margin: 0; line-height: 1.7; word-break: keep-all; overflow-wrap: anywhere; }
+.report-plan, .report-nums { margin: 0; padding: 0; list-style: none; line-height: 1.7; word-break: keep-all; }
+.report-nums { display: flex; flex-wrap: wrap; column-gap: 16px; }
+.report-nums b { font-variant-numeric: tabular-nums; }
+.report-final .report-k { margin-bottom: 4px; }
+@media (max-width: 600px) {
+  .report-row { grid-template-columns: 1fr; row-gap: 2px; }
+  .report-actions .btn { flex: 1 1 100%; }
+  .report-stage { padding: 12px; }
+}
+@media print {
+  @page { size: A4 portrait; margin: 14mm 14mm 16mm; }
+  body.report-open { background: #fff !important; color: #000; }
+  body.report-open > :not(#screen-game) { display: none !important; }
+  body.report-open #screen-game > :not(#panel) { display: none !important; }
+  body.report-open #panel > :not(#report) { display: none !important; }
+  body.report-open #screen-game, body.report-open #panel { display: block !important; position: static !important; width: auto !important; max-width: none !important; height: auto !important; max-height: none !important; overflow: visible !important; margin: 0 !important; padding: 0 !important; border: 0 !important; box-shadow: none !important; background: #fff !important; }
+  body.report-open .no-print { display: none !important; }
+  .report { max-width: none; padding: 0; font-size: 9.5pt; line-height: 1.45; color: #000; }
+  .report * { color: #000 !important; box-shadow: none !important; }
+  .report-game { font-size: 9pt; }
+  .report-head { margin: 0 0 6pt; padding-bottom: 4pt; border-bottom: 1.5pt solid #000; }
+  .report-head h2 { font-size: 15pt; margin: 2pt 0 3pt; }
+  .report-meta { margin: 0; line-height: 1.45; }
+  .report-name { margin: 4pt 0 0; font-size: 10pt; }
+  .report-name input { flex: 0 0 16em; min-height: 0; padding: 0 4pt; border: 0; border-bottom: 1px solid #000; border-radius: 0; background: none; }
+  .report-name input::placeholder { color: transparent; }
+  .report-stage { break-inside: avoid; page-break-inside: avoid; margin: 0 0 5pt; padding: 4pt 8pt; border: 1px solid #777; border-radius: 4pt; }
+  .report-stage h3 { font-size: 11pt; margin: 0 0 2pt; }
+  .report-row { grid-template-columns: 7.5em minmax(0, 1fr); column-gap: 6pt; padding: 1.5pt 0; border-top: 1px solid #bbb; }
+  .report-k { font-size: 8.5pt; }
+  .report-v, .report-plan, .report-nums { line-height: 1.45; }
+  .report-nums { column-gap: 10pt; }
+}

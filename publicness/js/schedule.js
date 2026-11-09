@@ -84,6 +84,45 @@
     tl.km = driven(g, tl.segments, W);
     return tl;
   }
+  /* 운행 중 노선 고치기(2026-11-09, js/midday.js): 버스가 시각 t에 노선 route의 j번 정류장에 닿는 순간부터 이어지는 시각표.
+   * dir = 들어온 방향(+1 = 번호가 커지는 쪽). 열린 노선의 끝에 닿으면 정차 후 방향을 바꾸고, 가운데면 같은 방향으로 계속 간다.
+   * timeline()과 같은 규칙(정차 1초·통과·운행 종료 뒤 tail)이고, 첫 방문(j)부터 visits에 들어간다 */
+  function resume(g, config, busId, route, j, t, dir) {
+    var W = config.bus.window, dwell = config.bus.dwell, out = { visits: [], segments: [], tail: [] };
+    function put(v) { (v.t <= W ? out.visits : out.tail).push(v); }
+    if (Graph.isLoop(route)) {
+      out.loop = true;
+      var count = route.nodes.length - 1, index = j % count, limit = W + Graph.cycleMinutes(g, route);
+      while (t <= limit) {
+        var visit = { t: t, node: route.nodes[index], kind: route.stops[index] ? 'stop' : 'pass', runIn: 0, runOut: 0 };
+        put(visit);
+        if (visit.kind === 'stop') t += dwell;
+        var ni = (index + 1) % count, d = travel(g, config, busId, route.nodes[index], route.nodes[ni]);
+        if (t < W) out.segments.push({ from: route.nodes[index], to: route.nodes[ni], t0: t, t1: t + d, deadhead: false });
+        t += d; index = ni;
+      }
+      return out;
+    }
+    var n = route.nodes.length, run = 0, idx = j, first = idx === 0 || idx === n - 1;
+    if (first) { put({ t: t, node: route.nodes[idx], kind: 'stop', runIn: run, runOut: run + 1 }); run++; dir = idx === 0 ? 1 : -1; }
+    else put({ t: t, node: route.nodes[idx], kind: route.stops[idx] ? 'stop' : 'pass', runIn: run, runOut: run });
+    if (first || route.stops[idx]) t += dwell;
+    var lastEnd = first;
+    while (!(t >= W && lastEnd)) {
+      var next = idx + dir, mm = travel(g, config, busId, route.nodes[idx], route.nodes[next]);
+      if (t < W) out.segments.push({ from: route.nodes[idx], to: route.nodes[next], t0: t, t1: t + mm, deadhead: false });
+      t += mm; idx = next;
+      var isEnd = idx === 0 || idx === n - 1, v;
+      if (isEnd) v = { t: t, node: route.nodes[idx], kind: 'stop', runIn: run, runOut: run + 1 };
+      else v = { t: t, node: route.nodes[idx], kind: route.stops[idx] ? 'stop' : 'pass', runIn: run, runOut: run };
+      put(v);
+      if (isEnd) { run++; dir = -dir; }
+      if (v.kind === 'stop') t += dwell;
+      lastEnd = isEnd;
+    }
+    return out;
+  }
+
   // 실제 주행거리(km) — 운행 종료(W) 전에 달린 만큼만. 구간 도중에 끝나면 달린 비율만, 정차·대기는 0, 공차 이동(deadhead)도 포함.
   // 속도가 빨라도 같은 구간이면 같은 거리(시간이 아니라 도로 거리로 센다)
   function driven(g, segments, W) {
@@ -107,7 +146,7 @@
     return { node: node, parked: false };
   }
 
-  var api = { driven:driven, travel:travel,cycleMinutes:cycleMinutes,vehicle:vehicle,timeline: timeline, positionAt: positionAt, spacePlan: spacePlan };
+  var api = { resume: resume, driven:driven, travel:travel,cycleMinutes:cycleMinutes,vehicle:vehicle,timeline: timeline, positionAt: positionAt, spacePlan: spacePlan };
   root.PB = root.PB || {};
   root.PB.Schedule = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

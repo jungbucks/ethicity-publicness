@@ -1,5 +1,5 @@
 // 2026-11-01 플레이테스트 수정 검증(헤드리스 Edge). 지도(미니멀) 모드와 텍스트 모드 모두.
-// P0: 긴급 조정 기본값·효과 없는 이동 금지·미리 보기·완료 알림 / 확인창이 열리면 운행 멈춤 / 390px 이름표 / 도움말·출발 문구 / 빈 알림 /
+// P0: 노선 고치기(2026-11-09, 옛 긴급 조정)의 버스 옮기기 — 기본 선택 없음·효과 없는 이동 금지·미리 보기·완료 알림 / 확인창이 열리면 운행 멈춤 / 390px 이름표 / 도움말·출발 문구 / 빈 알림 /
 //     머리말 보기 버튼 하나 / 조사 / 첫 정류장 안내 / 컷신 첫 클릭
 // P1: AI 제안 패널(지도 밖·시트·제목·닫기·기준 한 줄·버튼 스크롤 없이·적용하면 닫힘) / ‘다음 사건까지’와 멈춘 이유 / ‘회’ /
 //     1440×900·1280×800 한 화면 / 금액(노선 없음 안내·지금까지) / 배차 간격 글 / 결과 카드 ＋−
@@ -24,12 +24,14 @@ async function toPlan(page, phase, routes) {
     A.go('plan'); document.querySelectorAll('dialog[open]').forEach(d => d.close());
   }, { phase, routes }); await page.waitForTimeout(500);
 }
-async function toEmergency(page) {
-  for (let i = 0; i < 40 && !await page.locator('#emergency-dialog[open]').count(); i++) {
+async function toEmergency(page) { // 2026-11-09: ⏭로 11:00(노선 고치기 시작)까지 → 「노선 고치기 · 한 번」 창 → 버스 옮기기
+  for (let i = 0; i < 40; i++) {
+    const st = await page.evaluate(() => PB.UI.runState()); if (st && st.tf >= st.fixAt) break;
     await page.locator('#run-next').click();
     await page.waitForFunction(() => PB.UI.runState() && PB.UI.runState().hold, null, { timeout: 20000, polling: 20 });
   }
-  await page.locator('#emergency-dialog[open]').waitFor();
+  await page.evaluate(() => PB.UI.openFix()); await page.locator('#emergency-dialog[open]').waitFor();
+  await page.locator('#fix-kind-move').click();
 }
 const PH3 = [{ num: 1, nodes: ['A', 'B'], buses: [1, 2] }, { num: 2, nodes: ['F', 'D'], buses: [3] }, { num: 3, nodes: ['B', 'C', 'E'], buses: [] }];
 
@@ -42,37 +44,33 @@ try {
     await page.evaluate(() => { const S = PB.Session, s = PB.App.s; S.startRun(s); PB.App.go('run'); });
     await toEmergency(page);
     const info = await page.evaluate(() => {
-      const s = PB.App.s, S = PB.Session, at = PB.UI.runState().pendingEmergency, bus = document.querySelector('#emergency-bus'), route = document.querySelector('#emergency-route');
-      const cause = document.querySelector('#stage-overlay .run-alert[data-kind="emergency"]')?.dataset.node || null;
+      const s = PB.App.s, S = PB.Session, at = PB.UI.runState().pendingEmergency, bus = document.querySelector('#fix-bus');
       const rows = [];
-      for (const o of [...bus.options]) { bus.value = o.value; bus.dispatchEvent(new Event('change')); rows.push({ id: Number(o.value), cur: S.busRouteAt(s, Number(o.value), at), routes: [...route.options].map(x => Number(x.value)), preview: document.querySelector('#emergency-preview').textContent }); }
-      return { at, cause, rows };
+      for (const o of [...bus.options].filter(o => o.value)) { bus.value = o.value; bus.dispatchEvent(new Event('change')); const route = document.querySelector('#fix-to'); const first = [...route.options].find(x => x.value); route.value = first.value; route.dispatchEvent(new Event('change')); rows.push({ id: Number(o.value), cur: S.busRouteAt(s, Number(o.value), at), routes: [...route.options].filter(x => x.value).map(x => Number(x.value)), preview: document.querySelector('#fix-result').textContent }); }
+      return { at, rows };
     });
     for (const r of info.rows) assert.ok(!r.routes.includes(r.cur), `${r.id}호차 목록에 지금 노선(${r.cur}번)이 없음`);
-    assert.ok(info.rows.every(r => /^\S+ 버스(\([^)]*\))?는 (승객을 내린 뒤|차고에서 출발해) \d\d:\d\d부터 \S+ 노선에 들어가요\.$|운행이 끝날 때까지/.test(r.preview) && !/\d+호차|\d+번 노선/.test(r.preview)) /* 2026-11-02 버스·노선은 색 이름 */, '미리 보기 한 줄: ' + info.rows.map(r => r.preview).join(' / '));
+    assert.ok(info.rows.every(r => /^\S+ 버스(\([^)]*\))?는 (승객을 다 내린 뒤|차고에서 출발해) \d\d:\d\d부터 \S+ 노선을 달려요\.$|운행이 끝날 때까지/.test(r.preview) && !/\d+호차|\d+번 노선/.test(r.preview)) /* 2026-11-02 버스·노선은 색 이름 */, '미리 보기 한 줄: ' + info.rows.map(r => r.preview).join(' / '));
     ok(q + ' P0-1 새 노선 목록에 지금 달리는 노선 없음 · 미리 보기 한 줄');
-    // 기본값 다시 그리기(패널을 다시 열면 기본 규칙대로)
-    await page.evaluate(() => PB.App.render()); await page.locator('#emergency-dialog[open]').waitFor();
+    // 창을 다시 그리면 고른 것이 없는 처음 상태(2026-11-09: AI·기본 추천 없음) — 학생이 4호차(대기)를 3번 노선으로 직접 고름
+    await page.evaluate(() => PB.App.render()); await page.locator('#emergency-dialog[open]').waitFor(); await page.locator('#fix-kind-move').click();
+    assert.equal(await page.locator('#fix-bus').inputValue(), '', '기본 선택 없음');
+    await page.selectOption('#fix-bus', '4'); await page.selectOption('#fix-to', '3');
     const def = await page.evaluate(() => { const s = PB.App.s, S = PB.Session, at = PB.UI.runState().pendingEmergency;
-      return { bus: Number(document.querySelector('#emergency-bus').value), route: Number(document.querySelector('#emergency-route').value), cur: S.busRouteAt(s, Number(document.querySelector('#emergency-bus').value), at), preview: document.querySelector('#emergency-preview').textContent, live: document.querySelector('#emergency-preview').getAttribute('aria-live') }; });
-    assert.notEqual(def.route, def.cur, '기본값이 효과 없는 이동이 아님'); assert.equal(def.live, 'polite');
-    assert.equal(def.bus, 4, '기본 버스 = 원인과 무관한 쉬는 4호차'); assert.ok(def.preview.startsWith('대기 버스는 차고에서 출발해 '), def.preview);
-    // 같은 노선 이동은 엔진도 받지 않는다(조정권 그대로)
-    assert.equal(await page.evaluate(() => { const s = PB.App.s, at = PB.UI.runState().pendingEmergency; return PB.Session.emergencyDecision(s, at, 1, PB.Session.busRouteAt(s, 1, at)); }), false);
+      return { bus: 4, route: 3, cur: S.busRouteAt(s, 4, at), preview: document.querySelector('#fix-result').textContent, live: document.querySelector('#fix-result').getAttribute('aria-live') }; });
+    assert.notEqual(def.route, def.cur); assert.equal(def.live, 'polite'); assert.ok(def.preview.startsWith('대기 버스는 차고에서 출발해 '), def.preview);
+    // 같은 노선 이동은 엔진도 받지 않는다(기회 그대로)
+    assert.equal(await page.evaluate(() => { const s = PB.App.s, at = PB.UI.runState().pendingEmergency; return PB.Session.midApply(s, { at, kind: 'move', busId: 1, routeNum: PB.Session.busRouteAt(s, 1, at) }); }), false);
     if (!q.includes('textmode')) await page.screenshot({ path: `${SHOT}/_shot-playtest-p0-1-after-window.png` });
-    await page.locator('#emergency-apply').click();
-    const t = await page.evaluate(() => ({ text: document.querySelector('#minimal-toast').textContent, hidden: document.querySelector('#minimal-toast').hidden, role: document.querySelector('#minimal-toast').getAttribute('role'), live: document.querySelector('#minimal-toast').getAttribute('aria-live'), log: PB.App.s.emergencyLog.length }));
-    assert.equal(t.text, `대기 버스를 ${await page.evaluate(n => PB.Names.route(n), def.route)}으로 옮겼어요.`); assert.equal(t.hidden, false); assert.equal(t.role, 'status'); assert.equal(t.live, 'polite'); assert.equal(t.log, 1);
+    await page.locator('#fix-apply').click();
+    const t = await page.evaluate(() => ({ text: document.querySelector('#minimal-toast').textContent, hidden: document.querySelector('#minimal-toast').hidden, role: document.querySelector('#minimal-toast').getAttribute('role'), live: document.querySelector('#minimal-toast').getAttribute('aria-live'), log: PB.App.s.midChanges.length }));
+    assert.equal(t.text, `노선을 고쳤어요 · 대기 버스 한 대를 ${await page.evaluate(n => PB.Names.route(n), def.route)}으로 옮김`); assert.equal(t.hidden, false); assert.equal(t.role, 'status'); assert.equal(t.live, 'polite'); assert.equal(t.log, 1);
     if (!q.includes('textmode')) await page.screenshot({ path: `${SHOT}/_shot-playtest-p0-1-after-toast.png` });
-    ok(q + ' P0-1 기본값 = 4호차(대기) → 원인 노선, 옮긴 뒤 aria-live 알림');
+    ok(q + ' P0-1 기본 선택 없음 · 4호차(대기) → 주황 노선, 옮긴 뒤 aria-live 알림');
     // ── P0-2 확인창이 열리면 멈춤 ───────────────
     await page.waitForTimeout(300);
-    await page.locator('#run-skip').click(); await page.locator('#confirm-skip[open]').waitFor();
-    const a = await page.evaluate(() => PB.UI.runState().tf); await page.waitForTimeout(1500); const b = await page.evaluate(() => PB.UI.runState().tf);
-    assert.equal(b, a, '건너뛰기 확인창이 열린 동안 시계가 멈춤');
-    if (!q.includes('textmode')) await page.screenshot({ path: `${SHOT}/_shot-playtest-p0-2-after.png` });
-    await page.locator('#skip-no').click(); await page.waitForTimeout(900); const c = await page.evaluate(() => PB.UI.runState().tf);
-    assert.ok(c > b, '닫으면 이어 감');
+    /* 2026-11-09: 건너뛰기 확인창은 없어짐(노선 고치기를 안 써도 묻지 않음) — 모달 멈춤은 도움말 창으로 */
+    const c = await page.evaluate(() => PB.UI.runState().tf); await page.waitForTimeout(600); assert.ok(await page.evaluate(() => PB.UI.runState().tf) > c, '고친 뒤 이어 감');
     await page.locator('#btn-help').click(); const h1 = await page.evaluate(() => PB.UI.runState().tf); await page.waitForTimeout(800); const h2 = await page.evaluate(() => PB.UI.runState().tf);
     assert.equal(h2, h1, '도움말 창이 열린 동안에도 멈춤'); await page.locator('#help form button[type=submit]').click();
     ok(q + ' P0-2 확인창·도움말이 열린 동안 시뮬레이션 멈춤, 닫으면 이어 감');
@@ -162,14 +160,14 @@ try {
     assert.deepEqual(await vis(), ['minimal-text-toggle:false']); ok('P0-6 머리말 ‘지도·텍스트 보기’ 하나 · aria-pressed / P2-19 노선이 있으면 지도 안내 숨김');
     // P0-4 도움말·출발 확인 문구
     await page.locator('#btn-help').click();
-    const help = await page.locator('#help').innerText(); assert.doesNotMatch(help, /바꿀 수 없어요/); assert.match(help, /출발한 뒤에는 3단계부터 오전·오후 한 번씩 버스 한 대만 옮길 수 있어요\. 노선 모양은 다음 단계에서 고쳐요\./);
+    const help = await page.locator('#help').innerText(); assert.doesNotMatch(help, /바꿀 수 없어요/); assert.match(help, /3단계부터는 운행 중 11:00~15:00에 한 번 ‘노선 고치기 · 한 번’을 눌러 멈추고, 정류장 하나 더하기·빼기나 버스 한 대 옮기기 중 하나를 바꿀 수 있어요\./);
     await page.locator('#help form button[type=submit]').click();
     await page.evaluate(() => PB.Minimal.text(true)); await page.locator('#btn-depart').click(); await page.locator('#confirm-depart[open]').waitFor();
     assert.equal(await page.locator('#depart-rule').count(), 0, '출발 확인은 질문만(2026-11-02 사용자 결정) — 규칙 문단 없음');
     await page.locator('#confirm-yes').click(); await page.waitForTimeout(300);
     // P1-12 → 2026-11-02 P1-2: 모든 단계 ‘다음 멈춤까지’
     assert.equal(await page.locator('#run-next').getAttribute('aria-label'), '다음 멈춤까지');
-    assert.match(await page.locator('#panel .note').filter({ hasText: '이번 단계는 출발하면' }).innerText(), /3단계부터는 오전·오후 한 번씩 버스 한 대만/);
+    assert.match(await page.locator('#panel .note').filter({ hasText: '이번 단계는 출발하면' }).innerText(), /3단계부터는 11:00~15:00에 한 번 노선을 고칠 수 있어요/);
     ok('P0-4 도움말·출발 확인·운행 안내 문구(텍스트 모드) / P1-12 1단계 버튼 이름 ‘다음 멈춤까지’(11-02 P1-2)');
     assert.deepEqual(page.errors, []); await page.close();
   }

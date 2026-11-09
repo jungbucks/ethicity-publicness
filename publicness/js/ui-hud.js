@@ -54,7 +54,7 @@
     var A = app(), s = A.s;
     if ((s.stage === 'run' || s.stage === 'result') && s.current) {
       var seen = {}, out = [];
-      s.current.plan.buses.forEach(function (b) { if (!b.route) return; var num = A.numForPlanRoute(b.route); if (seen[num]) return; seen[num] = true; out.push({ num: num, color: A.routeStyle(num).color, route: b.route }); });
+      s.current.plan.buses.forEach(function (b) { if (!b.route) return; var num = A.numForPlanRoute(b.route); if (seen[num]) return; seen[num] = true; out.push({ num: num, color: A.routeStyle(num).color, route: A.dayRoute ? A.dayRoute(b.route) : b.route }); });
       return out;
     }
     return A.stageRoutes().filter(function (r) { return r.buses > 0; });

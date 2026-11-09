@@ -17,6 +17,7 @@
   var Schedule = NODE ? require('./schedule.js') : root.PB.Schedule;
   var Layout = NODE ? require('./layout.js') : root.PB.Layout;
   var Scores = NODE ? require('./scores.js') : root.PB.Scores;
+  var Midday = NODE ? require('./midday.js') : root.PB.Midday;
 
   function copyRoute(r) { return { nodes: r.nodes.slice(), stops: r.stops.slice() }; }
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
@@ -379,14 +380,15 @@
   function computeRun(s, plan) {
     var g = graph(s), ev = s.events[s.phase - 1];
     var requests = runRequests(s, ev);
-    var adjustments=(s.emergencyLog||[]).filter(function(a){return a.phase===s.phase&&a.busId!=null;});
-    var result = Sim.run({ g: g, config: s.config, phase: s.phase, plan: plan, requests: requests, event: ev, adjustments:adjustments });
-    var baseline=adjustments.length?Metrics.summarize(Sim.run({g:g,config:s.config,phase:s.phase,plan:plan,requests:requests,event:ev}),g,plan,s.config):null;
+    var day=dayInputs(s,s.phase),adjustments=day.adjustments;
+    var result = Sim.run({ g: g, config: s.config, phase: s.phase, plan: plan, requests: requests, event: ev, adjustments:adjustments, routeChanges:day.routeChanges });
+    var baseline=adjustments.length||day.routeChanges.length?Metrics.summarize(Sim.run({g:g,config:s.config,phase:s.phase,plan:plan,requests:requests,event:ev}),g,plan,s.config):null;
     return { baseline:baseline, plan: plan, result: result, metrics: Metrics.summarize(result, g, plan, s.config), expected: expected(s, plan), requestsN: result.passengers.length, event: ev };
   }
   function startRun(s) {
     if (s.stage !== 'plan' || validate(s).length) return null;
     s.emergencyLog=(s.emergencyLog||[]).filter(function(a){return a.phase!==s.phase;});
+    if(s.midChanges)s.midChanges=s.midChanges.filter(function(a){return a.phase!==s.phase;});
     delete s.runCursor;
     s.current = computeRun(s, clone(toPlan(s)));
     s.stage = 'run'; s.resumedFromRun = false;
@@ -425,6 +427,78 @@
     return true;
   }
 
+  /* ── 운행 중 노선 고치기(하루 한 번, 2026-11-09 — 위 고정 시각 긴급 조정을 대체. 규칙은 js/midday.js·docs/plans/2026-11-09-midday-route-change.md) ──
+   * 저장: 새 선택 필드 s.midChanges [{phase, at, kind:'add'|'remove'|'move', routeNum, node, pos, busId, route, from, busIds}].
+   * 예전 저장본의 s.emergencyLog(10:06·15:03)는 그대로 adjustments로 다시 계산한다(예전 길). 둘을 합친 하루 입력 = dayInputs */
+  function dayInputs(s, phase) {
+    var adjustments = (s.emergencyLog || []).filter(function (a) { return a.phase === phase && a.busId != null; }).map(function (a) { return { at: a.at, busId: a.busId, routeNum: a.routeNum, route: a.route }; });
+    var routeChanges = [];
+    (s.midChanges || []).filter(function (c) { return c.phase === phase; }).forEach(function (c) {
+      if (c.kind === 'move') adjustments.push({ at: c.at, busId: c.busId, routeNum: c.routeNum, route: c.route });
+      else routeChanges.push({ at: c.at, busIds: c.busIds.slice(), route: c.route });
+    });
+    adjustments.sort(function (a, b) { return a.at - b.at; });
+    return { adjustments: adjustments, routeChanges: routeChanges };
+  }
+  function midSpan(s) { return Midday.span(s.config); }
+  function midUsed(s) {
+    return (s.midChanges || []).some(function (c) { return c.phase === s.phase; }) || (s.emergencyLog || []).some(function (a) { return a.phase === s.phase && a.busId != null; });
+  }
+  // 버튼 상태: ok, at(지금 고치면 적용 시각), why = phase(3단계 전)·used·early·late
+  function midStatus(s, tf) {
+    var w = midSpan(s), at = Midday.atFor(s.config, tf), out = { ok: false, at: at, open: w.open, close: w.close, why: null };
+    if (s.phase < 3) out.why = 'phase';
+    else if (midUsed(s)) out.why = 'used';
+    else if (tf < w.open - 1e-9) out.why = 'early';
+    else if (at == null) out.why = 'late';
+    else out.ok = true;
+    return out;
+  }
+  // 출발 계획에서 그 노선을 맡은 버스(운행 중 노선 = 버스 1대 이상)
+  function routeBuses(s, num) {
+    var r = routeByNum(s, num); if (!r || !s.current) return [];
+    var key = r.nodes.join('|') + '#' + r.stops.join('|');
+    return s.current.plan.buses.filter(function (b) { return b.route && b.route.nodes.join('|') + '#' + b.route.stops.join('|') === key; }).map(function (b) { return b.id; }).sort(function (a, b) { return a - b; });
+  }
+  function runningRoutes(s) { return routesInOrder(s).filter(function (r) { return routeBuses(s, r.num).length; }); }
+  // 정류장 하나 더하기·빼기 결과 노선(규칙에 안 맞으면 {fail: 한 줄 이유})
+  function midRoute(s, num, kind, node, pos) {
+    var r = routeByNum(s, num), g = graph(s);
+    if (!r || !routeBuses(s, num).length) return { fail: '버스가 달리는 노선만 고칠 수 있어요.' };
+    var next;
+    if (kind === 'add') {
+      if (!g.has(node)) return { fail: '지금 지도에 없는 정류장이에요.' };
+      if (r.nodes.indexOf(node) >= 0) return { fail: '이미 이 노선에 있는 정류장이에요.' };
+      next = Midday.addStop(r, node, pos); if (!next) return { fail: '넣을 자리를 다시 골라 주세요.' };
+    } else if (kind === 'remove') {
+      if (r.nodes.indexOf(node) < 0) return { fail: '이 노선에 없는 정류장이에요.' };
+      next = Midday.removeStop(r, node); if (!next) return { fail: Graph.isLoop(r) ? '순환 노선은 정류장이 세 곳 넘게 있을 때만 뺄 수 있어요.' : '노선에는 정류장이 두 곳 이상 남아야 해요.' };
+    } else return { fail: '고칠 방법을 골라 주세요.' };
+    if (!routeFits(s, num, next)) return { fail: routeRule(s, num) };
+    var errs = Graph.validateRoute(g, next); if (errs.length) return { fail: errs[0] };
+    return { route: next };
+  }
+  // 한 가지 고치기를 기록하고 운행을 다시 계산한다(출발 계획·계획 초안은 그대로 — 그날만). 안 되면 false
+  function midApply(s, c) {
+    if (s.stage !== 'run' || !s.current || !c) return false;
+    var st = midStatus(s, c.at); if (!st.ok || st.at !== c.at) return false;
+    var entry = { phase: s.phase, at: c.at, kind: c.kind, routeNum: c.routeNum };
+    if (c.kind === 'move') {
+      var route = routeByNum(s, c.routeNum);
+      if (c.busId == null || !route || !canAssign(s, c.busId, c.routeNum) || Graph.validateRoute(graph(s), route).length) return false;
+      if (!s.draft.buses.some(function (b) { return b.id === c.busId; }) || busRouteAt(s, c.busId, c.at) === c.routeNum) return false;
+      entry.busId = c.busId; entry.from = busRouteAt(s, c.busId, c.at); entry.route = clone(route);
+    } else {
+      var m = midRoute(s, c.routeNum, c.kind, c.node, c.pos); if (!m.route) return false;
+      entry.node = c.node; if (c.kind === 'add') entry.pos = c.pos;
+      entry.from = clone(copyRoute(routeByNum(s, c.routeNum))); entry.route = clone(m.route); entry.busIds = routeBuses(s, c.routeNum);
+    }
+    var departure = s.current.plan, baseline = s.current.baseline || s.current.metrics;
+    (s.midChanges || (s.midChanges = [])).push(entry);
+    s.current = computeRun(s, departure); s.current.baseline = baseline;
+    return true;
+  }
+
   // 운행 계획의 노선(엔진 사본) → 초안 노선 번호. 초안에 같은 노선이 없으면 null
   function routeNumOf(s, route) {
     if (!route) return null;
@@ -434,7 +508,7 @@
   // 긴급 조정 시점 at에 버스가 맡은 노선 번호(쉬는 버스는 null). 앞선 조정으로 옮겨 가는 중(승객을 내리는 중)이면 옮겨 갈 노선
   function busRouteAt(s, busId, at) {
     var res = s.current && s.current.result; if (!res) return null;
-    var pending = (s.emergencyLog || []).filter(function (a) { return a.phase === s.phase && a.busId === busId && a.at < at; }).pop();
+    var pending = dayInputs(s, s.phase).adjustments.filter(function (a) { return a.busId === busId && a.at < at; }).pop();
     if (pending) return pending.routeNum;
     var tl = res.timelines.filter(function (x) { return x.busId === busId; })[0]; if (!tl) return null;
     var route = tl.route; (tl.assignments || []).forEach(function (a) { if (a.t <= at) route = a.route; });
@@ -443,9 +517,9 @@
   // 조정을 미리 계산만 한다(저장·결과는 그대로): 버스가 승객을 내리고 그 노선에 들어가는 시각 starts(엔진 시간, 운행 안에 못 들어가면 null)
   function emergencyPreview(s, at, busId, routeNum) {
     var route = routeByNum(s, routeNum); if (!route || !s.current || busId == null) return null;
-    var ev = s.events[s.phase - 1], adj = (s.emergencyLog || []).filter(function (a) { return a.phase === s.phase && a.busId != null; })
+    var ev = s.events[s.phase - 1], day = dayInputs(s, s.phase), adj = day.adjustments
       .concat([{ phase: s.phase, at: at, busId: busId, routeNum: routeNum, route: clone(route) }]);
-    var res = Sim.run({ g: graph(s), config: s.config, phase: s.phase, plan: s.current.plan, requests: runRequests(s, ev), event: ev, adjustments: adj });
+    var res = Sim.run({ g: graph(s), config: s.config, phase: s.phase, plan: s.current.plan, requests: runRequests(s, ev), event: ev, adjustments: adj, routeChanges: day.routeChanges });
     var tl = res.timelines.filter(function (x) { return x.busId === busId; })[0], a = tl && (tl.assignments || []).filter(function (x) { return x.depart >= at; })[0];
     return { starts: a ? a.t : null, leaves: a ? a.depart : null, resting: busRouteAt(s, busId, at) == null };
   }
@@ -454,9 +528,9 @@
   // 하루 도착 건수와 주요 인물 ‘해낸 하루’ 수를 비교한다. 결과는 바뀌지 않는다(미리 보기). base를 넘기면 옮기기 전 계산을 다시 하지 않는다
   function emergencyImpact(s, at, busId, routeNum, base) {
     var route = routeByNum(s, routeNum); if (!route || !s.current || busId == null) return null;
-    var ev = s.events[s.phase - 1], prev = (s.emergencyLog || []).filter(function (a) { return a.phase === s.phase && a.busId != null; });
+    var ev = s.events[s.phase - 1], day = dayInputs(s, s.phase), prev = day.adjustments;
     function sum(adj) {
-      var res = Sim.run({ g: graph(s), config: s.config, phase: s.phase, plan: s.current.plan, requests: runRequests(s, ev), event: ev, adjustments: adj });
+      var res = Sim.run({ g: graph(s), config: s.config, phase: s.phase, plan: s.current.plan, requests: runRequests(s, ev), event: ev, adjustments: adj, routeChanges: day.routeChanges });
       var c = Evaluation.count(Evaluation.records(s.config, s.phase, res));
       return { arrived: res.passengers.filter(function (p) { return p.status === 'arrived'; }).length, ok: c.satisfied, total: c.total };
     }
@@ -521,9 +595,9 @@
   function rescore(s, h) {
     var bal = ledgerBalance(s, h.phase);
     if (!h.plan || !h.metrics || h.event === undefined || bal == null) return false;
-    var g = Graph.build(s.config, h.phase), adj = (s.emergencyLog || []).filter(function (a) { return a.phase === h.phase && a.busId != null; });
+    var g = Graph.build(s.config, h.phase), day = dayInputs(s, h.phase);
     var req = Demand.sortReqs(Demand.base(s.config, h.phase, s.seed).concat(Demand.extra(s.config, h.phase, h.event)));
-    var res = Sim.run({ g: g, config: s.config, phase: h.phase, plan: h.plan, requests: req, event: h.event, adjustments: adj });
+    var res = Sim.run({ g: g, config: s.config, phase: h.phase, plan: h.plan, requests: req, event: h.event, adjustments: day.adjustments, routeChanges: day.routeChanges });
     var arrived = res.passengers.filter(function (p) { return p.status === 'arrived'; }).length;
     if (res.passengers.length !== h.metrics.N || arrived !== h.metrics.arrived) return false;
     h.scores = Scores.phaseScores(s.config, g, h.phase, s.seed, h.event, h.plan, res.passengers, bal);
@@ -618,7 +692,7 @@
   }
 
   var api = {
-    departChecks:departChecks,emergencyDecision:emergencyDecision,EMERGENCY_AT:EMERGENCY_AT,busRouteAt:busRouteAt,emergencyPreview:emergencyPreview,emergencyImpact:emergencyImpact,routeNumOf:routeNumOf,
+    departChecks:departChecks,dayInputs:dayInputs,midStatus:midStatus,midRoute:midRoute,midApply:midApply,runningRoutes:runningRoutes,routeBuses:routeBuses,emergencyDecision:emergencyDecision,EMERGENCY_AT:EMERGENCY_AT,busRouteAt:busRouteAt,emergencyPreview:emergencyPreview,emergencyImpact:emergencyImpact,routeNumOf:routeNumOf,
     serialize: serialize, restore: restore, migrateTransition: migrateTransition, CHOICES: CHOICES, choiceKey: choiceKey, scoresOverall: scoresOverall, rescore: rescore, financeRule: financeRule, financeStatus: financeStatus, balance: balance, DEFICIT_LIMIT: DEFICIT_LIMIT, NEGATIVE_LIMIT: NEGATIVE_LIMIT, residentVerdict: residentVerdict, tripLimit: tripLimit, expectedRun: expectedRun,
     parseSeedParam: parseSeedParam, create: create, graph: graph, visibleNodeIds: visibleNodeIds, routeByNum: routeByNum,
     toPlan: toPlan, validate: validate, routeLimit: routeLimit, routesInOrder: routesInOrder, stopLimit:stopLimit, routeFits:routeFits, routeRule:routeRule, canAssign:canAssign, addRoute: addRoute, updateRoute: updateRoute, deleteRoute: deleteRoute,

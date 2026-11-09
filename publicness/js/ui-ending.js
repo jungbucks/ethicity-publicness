@@ -162,10 +162,13 @@
     var answer=el('textarea',{id:'final-reflection',rows:3,'class':'textarea'});answer.value=typeof s.finalReflection==='string'?s.finalReflection:'';
     answer.addEventListener('input',function(){s.finalReflection=answer.value;App.save();});sec.appendChild(answer);
     sec.appendChild(el('p',{'class':'note'},'선택 입력 · 이 브라우저에 자동 저장돼요. 점수와 보상에는 영향을 주지 않아요.'));
-    var bar=el('div',{id:'review-done-bar'});bar.appendChild(el('button',{type:'button','class':'btn btn-primary',id:'btn-review-done',onclick:function(){openEnding(App,false);}},'완료 · 결과로'));sec.appendChild(bar);panel.appendChild(sec);return {};
+    var bar=el('div',{id:'review-done-bar'});bar.appendChild(el('button',{type:'button','class':'btn btn-primary',id:'btn-review-done',onclick:function(){openEnding(App,false);}},'완료 · 결과로'));if(UI.openReport)bar.appendChild(el('button',{type:'button','class':'btn',id:'btn-review-report',onclick:function(){UI.openReport(App,'review');}},'내 운영 보고서'));sec.appendChild(bar);panel.appendChild(sec);return {};
   }
 
   UI.ending = function (App, panel) {
+    /* 2026-11-09 테스터 6번: ‘내 운영 보고서’(js/ui-report.js) — 열려 있으면 보고서만 */
+    document.body.classList.toggle('report-open',App._reportFor===App.s&&!!UI.report);
+    if(App._reportFor===App.s&&UI.report)return UI.report(App,panel);
     document.body.classList.toggle('review-open',App._reviewFor===App.s);
     if(App._reviewFor===App.s)return gameReview(App,panel);
     var s = App.s, sum = S.endingSummary(s);
@@ -192,6 +195,7 @@
     if (UI.finalScores) panel.appendChild(UI.finalScores(App, s));
     var reviewActions=el('div',{'class':'review-actions'});
     reviewActions.appendChild(el('button',{type:'button','class':'btn btn-primary',id:'btn-game-review',onclick:function(){openEnding(App,true);}},'돌아보기'));
+    if(UI.openReport)reviewActions.appendChild(el('button',{type:'button','class':'btn',id:'btn-report',onclick:function(){UI.openReport(App,'ending');}},'내 운영 보고서'));
     reviewActions.appendChild(el('button',{type:'button','class':'btn',id:'btn-skip-review',onclick:function(){$('#btn-restart').scrollIntoView({block:'center'});$('#btn-restart').focus();}},'건너뛰기'));
     panel.appendChild(reviewActions);
     if(failed)panel.appendChild(failureReport(App,s));

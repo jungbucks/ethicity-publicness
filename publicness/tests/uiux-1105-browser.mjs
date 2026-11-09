@@ -26,7 +26,7 @@ const stage = page => page.evaluate(() => { const r = document.querySelector('#s
 const rect = (page, q) => page.evaluate(q => { const e = document.querySelector(q); if (!e) return null; const r = e.getBoundingClientRect(); return { x: r.left, y: r.top, r: r.right, b: r.bottom }; }, q);
 const hit = (a, b) => a.x < b.r && b.x < a.r && a.y < b.b && b.y < a.b;
 async function depart(page) { await page.locator('#btn-depart').click(); await page.locator('#confirm-yes').click(); await page.waitForTimeout(500); await page.locator('#run-pause').click(); await page.waitForTimeout(150); }
-async function toEmergency(page) { for (let i = 0; i < 30 && !(await page.locator('#emergency-dialog[open]').count()); i++) { await page.locator('#run-next').click({ timeout: 1500 }).catch(() => {}); await page.waitForTimeout(700); } assert.equal(await page.locator('#emergency-dialog[open]').count(), 1, '긴급 조정 창'); }
+async function toEmergency(page) { /* 2026-11-09: ⏭로 11:00까지 → 「노선 고치기 · 한 번」 창(옛 긴급 조정 창 자리) */ for (let i = 0; i < 30; i++) { const st = await page.evaluate(() => PB.UI.runState()); if (st && st.tf >= st.fixAt) break; await page.locator('#run-next').click({ timeout: 1500 }).catch(() => {}); await page.waitForTimeout(700); } await page.evaluate(() => PB.UI.openFix()); assert.equal(await page.locator('#emergency-dialog[open]').count(), 1, '노선 고치기 창'); }
 
 try {
   // ── 1. 노선 없이 출발 ──
@@ -78,7 +78,7 @@ try {
     assert.equal(await page.evaluate(() => document.querySelector('#topbar').inert && document.querySelector('.stage-col').inert), true, '긴급 조정 중 뒤쪽 inert');
     const em = await rect(page, '#emergency-dialog'); assert.ok(!hit(em, await rect(page, '#stage')), '긴급 조정 창이 지도를 덮지 않음');
     await page.screenshot({ path: `${SHOT}/_shot-uiux-${vp.width}x${vp.height}-p3-emergency.png` });
-    await page.locator('#emergency-continue').click(); await page.waitForTimeout(300); sizes.after = await stage(page); assert.equal(await page.evaluate(() => document.querySelector('#topbar').inert), false);
+    await page.locator('#fix-cancel').click(); await page.waitForTimeout(300); sizes.after = await stage(page); assert.equal(await page.evaluate(() => document.querySelector('#topbar').inert), false);
     const all = Object.values(sizes).map(s => s.w + 'x' + s.h); assert.equal(new Set(all).size, 1, '캔버스 크기 하나: ' + JSON.stringify(sizes));
     assert.deepEqual(page.errors, []); ok(`P1-1 ${vp.width}x${vp.height} 계획·운행·운행 상황·결과 지도·AI·긴급 조정 = ${all[0]}`); await page.close();
   }
@@ -87,8 +87,8 @@ try {
     const live = await page.evaluate(() => { const p = document.querySelector('#minimal-profit'); return { title: p.title, running: +p.dataset.running, total: +p.dataset.live }; });
     assert.match(live.title, /운행 종료 때 정산될 항목: 보유비 −40,000원, 공공서비스 수행분 \+0원/); assert.equal(live.running - 40000, live.total, '화면 수지 − 정산 항목 = 정산 수지');
     await page.evaluate(() => document.querySelector('#run-next').click()); await page.waitForFunction(() => PB.UI.runState().hold, null, { timeout: 30000 });
-    const hold = await page.evaluate(() => ({ bar: document.querySelector('#run-statusbar-text').textContent, vis: !!document.querySelector('#run-statusbar').getClientRects().length, alerts: document.querySelectorAll('#stage-overlay .run-alert').length, btn: document.querySelector('#run-open-emergency').hidden }));
-    assert.ok(hold.vis, '상태 줄이 보임'); assert.match(hold.bar, /왕복을 마쳐서|을 넘어서/); assert.match(hold.bar, /멈췄어요/); assert.ok(hold.alerts >= 1, '지도 위 말풍선'); assert.equal(hold.btn, true, '1단계는 긴급 조정 없음');
+    const hold = await page.evaluate(() => ({ bar: document.querySelector('#run-statusbar-text').textContent, vis: !!document.querySelector('#run-statusbar').getClientRects().length, alerts: document.querySelectorAll('#stage-overlay .run-alert').length, btn: document.querySelector('#run-fix-box').hidden }));
+    assert.ok(hold.vis, '상태 줄이 보임'); assert.match(hold.bar, /왕복을 마쳐서|을 넘어서/); assert.match(hold.bar, /멈췄어요/); assert.ok(hold.alerts >= 1, '지도 위 말풍선'); assert.equal(hold.btn, true, '1단계는 노선 고치기 없음(3단계부터)');
     ok('P1-5 멈춤: ' + hold.bar);
     await page.evaluate(() => { const s = PB.App.s; PB.UI.stopRun(); PB.Session.finishRun(s); PB.App.go('result'); }); await page.waitForTimeout(300);
     const r = await page.evaluate(() => { const h = PB.App.s.history[0]; return { think: document.querySelector('#think-bridge').textContent, worst: h.scores.mobility.worst, name: PB.App.nodeName(h.scores.mobility.worst.id), detail: document.querySelector('#score-worst').textContent, lead: document.querySelector('#result-lead').textContent, settle: document.querySelector('#result-settle').innerText, trend: document.querySelector('#result-trend').textContent, final: h.metrics.costs.total }; });

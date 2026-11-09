@@ -318,10 +318,10 @@
     var routes = s.stage === 'run' || s.stage === 'result'
       ? (s.current ? s.current.plan.buses : []).filter(function (b) { return b.route; }).map(function (b) {
         var num = App.numForPlanRoute(b.route), st = routeStyle(num);
-        return { num: num, route: b.route, color: st.color, buses: s.current.plan.buses.filter(function (x) { return x.route && App.numForPlanRoute(x.route) === num; }).length };
+        return { num: num, route: App.dayRoute(b.route), color: st.color, buses: s.current.plan.buses.filter(function (x) { return x.route && App.numForPlanRoute(x.route) === num; }).length };
       }).filter(function (r, i, arr) { return arr.findIndex(function (x) { return x.num === r.num; }) === i; })
       : App.stageRoutes();
-    if(s.stage==='run')(s.emergencyLog||[]).filter(function(a){return a.phase===s.phase&&a.route;}).forEach(function(a){if(!routes.some(function(r){return r.num===a.routeNum;}))routes.push({num:a.routeNum,route:a.route,color:routeStyle(a.routeNum).color});});
+    if(s.stage==='run')(s.emergencyLog||[]).concat((s.midChanges||[]).filter(function(c){return c.kind==='move';})).filter(function(a){return a.phase===s.phase&&a.route;}).forEach(function(a){if(!routes.some(function(r){return r.num===a.routeNum;}))routes.push({num:a.routeNum,route:a.route,color:routeStyle(a.routeNum).color});});
     if(opts.preview){
       var previewState=Object.assign({},s,{draft:JSON.parse(JSON.stringify(s.draft)),goalHistory:JSON.parse(JSON.stringify(s.goalHistory))});
       S.applyRecommendation(previewState,{plan:opts.preview});
@@ -355,8 +355,13 @@
   };
   function nodeXY(id) { var n = (App.s ? App.s.config : cfg).nodes.filter(function (x) { return x.id === id; })[0]; return { x: n.x, y: n.y }; }
   App.nodeXY = nodeXY;
-  // 운행 중·결과 화면의 노선 번호는 초안의 같은 노선 번호를 따른다
+  /* 운행 중 노선 고치기(2026-11-09): 이번 단계에 정류장을 더하거나 뺀 노선은 운행·결과 화면 지도에 바뀐 모양으로(버스 옮기기는 모양이 그대로라 해당 없음) */
+  function sameRoute(a, b) { return !!a && !!b && a.nodes.join('|') === b.nodes.join('|') && a.stops.join('|') === b.stops.join('|'); }
+  App.dayChange = function () { var s = App.s; if (!s || (s.stage !== 'run' && s.stage !== 'result')) return null; return (s.midChanges || []).filter(function (c) { return c.phase === s.phase && c.kind !== 'move'; })[0] || null; };
+  App.dayRoute = function (route) { var c = App.dayChange(); return c && sameRoute(route, c.from) ? c.route : route; };
+  // 운행 중·결과 화면의 노선 번호는 초안의 같은 노선 번호를 따른다(고친 모양이면 고친 노선 번호)
   App.numForPlanRoute = function (route) {
+    var day = App.dayChange(); if (day && sameRoute(route, day.route)) return day.routeNum;
     var hit = App.s.draft.routes.filter(function (r) { return r.nodes.join('|')===route.nodes.join('|')&&r.stops.join('|')===route.stops.join('|'); })[0];
     return hit ? hit.num : 99;
   };

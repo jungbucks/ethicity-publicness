@@ -1,0 +1,30 @@
+/* 운행 중 노선 고치기(하루 한 번, 2026-11-09) — 버튼 #run-fix(상태 줄)·#run-fix-panel(텍스트 모드·기본 화면)과 창(.fix-window = 옛 #emergency-dialog 자리) */
+.run-fix { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.run-fix[hidden] { display: none; }
+.run-fix-btn { min-height: 44px; font-weight: 700; }
+.run-fix.is-open .run-fix-btn:not(:disabled) { background: var(--sem-action, #2563eb); border-color: var(--sem-action, #2563eb); color: #fff; }
+.run-fix-btn:disabled { opacity: .55; cursor: not-allowed; }
+.run-fix-why { font-size: 13px; line-height: 1.35; color: var(--text-mute, #5b6573); }
+.run-fix.is-new .run-fix-btn:not(:disabled) { outline: 3px solid var(--sem-caution, #e8890c); outline-offset: 2px; }
+#run-fix-panel-box { margin: 4px 0 10px; }
+.minimal-ui:not(.minimal-text) #run-fix-panel-box { display: none; } /* 미니멀 지도 화면은 상태 줄의 버튼 하나 */
+.run-statusbar .run-fix { flex: none; }
+.run-statusbar .run-fix .btn { min-height: 40px; }
+body.phone-p .run-statusbar .run-fix-why, body.phone-l .run-statusbar .run-fix-why { font-size: 11px; }
+body.phone-p .run-statusbar .run-fix .btn, body.phone-l .run-statusbar .run-fix .btn { min-height: 36px; padding: 4px 10px; font-size: 12px; }
+
+/* 창: 미니멀 화면은 옛 긴급 조정 창의 p·h3를 숨기므로(minimal.css) 이 창에서는 다시 보인다 */
+.minimal-ui:not(.minimal-text) #emergency-dialog.fix-window > p:not([hidden]), .minimal-ui:not(.minimal-text) #emergency-dialog.fix-window > h3 { display: block; }
+#emergency-dialog.fix-window h2 { color: var(--text, #172335); }
+#emergency-dialog.fix-window { background: var(--surface, #fff); border-color: var(--sem-action, #2563eb); }
+.fix-rule { margin: 0 0 6px; font-size: 13px; line-height: 1.5; }
+.fix-now { margin: 0 0 4px; font-size: 14px; font-weight: 600; line-height: 1.5; }
+.fix-kinds { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 4px 0 6px; }
+.fix-kind { min-height: 44px; padding: 6px 8px; line-height: 1.25; white-space: normal; }
+.fix-kind[aria-pressed="true"] { border: 2px solid var(--sem-action, #2563eb); background: var(--accent-soft, #e8f0ff); font-weight: 700; }
+.fix-kind:disabled { opacity: .5; }
+.fix-field label { margin: 8px 0 2px !important; font-size: 13px; font-weight: 600; }
+.fix-field select { margin: 0 0 4px !important; }
+.fix-result { margin: 8px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--accent-soft, #e8f0ff); font-weight: 600; line-height: 1.5; }
+.fix-result:empty { display: none; }
+body.phone-p .fix-kinds .btn, body.phone-l .fix-kinds .btn { font-size: 13px; }

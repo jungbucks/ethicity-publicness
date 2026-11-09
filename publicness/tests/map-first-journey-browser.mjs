@@ -14,7 +14,8 @@ try{for(const mode of ['default','fixed']){
    const order=ns.sort((a,b)=>Math.atan2(a.y-cy,a.x-cx)-Math.atan2(b.y-cy,b.x-cx)).map(n=>n.id),loop=order.concat([order[0]]);s.draft.routes=[];s.draft.buses.forEach(b=>{b.routeNum=null;});
    const r=S.addRoute(s,{nodes:loop,stops:loop.map(()=>true)});s.draft.buses.forEach(b=>S.assign(s,b.id,r.num));A.keepFocus=true;A.render();});
   await page.locator('#btn-depart').click();await page.locator('#confirm-yes').click();
-  for(let i=0;i<(phase>=3?2:0);i++){for(let k=0;k<40&&!await page.locator('#emergency-dialog[open]').count();k++){await page.locator('#run-next').click();await page.waitForFunction(()=>PB.UI.runState()&&PB.UI.runState().hold,null,{timeout:20000,polling:20});}await page.locator('#emergency-continue').click();}
+  /* 2026-11-09: 정해진 시각 긴급 조정 창 없음 — 3단계부터는 ⏭가 11:00(노선 고치기 시작)에 한 번 멈추는지만 보고 고치지 않고 끝까지 */
+  if(phase>=3){for(let k=0;k<40;k++){const st=await page.evaluate(()=>PB.UI.runState());if(st.tf>=st.fixAt)break;await page.locator('#run-next').click();await page.waitForFunction(()=>PB.UI.runState()&&PB.UI.runState().hold,null,{timeout:20000,polling:20});}assert.equal(await page.locator('#run-fix').isDisabled(),false);}
   await page.locator('#run-skip').click();await page.locator('#resident-day-results').waitFor();
   assert.equal(await page.evaluate(()=>PB.App.s.history.length),phase);
   if(phase===3){await page.screenshot({path:`publicness/docs/map-first/result-${mode}.png`});await page.setViewportSize({width:375,height:812});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await page.screenshot({path:`publicness/docs/map-first/result-${mode}-375.png`});await page.setViewportSize({width:1366,height:900});}

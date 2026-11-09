@@ -222,6 +222,52 @@
       activePlans.forEach(function(b){if(b.id===id)b.route=change.route;});delete draining[id];
       log.push({t:t,type:'reassign',bus:id,node:from,data:{destination:change.route.nodes[0],starts:start}});replanWaiting(t);
     }
+    /* 운행 중 노선 고치기(2026-11-09, js/midday.js) — 그 노선을 달리던 버스 한 대의 남은 하루를 새 정류장 목록으로 바꾼다.
+     *  · 아직 출발 전(t ≤ 출발 시각): 새 노선 처음부터 같은 출발 시각에.
+     *  · 달리는 중: t 이후 첫 방문 정류장(가던 정류장)까지는 그대로 간다. 그 정류장이 새 노선에 있으면 거기서부터 같은 방향으로,
+     *    빠진 정류장이면 서지 않고 지나 다음 정류장으로(끝 정류장이 빠졌으면 돌아 나와 새 끝으로).
+     *  · 탄 사람 중 내릴 곳이 이번 방향 남은 정차에 없으면 _evict — 버스의 다음 정차에서 내려 다른 길을 찾는다(③ 도착 처리).
+     *  · 노선별 표·색은 같은 노선 번호에 이어지도록 assignments는 쓰지 않는다(경로만 바뀜). 연료비는 바뀐 segments의 실제 km */
+    function reroute(id,route,t){
+      var tl=timelines.filter(function(x){return x.busId===id;})[0],ap=activePlans.filter(function(b){return b.id===id;})[0];
+      if(!tl||!ap||!ap.route||draining[id])return;
+      var old=ap.route,fut,parts,T;
+      if(!(tl.assignments||[]).length&&t<=tl.offset){
+        fut=Schedule.timeline(g,config,id,route,tl.offset);T=tl.offset;
+        tl.segments=fut.segments.slice();tl.visits=fut.visits.slice();tl.tail=fut.tail;
+      }else{
+        var all=tl.visits.concat(tl.tail||[]),k=-1;
+        for(var i=0;i<all.length;i++)if(all[i].t>=t){k=i;break;}
+        if(k<0){ap.route=route;return;}
+        var v=all[k],prev=k>0?all[k-1]:null,n=v.node;T=v.t;
+        var loopOld=Graph.isLoop(old),io=loopOld&&n===old.nodes[0]?0:old.nodes.indexOf(n),ip=prev?(loopOld&&prev.node===old.nodes[0]?0:old.nodes.indexOf(prev.node)):-1;
+        var dir=loopOld||ip<0?1:(io>ip?1:-1);
+        if(!loopOld&&ip>=0&&io===ip)dir=1;
+        var at=function(r,x){return Graph.isLoop(r)&&x===r.nodes[0]?0:r.nodes.indexOf(x);},j=at(route,n),lead=[],leadSeg=[];
+        if(j<0){
+          var m,nd=dir;
+          if(loopOld)m=old.nodes[(io+1)%(old.nodes.length-1)];
+          else if(old.nodes[io+dir]!=null)m=old.nodes[io+dir];
+          else{m=old.nodes[io-dir];nd=-dir;}
+          if(at(route,m)<0){ap.route=route;return;}
+          var d=Schedule.travel(g,config,id,n,m);
+          lead.push({t:T,node:n,kind:'pass',runIn:0,runOut:0});if(T<W)leadSeg.push({from:n,to:m,t0:T,t1:T+d,deadhead:false});
+          parts=Schedule.resume(g,config,id,route,at(route,m),T+d,nd);
+        }else parts=Schedule.resume(g,config,id,route,j,T,dir);
+        var vis=lead.filter(function(x){return x.t<=W;}).concat(parts.visits),tail=lead.filter(function(x){return x.t>W;}).concat(parts.tail);
+        fut={busId:id,route:route,routeId:Graph.routeId(route),offset:tl.offset,visits:vis,tail:tail,loop:Graph.isLoop(route),segments:leadSeg.concat(parts.segments)};
+        tl.segments=tl.segments.filter(function(x){return x.t0<T;}).concat(fut.segments);tl.visits=tl.visits.filter(function(x){return x.t<T;}).concat(vis);tl.tail=tail;
+      }
+      tl.moveMinutes=tl.segments.reduce(function(sum,x){return sum+Math.max(0,Math.min(x.t1,W)-Math.max(x.t0,0));},0);tl.km=Schedule.driven(g,tl.segments,W);
+      var next=indexBus(fut);indexed=indexed.filter(function(b){return b.tl.busId!==id;});indexed.push(next);
+      Object.keys(visitAt).forEach(function(key){if(Number(key)>=t)visitAt[key]=visitAt[key].filter(function(e){return e.b.tl.busId!==id;});});
+      fut.visits.forEach(function(x,i){(visitAt[x.t]||(visitAt[x.t]=[])).push({b:next,v:x,k:i});visitAt[x.t].sort(function(a,b){return a.b.tl.busId-b.b.tl.busId;});});
+      ap.route=route;
+      // 이번 방향으로 남은 정차(열린 노선은 다음 끝까지, 순환은 한 바퀴)에 내릴 곳이 없는 승객 → 다음 정차에서 내림
+      var reach={},list=fut.visits.concat(fut.tail||[]);
+      for(var q=0;q<list.length;q++){var w=list[q];if(w.kind==='stop')reach[w.node]=true;if(!fut.loop&&w.runOut!==w.runIn)break;}
+      (onBus[id]||[]).forEach(function(p){var leg=p.journey&&p.journey[p.legIndex];if(leg&&!reach[leg.to])p._evict=true;});
+    }
 
     for (var t = 0; t <= W; t++) {
       (input.adjustments||[]).filter(function(a){return a.at===t;}).forEach(function(a){
@@ -229,6 +275,9 @@
         draining[a.busId]=a;replanWaiting(t);
         var tl=timelines.filter(function(x){return x.busId===a.busId;})[0];
         if(tl&&!activePlans.filter(function(b){return b.id===a.busId;})[0].route)switchRoute(a,config.bus.depot,t);
+      });
+      (input.routeChanges||[]).filter(function(c){return c.at===t;}).forEach(function(c){
+        emergencyActive=true;(c.busIds||[]).slice().sort(function(a,b){return a-b;}).forEach(function(id){reroute(id,c.route,t);});replanWaiting(t);
       });
       // ① 요청 생성
       (byT[t] || []).forEach(function (p) {
@@ -264,6 +313,11 @@
         var busId = e.b.tl.busId, riders = onBus[busId];
         onBus[busId] = riders.filter(function (p) {
           var leg = p.journey[p.legIndex];
+          if (p._evict && leg.to !== e.v.node) { // 노선 고치기로 내릴 곳이 빠짐 → 여기서 내려 다른 길을 찾는다
+            p._evict = false; p.status = 'transfer'; p._ready = t + tMin; p._bus = null; p._location = e.v.node; p.journey = null; p.legIndex = 0;
+            walking.push(p); log.push({ t: t, type: 'alight', pid: p.id, bus: busId, node: e.v.node, data: { evicted: true } });
+            return false;
+          }
           if (leg.to !== e.v.node) return true;
           if (p.legIndex === p.journey.length - 1) {
             p.status = 'arrived'; p.arriveT = t; p._bus = null;
@@ -317,7 +371,7 @@
       if (p.status === 'transfer' || p.status === 'riding' || p.status === 'arrived') return;
       p.status = 'waiting';
     });
-    passengers.forEach(function (p) { delete p._waitStart; delete p._ready; delete p._bus; delete p._location; });
+    passengers.forEach(function (p) { delete p._waitStart; delete p._ready; delete p._bus; delete p._location; delete p._evict; });
 
     var users = passengers.filter(function (p) { return p.firstBoardT != null; });
     var costs = finance(config, g, input.phase, plan, timelines, users.length);

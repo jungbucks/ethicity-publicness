@@ -1,9 +1,9 @@
 // 2026-11-02 P0 버그 4개 수정 검증(헤드리스 Edge). 지시서 재현 플레이: 1단계 1번 외곽 마을→대학교→밀집 주거지→병원, 2번 기차역→일자리→시장 /
-// 2단계 3번 시장→운동장→밀집 주거지→기차역 / 3단계 4번 신도시→기차역(노선마다 버스 1대 자동 배정) → 출발 → 다음 결정까지 → 10:06 긴급 조정
+// 2단계 3번 시장→운동장→밀집 주거지→기차역 / 3단계 4번 신도시→기차역(노선마다 버스 1대 자동 배정) → 출발 → ⏭로 11:00 → 「노선 고치기 · 한 번」(2026-11-09, 옛 10:06 긴급 조정 대체)
 //  P0-1 운행 상황 패널: 1148×977(DPR 1.5)·1280×800·1440×900·390×844에서 헤더 버튼 한 번으로 ‘지금 운행 상황’·주요 인물이 보이고(지도 칸 크기 그대로),
 //       다시 누르면 닫힘. 기본 화면(?minimal=0)도 버튼이 화면을 바꿈. 긴급 조정 창이 떠도 인물 칩이 모두 보임
-//  P0-2 긴급 조정: 노선마다 1대면 기본 선택 없음 + ‘변경 없이 계속’ 권고 / 유일한 버스를 고르면 노선 번호·인물 이름 경고 + 영향 예상 /
-//       2대인 노선이 있으면 그 노선 버스가 기본, 옮기기 그대로
+//  P0-2 노선 고치기의 버스 옮기기: 기본 선택 없음(추천 없음) / 유일한 버스를 고르면 노선 색·인물 이름 경고(영향 예상 숫자는 2026-11-09에 뺌) /
+//       2대인 노선의 버스를 고르면 경고 없이 옮기기
 //  P0-3 결과: 인물 카드와 ‘자주 보는 주민’의 가장 긴 대기가 같은 값, 하루 합은 이름이 다름, 기준 초과면 만족 아님(판정 함수 하나)
 //  P0-4 생각해 보기: 외곽 마을이 모두 도착하면 인정하고 가장 낮은 출발 생활권(밀집 주거지)을 짚음, 숫자 = 출발 생활권 표 /
 //       2번 노선만 운행하면 지금처럼 외곽 마을 문구와 단계 질문
@@ -34,9 +34,10 @@ async function play(page, phase, { only = null, then = 'plan', extra = null } = 
   await page.waitForTimeout(700);
 }
 async function depart(page) { await page.locator('#btn-depart').click(); await page.locator('#confirm-yes').click(); await page.waitForTimeout(700); await page.locator('#run-pause').click(); await page.waitForTimeout(200); } // 출발 직후 멈춤(조정 시각 전에 패널을 여닫아 보려고)
-async function toEmergency(page) {
-  for (let i = 0; i < 25 && !(await page.locator('#emergency-dialog[open]').count()); i++) { await page.locator('#run-next').click().catch(() => {}); await page.waitForTimeout(1000); }
-  assert.equal(await page.locator('#emergency-dialog[open]').count(), 1, '긴급 조정 창'); await page.waitForTimeout(500);
+async function toEmergency(page) { // 2026-11-09: ⏭로 11:00(노선 고치기 시작)까지 간 뒤 「노선 고치기 · 한 번」
+  for (let i = 0; i < 25; i++) { const st = await page.evaluate(() => PB.UI.runState()); if (st && st.tf >= st.fixAt) break; await page.locator('#run-next').click().catch(() => {}); await page.waitForTimeout(1000); }
+  await page.evaluate(() => PB.UI.openFix());
+  assert.equal(await page.locator('#emergency-dialog[open]').count(), 1, '노선 고치기 창'); await page.waitForTimeout(500);
 }
 const stageBox = page => page.evaluate(() => { const r = document.querySelector('#stage').getBoundingClientRect(); return [r.x, r.y, r.width, r.height].map(Math.round).join(','); });
 const visible = (page, sel) => page.evaluate(sel => { const e = document.querySelector(sel); if (!e) return false; const r = e.getBoundingClientRect(), cs = getComputedStyle(e); return r.width > 0 && r.height > 0 && cs.display !== 'none' && cs.visibility !== 'hidden' && r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth; }, sel);
@@ -66,28 +67,28 @@ try {
 
     // ── P0-2 (1148에서) 노선마다 1대 → 기본 선택 없음·권고, 유일한 버스 경고 ──
     if (w === 1148) {
-      assert.equal(await page.locator('#emergency-bus').inputValue(), '', '기본 선택 없음(어떤 노선도 0대로 만들지 않음)');
-      assert.ok(await page.locator('#emergency-apply').isDisabled()); assert.ok(await page.locator('#emergency-advice').isVisible());
-      assert.match(await page.locator('#emergency-advice').textContent(), /모든 노선에 버스가 1대뿐이라.*변경 없이 계속/);
-      await page.selectOption('#emergency-bus', '2'); await page.waitForTimeout(400);
-      const warn = await page.locator('#emergency-warn').textContent();
-      assert.ok(await page.locator('#emergency-warn').isVisible()); assert.match(warn, /^초록 노선 버스가 0대가 돼요\./); /* 2026-11-02 노선은 색 이름(2번 = 초록) */ assert.match(warn, /준\(기차역→산업·일자리\)/);
-      assert.match(await page.locator('#emergency-impact').textContent(), /^옮기면: 하루 도착 예상 \d+ → \d+건 · 주요 인물 기준 충족 \d → \d명$/);
+      await page.locator('#fix-kind-move').click(); await page.waitForTimeout(200);
+      assert.equal(await page.locator('#fix-bus').inputValue(), '', '기본 선택 없음(추천 없음)'); assert.ok(await page.locator('#fix-apply').isDisabled());
+      await page.selectOption('#fix-bus', '2'); await page.selectOption('#fix-to', '1'); await page.waitForTimeout(400);
+      const warn = await page.locator('#fix-warn').textContent();
+      assert.ok(await page.locator('#fix-warn').isVisible()); assert.match(warn, /^초록 노선 버스가 0대가 돼요\./); /* 2026-11-02 노선은 색 이름(2번 = 초록) */ assert.match(warn, /준\(기차역→산업·일자리\)/);
+      assert.equal(await page.locator('#emergency-impact').count(), 0, '영향 예상 숫자 없음(2026-11-09)');
       await page.screenshot({ path: `${SHOT}/_shot-p0-2-warn-1148.png` });
-      await page.locator('#emergency-continue').click(); await page.waitForTimeout(300);
+      await page.locator('#fix-cancel').click(); await page.waitForTimeout(300);
       assert.equal(await page.locator('#emergency-dialog[open]').count(), 0);
-      ok('P0-2 노선마다 1대: 기본 선택 없음 + 권고, 2호차를 고르면 ‘2번 노선 버스가 0대…준(기차역→산업·일자리)…’ + 영향 예상 — ' + warn);
+      ok('P0-2 버스 옮기기: 기본 선택 없음, 초록 노선의 유일한 버스를 고르면 ‘초록 노선 버스가 0대…준(기차역→산업·일자리)…’ — ' + warn);
     }
     await page.close();
   }
   { // P0-2 2대인 노선이 있으면 그 노선 버스가 기본, 옮기기 그대로(4호차를 1번에 더해 1번 2대·4번 0대)
     const page = await fresh('no3d=1', { width: 1280, height: 800 });
     await play(page, 3, { extra: [4, 1] }); await depart(page); await toEmergency(page);
-    const def = await page.locator('#emergency-bus').inputValue(), cur = await page.evaluate(id => PB.Session.busRouteAt(PB.App.s, Number(id), PB.UI.runState().pendingEmergency), def);
-    assert.equal(cur, 1, '기본 버스는 2대인 1번 노선의 버스: ' + def); assert.ok(await page.locator('#emergency-warn').isHidden()); assert.ok(await page.locator('#emergency-advice').isHidden());
-    const to = await page.locator('#emergency-route').inputValue(); await page.locator('#emergency-apply').click(); await page.waitForTimeout(400);
-    assert.equal(await page.evaluate(() => PB.App.s.emergencyLog.filter(a => a.phase === 3 && a.busId != null).length), 1, '옮기기 반영');
-    assert.deepEqual(page.errors, []); ok(`P0-2 2대인 노선이 있으면 기본 = ${def}호차(1번), 경고 없음, 옮기기(→${to}번) 그대로`);
+    await page.locator('#fix-kind-move').click(); const def = await page.evaluate(() => { const s = PB.App.s, at = PB.UI.runState().pendingEmergency; return String(s.draft.buses.find(b => PB.Session.busRouteAt(s, b.id, at) === 1).id); });
+    await page.selectOption('#fix-bus', def); const to = await page.evaluate(() => [...document.querySelectorAll('#fix-to option')].find(o => o.value).value); await page.selectOption('#fix-to', to); await page.waitForTimeout(300);
+    assert.ok(await page.locator('#fix-warn').isHidden(), '2대인 노선의 버스는 경고 없음');
+    await page.locator('#fix-apply').click(); await page.waitForTimeout(400);
+    assert.equal(await page.evaluate(() => PB.App.s.midChanges.filter(a => a.phase === 3 && a.kind === 'move').length), 1, '옮기기 반영');
+    assert.deepEqual(page.errors, []); ok(`P0-2 2대인 노선(빨강)의 ${def}호차를 고르면 경고 없이 옮기기(→${to}번)`);
     await page.close();
   }
 

@@ -1,8 +1,8 @@
 // 운행 속도 재설계(2-4) 브라우저 검증(헤드리스 Edge, 실제 시계):
 //  ① 저장된 배속 4 → 2로 바뀌고 4× 버튼이 없다
 //  ② 기본 세팅 1단계를 ‘⏭ 다음 멈춤까지’(11-02 P1-2: 주요 인물 판정에서만 멈춤)로만 진행 — 멈출 때마다 원인 정류장 고리·문구가 지도 안에 보이고, 단계가 20초 안에 끝난다
-//  ③ 3단계 2×: 긴급 조정 30분 전 1×로 감속·예고 고리 → 조정 창이 지도를 가리지 않고 원인·버스 위치를 보여 줌 → 결정 뒤 2×로 복귀
-//  ④ ‘끝까지 건너뛰기’는 남은 조정 기회가 있으면 확인창(아니요 = 계속, 예 = 남은 기회 ‘변경 없이 계속’으로 기록)
+//  ③ 3단계 2×(2026-11-09): 정해진 조정 시각·감속 없음 → 「노선 고치기 · 한 번」 창이 지도를 가리지 않음 → 고친 뒤 2×로 복귀
+//  ④ ‘끝까지 건너뛰기’는 확인 없이(안 쓰면 아무 일도 없음), ⏭는 11:00에 한 번 멈춤
 // 스크린샷: SHOT_DIR(없으면 tests/_shot-speed-*.png). 3D 확인은 SHOT3D=1
 import {beginPlan} from './browser-fixture.mjs';
 import {createRequire} from 'node:module';import assert from 'node:assert/strict';import {startServer} from './serve.mjs';import path from 'node:path';import {fileURLToPath} from 'node:url';
@@ -69,60 +69,43 @@ try{
       PB.Session.updateRoute(s,1,{nodes:['F','C','B','A'],stops:[true,true,true,true]});PB.Session.updateRoute(s,2,{nodes:['D','A','G'],stops:[true,true,true]});PB.Session.startRun(s);PB.App.go('run');});
     for(let i=0;i<20&&await page.locator('dialog:modal').count();i++){await page.keyboard.press('Escape');await page.waitForTimeout(50);}
   }
+  /* ③·④ 3단계(2026-11-09 새 규칙): 정해진 조정 시각·30분 전 감속 없음 — 2×는 11:00 전후로 그대로 2×.
+   * ⏭는 11:00(노선 고치기 시작)에 한 번 멈춤 → 「노선 고치기 · 한 번」 창은 비모달·패널 안·지도 안 가림·뒤쪽 inert → 고치면 고른 2×로.
+   * 끝까지 건너뛰기는 노선 고치기를 안 썼어도 묻지 않는다 */
   {
     const page=await browser.newPage({viewport:{width:1366,height:900}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
     await page.goto(base+(process.env.SHOT3D?'':'?no3d=1'));await phase3(page);
-    // 페이지 안에서 5ms마다 재생 상태를 기록(3D·느린 프레임에서도 감속 구간을 놓치지 않게)
-    await page.evaluate(()=>{window.__samples=[];window.__sampler=setInterval(()=>{const st=PB.UI.runState();if(!st)return;const stage=document.querySelector('#stage').getBoundingClientRect(),a=document.querySelector('#stage-overlay .run-alert'),r=a&&a.querySelector('.run-alert-ring').getBoundingClientRect();
-      window.__samples.push({ms:performance.now(),tf:st.tf,slowed:st.slowed,shown:st.shown,pending:st.pendingEmergency,s1:document.querySelector('#speed-1').getAttribute('aria-pressed'),s2:document.querySelector('#speed-2').getAttribute('aria-pressed'),alert:a?a.querySelector('.run-alert-label').textContent:null,inside:!!r&&r.left>=stage.left&&r.right<=stage.right&&r.top>=stage.top&&r.bottom<=stage.bottom,status:document.querySelector('#run-status').textContent});},5);});
+    await page.evaluate(()=>{window.__samples=[];window.__sampler=setInterval(()=>{const st=PB.UI.runState();if(!st)return;window.__samples.push({tf:st.tf,slowed:st.slowed,shown:st.shown});},5);});
     await page.locator('#speed-2').click();
-    await page.locator('#emergency-dialog[open]').waitFor({timeout:30000});
+    await page.waitForFunction(()=>PB.UI.runState().tf>44,null,{timeout:30000,polling:20});
     const samples=await page.evaluate(()=>{clearInterval(window.__sampler);return window.__samples;});
-    // 30분 전 감속 — 2×를 골랐어도 1×로 표시되고 원인 정류장에 예고 고리
-    const ms=await page.evaluate(()=>PB.config.playback.msPerMinute);const zone=samples.filter(x=>x.slowed&&x.tf<34&&x.pending==null);
-    assert.ok(zone.length>=1,'감속 구간 표본');
-    zone.forEach(x=>{assert.ok(x.tf>=34-30*120/1080-1e-6,'감속 시작 '+x.tf);assert.equal(x.shown,1);assert.equal(x.s1,'true');assert.equal(x.s2,'false');assert.match(x.alert,/^긴급 조정 예고 · .+ 대기 \d+명$/);assert.ok(x.inside,'예고 고리가 지도 안');assert.match(x.status,/30분 전/);});
-    const clicked=samples.findIndex(x=>x.s2==='true');assert.ok(clicked>=0);assert.ok(samples.slice(clicked).filter(x=>!x.slowed&&x.tf<34-30*120/1080-0.2).every(x=>x.s2==='true'),'2×를 고른 뒤 감속 전에는 2×');
-    const tfs=[...new Set(zone.map(x=>x.tf))];
-    if(tfs.length>=2){const a=zone[0],b=zone[zone.length-1],rate=(b.tf-a.tf)/(b.ms-a.ms)*ms;console.log('slow-zone playback rate',rate.toFixed(2),'× (samples',zone.length,', tf',a.tf.toFixed(2),'→',b.tf.toFixed(2),')');assert.ok(rate<1.3,'감속 구간은 1× '+rate);}
-    else console.log('slow-zone: only',tfs.length,'distinct sample(s) — rate not measured');
-    const before=samples.slice(clicked).filter(x=>!x.slowed&&x.tf<28);if(before.length>=2){const a=before[0],b=before[before.length-1];console.log('before-zone playback rate',((b.tf-a.tf)/(b.ms-a.ms)*ms).toFixed(2),'×');}
-    // 조정 창: 모달 아님, 패널 안, 지도와 겹치지 않음, 원인·버스 위치
-    const box=await page.evaluate(()=>{const d=document.querySelector('#emergency-dialog'),r=d.getBoundingClientRect(),m=document.querySelector('#stage').getBoundingClientRect();return {modal:d.matches(':modal'),inPanel:!!d.closest('#panel'),overlap:!(r.right<=m.left||r.left>=m.right||r.bottom<=m.top||r.top>=m.bottom),cause:document.querySelector('#emergency-cause').textContent,buses:[...document.querySelectorAll('#emergency-buses li')].map(l=>l.textContent)};});
-    assert.equal(box.modal,false);assert.ok(box.inPanel);assert.equal(box.overlap,false,'조정 창이 지도를 가리지 않음');
-    const al2=await alertsOnMap(page);assert.equal(al2.length,1);assert.ok(al2[0].inside);
-    assert.match(box.cause,new RegExp('원인 정류장 · '+(await page.evaluate(n=>PB.App.nodeName(n),al2[0].node))+' 대기 \\d+명'));
-    assert.equal(box.buses.length,4,'버스 4대 위치');assert.ok(box.buses.some(t=>/이동 중|정류장|출발 대기/.test(t)));assert.ok(box.buses.some(t=>/쉬는 중/.test(t)));
-    assert.equal(await page.evaluate(()=>PB.App.s.runCursor),34);
-    // 지도는 계속 조작 가능(모달 아님) — 정류장 정보 클릭
-    console.log('emergency window',JSON.stringify(box));
+    assert.ok(samples.filter(x=>x.tf>30&&x.tf<44).length>=1,'표본');
+    assert.ok(samples.filter(x=>x.tf>30&&x.tf<44).every(x=>!x.slowed&&x.shown===2),'11:00 앞뒤로 감속 없이 2×');
+    assert.equal(await page.locator('#run-fix').isDisabled(),false,'11:00 뒤 버튼 켜짐');
+    await page.locator('#run-fix').click();await page.locator('#emergency-dialog[open]').waitFor();
+    const box=await page.evaluate(()=>{const d=document.querySelector('#emergency-dialog'),r=d.getBoundingClientRect(),m=document.querySelector('#stage').getBoundingClientRect();return {modal:d.matches(':modal'),inPanel:!!d.closest('#panel'),overlap:!(r.right<=m.left||r.left>=m.right||r.bottom<=m.top||r.top>=m.bottom),now:document.querySelector('#fix-now').textContent};});
+    assert.equal(box.modal,false);assert.ok(box.inPanel);assert.equal(box.overlap,false,'창이 지도를 가리지 않음');assert.match(box.now,/지금 (기다리는 사람|정류장에서)/);
     await page.screenshot({path:shot('emergency'+(process.env.SHOT3D?'-3d':''))});
-    // ④-a 창이 열린 동안 뒤쪽 조작은 막힌다(2026-11-05 P2 inert) — 끝까지 건너뛰기는 결정 뒤에
-    assert.equal(await page.evaluate(()=>document.querySelector('.stage-col').inert&&document.querySelector('#topbar').inert),true);assert.equal(await page.evaluate(()=>(PB.App.s.emergencyLog||[]).length),0);
-    // 결정 → 마지막으로 고른 2×로 복귀
-    await page.locator('#emergency-bus').selectOption('3');await page.locator('#emergency-route').selectOption('2');await page.locator('#emergency-apply').click();
-    const after=await state(page);assert.equal(after.speed,2);assert.equal(after.shown,2,'결정 뒤 2×');assert.equal(await page.locator('#speed-2').getAttribute('aria-pressed'),'true');
-    assert.equal(await page.locator('#stage-overlay .run-alert').count(),0,'결정 뒤 고리 사라짐');
+    assert.equal(await page.evaluate(()=>document.querySelector('.stage-col').inert&&document.querySelector('#topbar').inert),true);
+    await page.locator('#fix-kind-move').click();await page.locator('#fix-bus').selectOption('3');await page.locator('#fix-to').selectOption('2');await page.locator('#fix-apply').click();
+    const after=await state(page);assert.equal(after.speed,2);assert.equal(after.shown,2,'고친 뒤 2×');assert.equal(await page.locator('#speed-2').getAttribute('aria-pressed'),'true');
     assert.equal(await page.evaluate(()=>localStorage.getItem('ethicity.publicness.speed')),'2');
-    // ④-b 남은 1회 → 확인창 문구, 예 → 남은 기회는 ‘변경 없이 계속’으로 기록되고 결과 화면
-    await page.locator('#run-skip').click();await page.locator('#confirm-skip[open]').waitFor();
-    assert.equal(await page.locator('#confirm-skip-h').innerText(),'남은 긴급 조정 기회 1회를 쓰지 않고 넘어갈까요?');
-    await page.locator('#skip-yes').click();await page.locator('#resident-day-results').waitFor({timeout:15000});
-    assert.deepEqual(await page.evaluate(()=>PB.App.s.emergencyLog.map(a=>[a.at,a.busId])),[[34,3],[67,null]]);
+    await page.locator('#run-skip').click();assert.equal(await page.locator('dialog:modal').count(),0,'확인창 없음');
+    await page.locator('#resident-day-results').waitFor({timeout:15000});
+    assert.deepEqual(await page.evaluate(()=>PB.App.s.midChanges.map(a=>[a.kind,a.busId])),[['move',3]]);assert.equal(await page.evaluate(()=>(PB.App.s.emergencyLog||[]).length),0);
     assert.equal(await page.evaluate(()=>PB.App.s.history.length),1);
     assert.deepEqual(errors,[]);await page.close();
-    console.log('PASS ③④ slow-down to 1× with preview ring, non-blocking window with cause+bus positions, back to 2× after decision, skip confirm n=2/1');
+    console.log('PASS ③④ no slow-down, button opens non-blocking window, back to 2× after the change, skip without confirm');
   }
-  // ④-c 남은 기회가 없으면 확인 없이 끝까지 / ⏭는 3단계에서도 조정 시점에서 멈춘다
+  // ④-c ⏭는 3단계에서 11:00에 한 번 멈추고(상태 줄 한 줄), 안 써도 끝까지 확인 없이
   {
     const page=await browser.newPage({viewport:{width:1366,height:900}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
     await page.goto(base+'?no3d=1');await phase3(page);
-    for(let i=0;i<40;i++){await page.locator('#run-next').click();await page.waitForFunction(()=>PB.UI.runState().hold,null,{timeout:20000,polling:20});if(await page.locator('#emergency-dialog[open]').count())break;}
-    assert.equal(await page.evaluate(()=>PB.App.s.runCursor),34);await page.locator('#emergency-continue').click();
-    for(let i=0;i<40;i++){await page.locator('#run-next').click();await page.waitForFunction(()=>PB.UI.runState().hold,null,{timeout:20000,polling:20});if(await page.locator('#emergency-dialog[open]').count())break;}
-    assert.equal(await page.evaluate(()=>PB.App.s.runCursor),67);await page.locator('#emergency-continue').click();
-    await page.locator('#run-skip').click();assert.equal(await page.locator('#confirm-skip[open]').count(),0,'남은 기회 0 → 확인창 없음');
-    await page.locator('#resident-day-results').waitFor({timeout:15000});assert.deepEqual(errors,[]);await page.close();
-    console.log('PASS ④-c ⏭ stops at both checkpoints, skip without confirm when none left');
+    let hit=null;for(let i=0;i<40;i++){await page.locator('#run-next').click();await page.waitForFunction(()=>PB.UI.runState().hold,null,{timeout:20000,polling:20});const st=await state(page);if(st.tf>=st.fixAt){hit=st;break;}}
+    assert.equal(hit&&hit.tf,40);assert.match(await page.locator('#run-statusbar-text').innerText(),/이제 15:00까지 노선을 한 번 고칠 수 있어요/);
+    assert.equal(await page.locator('#emergency-dialog').count(),0,'창은 저절로 안 열림');
+    await page.locator('#run-skip').click();assert.equal(await page.locator('dialog:modal').count(),0);
+    await page.locator('#resident-day-results').waitFor({timeout:15000});assert.equal(await page.evaluate(()=>(PB.App.s.midChanges||[]).length),0);assert.deepEqual(errors,[]);await page.close();
+    console.log('PASS ④-c ⏭ stops once at 11:00, skip without confirm when unused');
   }
 }finally{if(browser)await browser.close();server.close();}

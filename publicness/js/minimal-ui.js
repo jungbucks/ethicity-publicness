@@ -15,7 +15,7 @@
   wait:function(){var c=cfgNow();return c.service&&c.service.maxWait!=null?'한 번 이동에 '+PB.Demand.duration(c,c.service.maxWait)+' 넘게 기다리면 그날은 세지 않아요.':'';},
   river:function(){var R=cfgNow().river;return R?'강을 건너는 구간은 다리로 돌아가서, 지도에서 보는 것보다 '+R.factor+'배 오래 걸려요.':'';},
   phaseCost:function(){var s=PB.App&&PB.App.s,F=cfgNow().finance,n=s&&PB.App.phaseChanges?PB.App.phaseChanges(s).buses:0;return n>0?'예상 수지가 달라졌어요: 새 버스 '+n+'대 보유비 −'+won(F.holding*n)+' · 기본 지원 +'+won(F.basePerBus*n)+'.':'';},
-  emergency:'버스를 골라 필요한 노선으로 옮기세요.',express:'직행은 직행 버스로 최대 세 곳을 이어요.',regional:'광역은 광역 버스로 마을과 대도시를 이어요.'};
+  fix:'한 가지만 골라 바꾸면 버스가 다시 달려요.',express:'직행은 직행 버스로 최대 세 곳을 이어요.',regional:'광역은 광역 버스로 마을과 대도시를 이어요.'};
  function crossesRiver(s,r){var g=PB.Session.graph(s);return !!g.river&&r.nodes.some(function(id,i){return i>0&&g.river(r.nodes[i-1],id);});}
  function tipText(k){var v=tips[k];return typeof v==='function'?v():v;}
  function $(s){return document.querySelector(s);}function el(t,cls,text){var n=document.createElement(t);if(cls)n.className=cls;if(text!=null)n.textContent=text;return n;}
@@ -80,7 +80,7 @@
   Array.from(panel.children).forEach(function(n){if(n!==next)details.append(n);});panel.prepend(scene,details);
  }
  function legacyReflection(){if($('#minimal-reflection'))return;var answer=$('#reflection-answer');if(!answer)return;var cards=el('div','minimal-reflection');cards.id='minimal-reflection';['더 많은 사람을 빠르게','오래 기다린 사람부터'].forEach(function(label){var b=el('button','btn',label);b.type='button';b.setAttribute('aria-pressed',String(answer.value===label));b.onclick=function(){answer.value=label;answer.dispatchEvent(new Event('input',{bubbles:true}));cards.querySelectorAll('button').forEach(function(n){n.setAttribute('aria-pressed',String(n===b));});};cards.append(b);});answer.before(cards);}
- function emergency(){var dialog=$('#emergency-dialog');document.body.classList.toggle('minimal-emergency',!!dialog);if(PB.App.syncLayout)PB.App.syncLayout();if(PB.App&&PB.App.syncPanelToggle)PB.App.syncPanelToggle();if(!dialog||$('#minimal-emergency-buses')||!root.MINIMAL_UI)return;var s=PB.App.s,rs=PB.UI.runState(),counts=PB.Sim.occupancyAt(s.current.result,rs.tf),chips=el('div','minimal-emergency-buses');chips.id='minimal-emergency-buses';
+ function emergency(){var dialog=$('#emergency-dialog');document.body.classList.toggle('minimal-emergency',!!dialog);if(PB.App.syncLayout)PB.App.syncLayout();if(PB.App&&PB.App.syncPanelToggle)PB.App.syncPanelToggle();if(!dialog||$('#minimal-emergency-buses')||!root.MINIMAL_UI||!dialog.querySelector('#emergency-buses'))return;/* 2026-11-09 노선 고치기 창엔 옛 버스 목록이 없다(버튼은 창이 직접 그림) */var s=PB.App.s,rs=PB.UI.runState(),counts=PB.Sim.occupancyAt(s.current.result,rs.tf),chips=el('div','minimal-emergency-buses');chips.id='minimal-emergency-buses';
   // 옮길 수 없는 버스(갈 노선이 없는 버스)는 칩을 막아 둔다 — 고른 버스는 눌린 모양(긴급 조정 창의 기본 선택과 같게)
   var select=$('#emergency-bus');dialog.querySelectorAll('#emergency-buses li').forEach(function(li){var id=Number(li.dataset.bus),b=el('button','btn',((li.querySelector('b')||{}).textContent||'버스').trim()+' · '+(counts[id]||0)+'/'+PB.Schedule.vehicle(s.config,id).capacity),ok=!!(select&&select.querySelector('option[value="'+id+'"]'));PB.Icons.label(b,'bus',b.textContent);b.type='button';b.setAttribute('aria-label',li.textContent+(ok?'':' · 옮길 수 있는 노선 없음'));b.title=b.getAttribute('aria-label');b.disabled=!ok;b.setAttribute('aria-pressed',String(ok&&select.value===String(id)));b.onclick=function(){select.value=String(id);select.dispatchEvent(new Event('change',{bubbles:true}));chips.querySelectorAll('button').forEach(function(n){n.setAttribute('aria-pressed',String(n===b));});};chips.append(b);});dialog.querySelector('h2').after(chips);
  }
@@ -112,7 +112,7 @@
    function move(p){if(Math.hypot(p.clientX-x,p.clientY-y)>7)clear();}document.addEventListener('pointerup',clear);document.addEventListener('pointercancel',clear);document.addEventListener('pointermove',move);
   });
   new MutationObserver(function(){var m=$('#map-plan-message');if(m&&m.textContent!==lastMessage){lastMessage=m.textContent;if(root.MINIMAL_UI&&!full)toast(lastMessage);}var r=$('#run-status');if(r&&r.textContent!==lastRunStatus){lastRunStatus=r.textContent;if(root.MINIMAL_UI&&!full&&!$('#run-statusbar-text'))toast(lastRunStatus);/* 상태 줄(#run-statusbar)이 있으면 알림으로 또 띄우지 않는다 */}}).observe($('#panel'),{childList:true,subtree:true,characterData:true});
-  new ResizeObserver(signals).observe(stage);setInterval(function(){if(PB.App.s&&PB.App.s.stage==='run'){signals();emergency();if($('#emergency-dialog'))tip('emergency');}},500);
+  new ResizeObserver(signals).observe(stage);setInterval(function(){if(PB.App.s&&PB.App.s.stage==='run'){signals();emergency();if($('#emergency-dialog'))tip('fix');}},500);
   refresh();
  }
  PB.Minimal={set:set,text:text,refresh:refresh,tip:tip,tipText:tipText};
