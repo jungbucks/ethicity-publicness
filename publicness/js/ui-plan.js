@@ -203,11 +203,12 @@
     app().toast(P.message,{priority:true});}// 적용하면 AI 패널은 닫히고(ui-map-plan) 알림만 남는다(2026-11-01)
   UI.planSetPreview=function(on){P.preview=!!on&&!!P.rec;};
   // AI 목표별로 무엇을 기준으로 고르는지(advisor.js score와 같은 뜻, 2026-11-01). 알고리즘은 그대로이고 설명만 보탠다
-  var GOAL_DESC={time:'모든 이동의 도착까지 걸린 시간 합이 가장 짧은 계획을 골라요.',reach:'지난 운행에서 도착률이 가장 낮았던 출발 지역 두 곳의 도착률을 높여요.',profit:'이번 단계 수지(지원금 + 운임 − 비용)가 가장 큰 계획을 골라요.'};
-  // P2-4(2026-11-02): 지난 운행이 없는 1단계의 ‘소외 지역 연결’은 처음 정해 둔 출발 지역(config.reachInitial)
-  function goalDesc(id){var s=st();if(id==='reach'&&(s.phase===1||!s.history.length))return '처음 정해 둔 출발 지역('+(s.config.reachInitial||[]).map(function(n){return app().nodeName(n);}).join('·')+')의 도착률을 높여요.';return GOAL_DESC[id];}
-  function goalCriterion(rec){var names=(rec.targets||[]).map(function(id){return app().nodeName(id);}).join('·');
-    return rec.goal==='reach'?'이 제안의 ‘소외 지역’은 '+(st().phase===1||!st().history.length?'처음 정해 둔':'지난 운행에서 도착률이 가장 낮았던')+' 출발 지역'+(names?'('+names+')':'')+'이에요. 노선이 아예 없는 정류장이나 주요 인물을 따로 챙기지는 않아요.'
+  var GOAL_DESC={time:'모든 이동의 도착까지 걸린 시간 합이 가장 짧은 계획을 골라요.',reach:'사람이 정해 둔 지역과 탑승 기록이 가장 적은 지역에 버스가 서게 해요. 기록이 없어도 챙겨요.',profit:'이번 단계 수지(지원금 + 운임 − 비용)가 가장 큰 계획을 골라요.'};
+  /* 소외 지역 연결(2026-11-10): 정차 여부 우선. 대상 = 사람이 정해 둔 지역 + 탑승 기록 비율이 가장 낮은 지역(1단계는 앞부분만) */
+  function goalDesc(id){return GOAL_DESC[id];}
+  function goalCriterion(rec){var first=st().phase===1||!st().history.length;
+    var zs=(rec.targets||[]).map(function(z){return app().nodeName(z);}).join('·');
+    return rec.goal==='reach'?(zs?'이 제안의 ‘소외 지역’은 '+(first?'사람이 정해 둔 지역('+zs+')이에요.':zs+'이에요. 사람이 정해 둔 지역과 탑승 기록이 가장 적은 지역이에요.'):'이 제안의 ‘소외 지역’은 사람이 정해 둔 지역'+(first?'이에요.':'과 탑승 기록이 가장 적은 지역이에요.'))
       :rec.goal==='time'?'이 제안의 ‘빠른 이동’은 모든 이동의 도착 시간 합이에요. 주요 인물을 따로 챙기지는 않아요.'
       :'이 제안의 ‘수익’은 이번 단계 수지예요. 도착 건수는 수지가 같을 때만 따져요.';}
   /* AI 비교(2026-11-05 P1-6): ‘내 노선 | AI 제안’ 두 열 표를 맨 위에. 좋아짐·나빠짐은 색과 글자 둘 다. 값은 모두 같은 예상 함수(Session.expected) */
@@ -229,7 +230,7 @@
     if(P.busy)d.appendChild(el('p',{id:'rec-progress',role:'status'},'노선을 비교하고 있어요…'));
     if(P.rec){var rec=P.rec,c=el('section',{id:'rec-card',tabindex:'-1','aria-labelledby':'rec-card-h'});c.appendChild(el('h3',{id:'rec-card-h'},'‘'+(GOALS[rec.goal]||'')+'’ 제안'));
       var v=recView(rec);c.appendChild(recCompare(rec,v));
-      c.appendChild(el('p',{id:'rec-criterion','class':'rec-criterion'},goalCriterion(rec)));
+      c.appendChild(el('p',{id:'rec-criterion','class':'rec-criterion'},goalCriterion(rec)));if(UI.fairness)c.appendChild(UI.fairness.seenLine(app(),st()));
       if(st().config.day&&v.after.families&&v.after.families.total)c.appendChild(el('p',{'class':'note'},'가족 전원 왕복 '+v.before.families.complete+' → '+v.after.families.complete+'/'+v.after.families.total+'팀'));
       var more=el('details');more.appendChild(el('summary',null,'노선·배차 상세'));c.appendChild(more);var rl=el('ul',{id:'rec-routes','class':'plain'});
       v.rows.forEach(function(row){var li=el('li',{'data-num':row.num},R(row.num)+' · '+routeText(row.route)+' · 버스 '+row.buses.split(',').filter(Boolean).length+'대');
@@ -396,12 +397,13 @@
       agenda.appendChild(el('p',{'class':'note'},'늦게 도착하면 체류 시간을 채운 뒤 귀가해요. 목적지에 못 갔다면 귀가 요청도 생기지 않아요.'));panel.appendChild(agenda);
     }
     panel.appendChild(el('p',{id:'plan-message',role:'status','class':P.preview?'callout':'note'},PB.Names.text(P.message||hint())));
+    var FA=UI.fairness,hooks={rerender:render,nudge:P.nudge||null};if(FA){var fc=s.phase===3?FA.petitionCard(App,s,hooks):s.phase===4?FA.elderCard(App,s,hooks):null,fr=FA.required(App,s);if(fc)panel.appendChild(fc);if(fr)panel.appendChild(fr);if(FA.profitToggle)panel.appendChild(FA.profitToggle(App,s,hooks));}
     // 노선을 하나라도 완성한 뒤에만 막힌 이유를 띄운다(처음엔 위 안내가 할 일을 알려 줌)
     var blocked=s.draft.routes.some(function(r){return r.nodes.length>=2;})?blockers():[];if(blocked.length)blocker(panel,blocked);
     routes(panel);buses(panel);outlook(panel);ai(panel);
     var errors=S.validate(s),box=el('div',{id:'plan-errors'});errors.filter(function(e){return !s.draft.routes.some(function(r){return (!r.nodes.length||blocked.indexOf(r)>=0)&&e.indexOf(r.num+'번 노선:')===0;});}).forEach(function(e){box.appendChild(el('p',{'class':'callout warn'},PB.Names.text(e)));});panel.appendChild(box);
     var missing=unassigned();if(missing.length)panel.appendChild(el('p',{id:'unassigned-warning','class':'callout warn'},missing.map(function(r){return C(r.num);}).join(', ')+' 노선은 버스 미배정으로 운행하지 않아요.'));
-    var depart=btn('이 노선으로 출발','btn-depart',function(){if(S.validate(s).length)return;departCheck();},'btn-primary btn-lg');depart.disabled=errors.length>0||P.busy;
+    var depart=btn('이 노선으로 출발','btn-depart',function(){if(S.validate(s).length)return;if(whyNudge(s))return;P.nudge=null;departCheck();},'btn-primary btn-lg');depart.disabled=errors.length>0||P.busy||PB.Choices.required(s).length>0;if(PB.Choices.required(s).length)depart.setAttribute('aria-describedby','choice-required');
     var foot=el('div',{id:'depart-bar','class':'depart-bar'});foot.appendChild(depart);panel.appendChild(foot);
     App.onNodeClick=function(id){if(P.preview){P.message='AI 제안을 적용하거나 내 노선으로 돌아온 뒤 편집하세요.';render();return;}mapInsert(id);};
     App.onLink=function(from,to){if(!P.preview)link(from,to);};App.onRouteDouble=function(num,index){cutSegment(num,index);};App.onRouteClick=function(num,index){if(P.preview)return;P.editing=num;P.anchor=index;P.mapEnd=null;P.mapSegment={num:num,index:index};P.message='이 구간에 추가할 정류장을 누르세요.';render();};
@@ -422,6 +424,8 @@
     if(c.residents.length)out.push({id:'depart-residents',text:'출발지나 목적지에 노선이 없는 사람: '+c.residents.map(function(r){return r.name+'('+N(r.o)+'→'+N(r.d)+')';}).join(', ')+'.'});
     return {noBus:c.noBus,lines:out};
   }
+  /* 이유 안내(2026-11-10): 답은 골랐는데 이유가 비었으면 같은 단계의 첫 출발 클릭에서만 한 번 안내하고 이유 칸으로 포커스. 안내 여부는 P에만(저장 안 함) */
+  function whyNudge(s){var k=UI.fairness&&UI.fairness.kindOf(s);if(!k)return false;var f=s[PB.Choices.KINDS[k].field];P.nudged=P.nudged||{};if(!f||!f.choice||f.why||P.nudged[k])return false;P.nudged[k]=true;P.nudge=k;render('#'+k+'-why');return true;}
   function departCheck(){
     var s=st(),body=document.querySelector('#confirm-depart-body'),c=departLines(s),show=c.lines.slice(0,3),rest=c.lines.slice(3);body.textContent='';
     document.querySelector('#confirm-depart-h').textContent=c.noBus?'운행하는 버스가 없어요':'이대로 출발할까요?';

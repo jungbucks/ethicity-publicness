@@ -177,7 +177,7 @@
 
     function passenger(r) {
       return { id: r.id, key: r.key, o: r.o, d: r.d, t: r.t, kind: r.kind, journey: null, fail: null, status: 'pending',
-        residentId:r.residentId||null,leg:r.leg||null,returnTrip:r.returnTrip||null,
+        free: !!r.free, elder: !!r.elder, residentId:r.residentId||null,leg:r.leg||null,returnTrip:r.returnTrip||null,
         familyId:r.familyId||null,familySize:r.familySize||0,
         firstBoardT: null, arriveT: null, waitTotal: 0, boardings: 0, legIndex: 0, _waitStart: null, _ready: null, _bus: null };
     }
@@ -374,8 +374,10 @@
     passengers.forEach(function (p) { delete p._waitStart; delete p._ready; delete p._bus; delete p._location; delete p._evict; });
 
     var users = passengers.filter(function (p) { return p.firstBoardT != null; });
-    var costs = finance(config, g, input.phase, plan, timelines, users.length);
-    costs.paidUnfinished = users.filter(function (p) { return p.status !== 'arrived'; }).length;
+    var freeRiders = users.filter(function (p) { return p.free; }).length;
+    var costs = finance(config, g, input.phase, plan, timelines, users.length - freeRiders);
+    costs.freeRiders = freeRiders;
+    costs.paidUnfinished = users.filter(function (p) { return !p.free && p.status !== 'arrived'; }).length;
 
     return { timelines: timelines, passengers: passengers, log: log, costs: costs, petition: petition };
   }
@@ -422,7 +424,7 @@
       g[p.fail==='NO_LINK'?'noLink':p.deniedBoardings>0?'full':'time']++;
     });return out;
   }
-  var api = { run: run, unfinishedReasons:unfinishedReasons, occupancyAt: occupancyAt, operatingRoutes: operatingRoutes, structural: structural, hash: hash };
+  var api = { run: run, unfinishedReasons:unfinishedReasons, occupancyAt: occupancyAt, operatingRoutes: operatingRoutes, judgePetition: judgePetition, structural: structural, hash: hash };
   root.PB = root.PB || {};
   root.PB.Sim = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

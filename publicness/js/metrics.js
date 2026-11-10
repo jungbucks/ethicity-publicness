@@ -146,7 +146,7 @@
     result.passengers.forEach(function (p) {
       var e = firstBoard[p.id]; if (!e || p.firstBoardT == null) return;
       var row = start[e.bus] && start[e.bus](e.t); if (!row) return;
-      row.fare += F.fare; row.riders++; if (p.status === 'arrived') row.arrived++;
+      row.fare += p.free ? 0 : F.fare; row.riders++; if (p.status === 'arrived') row.arrived++;
     });
     var out = order.map(function (key) { var r = rows[key]; r.buses = Object.keys(r.buses).length; r.fuelRaw = F.fuelPerKm * r.km; r.fuel = Math.round(r.fuelRaw); r.km = Math.round(r.km * 10) / 10; return r; });
     // 반올림 차이를 가장 많이 달린 노선에 맞춰 전체 연료비와 정확히 같게
@@ -166,7 +166,32 @@
       fuel: legacy ? (k.move || 0) : k.fuel, km: k.km == null ? null : k.km, total: k.total || 0 };
   }
 
-  var api = { costParts: costParts, routeEconomy: routeEconomy, requestBreakdown:requestBreakdown, familyReport:familyReport,routeReport:routeReport, summarize: summarize, discontent: discontent, nextTrust: nextTrust, subtitle: subtitle, fmtRate: fmtRate };
+
+  /* 정류장별 1명당 운임(2026-11-10). 승객의 첫 탑승 정류장(로그 첫 board의 node, 없으면 p.o) 기준.
+   * tier: 탑승이 있는 정류장들을 1명당 운임으로 3분위(위 1/3 hi · 아래 1/3 lo · 나머지 mid). 모두 같으면 mid, 탑승 0이면 null */
+  function stopFares(result) {
+    var FARE = (result.config && result.config.finance ? result.config : (typeof require === 'function' && typeof module !== 'undefined' ? require('./config.js') : root.PB.config)).finance.fare;
+    var first = {}, out = {};
+    (result.log || []).forEach(function (e) { if (e.type === 'board' && !(e.pid in first)) first[e.pid] = e.node; });
+    (result.passengers || []).forEach(function (p) {
+      var id = p.id in first ? first[p.id] : p.o, z = out[id] || (out[id] = { riders: 0, fare: 0, free: 0, perRider: 0, tier: null });
+      if (p.firstBoardT == null) return;
+      z.riders++; if (p.free) z.free++; else z.fare += FARE;
+    });
+    var ids = Object.keys(out).filter(function (k) { return out[k].riders > 0; });
+    ids.forEach(function (k) { out[k].perRider = out[k].fare / out[k].riders; });
+    var vals = ids.map(function (k) { return out[k].perRider; }), n = vals.length;
+    if (n) {
+      var desc = vals.slice().sort(function (a, b) { return b - a; }), k3 = n < 2 ? 0 : Math.max(1, Math.round(n / 3));
+      var hiT = k3 ? desc[k3 - 1] : null, loT = k3 ? desc[n - k3] : null;
+      ids.forEach(function (k) {
+        var v = out[k].perRider;
+        out[k].tier = !k3 || hiT === loT ? 'mid' : v >= hiT ? 'hi' : v <= loT ? 'lo' : 'mid';
+      });
+    }
+    return out;
+  }
+  var api = { stopFares: stopFares, costParts: costParts, routeEconomy: routeEconomy, requestBreakdown:requestBreakdown, familyReport:familyReport,routeReport:routeReport, summarize: summarize, discontent: discontent, nextTrust: nextTrust, subtitle: subtitle, fmtRate: fmtRate };
   root.PB = root.PB || {};
   root.PB.Metrics = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

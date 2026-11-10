@@ -81,7 +81,8 @@
     });
     return ol;
   }
-  var REASON = { noLink: '잇는 노선 없음', full: '만차를 겪고 못 마침', time: '운행 종료까지 못 마침', parentFailed: '선행 이동 미완료로 진행하지 못한 이동', lateParent: '선행 이동이 늦어 운행 시간 안에 시작하지 못한 이동' };
+  var REASON = { noLink: '잇는 노선 없음', full: '만차를 겪고 못 마침', time: '운행 종료까지 못 마침', parentFailed: '선행 이동 미완료로 진행하지 못한 이동', lateParent: '선행 이동이 늦어 운행 시간 안에 시작하지 못한 이동', stayHome: '무임 폐지로 버스를 타지 않은 이동' };
+  UI.scoreReasonKeys = function () { return Object.keys(REASON); };
   function method(App, sc, opts) {
     var d = el('details', { 'class': 'score-method', id: 'score-method' });
     d.appendChild(el('summary', null, '계산 방법과 비용 내역'));
@@ -104,10 +105,11 @@
     return countLine(N, m, unreal) + (round ? ' ' + round : '');
   }
   function countLine(N, m, unreal) {
-    var parts = [];
+    var parts = [], stay = m.reasons && m.reasons.stayHome || 0;
     if (unreal) parts.push('첫 이동을 마치지 못해 생기지 않은 돌아오는 이동 ' + unreal + '건을 더하고');
+    if (stay) parts.push('무임 폐지로 집에 머문 이동 ' + stay + '건을 더하고');
     if (m.excluded) parts.push('운행 종료 직전이라 어떤 계획으로도 도착할 수 없는 ' + m.excluded + '건을 빼서');
-    if (N + unreal - m.excluded !== m.N || !parts.length) return '요약은 실제로 생긴 이동 ' + N + '건, 점수는 평가 대상 이동 ' + m.N + '건을 세서 건수가 달라요.';
+    if (N + unreal + stay - m.excluded !== m.N || !parts.length) return '요약은 실제로 생긴 이동 ' + N + '건, 점수는 평가 대상 이동 ' + m.N + '건을 세서 건수가 달라요.';
     return '요약은 실제로 생긴 이동 ' + N + '건을 세고, 점수는 ' + parts.join(' ').replace(/더하고$/, '더해서') + ' ' + m.N + '건을 세요.';
   }
   var NOTE = '두 점수는 운영 결과를 돌아보고 다음 계획을 고치기 위한 참고 지표예요. 윤리성이나 성적을 재는 점수가 아니에요.';

@@ -12,6 +12,8 @@ async function closeStory(page){for(let i=0;i<20&&await page.locator('#goal-intr
 async function runPhase(page,total){
   await page.evaluate(t=>{window.__pbFast=true;PB.App.setSpeed(2);window.__forceTotal=t;const S=PB.Session;
     if(!S.__forced){const orig=S.finishRun;S.finishRun=function(s){if(window.__forceTotal!=null&&s.current){s.current.metrics.costs.total=window.__forceTotal;window.__forceTotal=null;}return orig(s);};S.__forced=true;}},total);
+  /* 2026-11-10 공정성 개편: 3·4단계는 청원·무임 정책을 골라야 출발 버튼이 켜진다 — 이 테스트는 재정만 보므로 기본 답을 넣는다 */
+  for(const [id,why] of [['#petition-not-now','#petition-why'],['#elder-keep','#elder-why']])if(await page.locator(id).count()){await page.locator(id).click();await page.fill(why,'테스트');}
   await page.locator('#btn-depart').click();await page.locator('#confirm-yes').click();
   // 3단계부터 긴급 조정 기회가 있으면 끝까지 건너뛰기(남은 기회는 ‘변경 없이 계속’)
   // (빠른 재생이라 누르기 전에 운행이 끝나 버튼이 사라질 수 있다 — 그때는 그냥 넘어간다)

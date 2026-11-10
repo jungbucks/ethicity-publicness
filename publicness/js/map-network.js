@@ -33,7 +33,7 @@
     var svg = svgEl('svg', { 'class': 'net-svg net-status-svg' }); layer.appendChild(svg);
     var labels = document.createElement('div'); labels.className = 'net-labels'; layer.appendChild(labels);
     stage.appendChild(layer);
-    var st = { nodes: {}, routes: [], waiting: {}, selected: [], selectable: [], show: true, faces: [], newNodes: [], newAt: 0, service: {} }, placed = [], flashT = {}, facePos = {}, keep = { key: null, lab: {}, face: {}, svc: {} }, keeps = {};
+    var st = { nodes: {}, routes: [], waiting: {}, selected: [], selectable: [], show: true, faces: [], newNodes: [], newAt: 0, service: {}, profit: null }, placed = [], flashT = {}, facePos = {}, keep = { key: null, lab: {}, face: {}, svc: {} }, keeps = {};
     var ready = true, waitSince = 0, waitTimer = null; // 카메라가 자리 잡은 뒤에만 이름표·얼굴을 배치(아래 draw)
 
     function project(x, y) { var v = getView(); return v.project(x, y); }
@@ -139,7 +139,7 @@
       ids.forEach(function (id) { P[id] = project(st.nodes[id].x, st.nodes[id].y); });
       var a0 = ids.length ? P[ids[0]] : null, a1 = ids.length ? P[ids[ids.length - 1]] : null, scaleSig = a0 ? Math.round(Math.hypot(a1.left - a0.left, a1.top - a0.top) / 3) : 0;
       var panSig = a0 ? Math.round(a0.left / 2) + ',' + Math.round(a0.top / 2) : '';
-      var keepKey = ids.join(',') + '|' + Math.round(box.width) + 'x' + Math.round(box.height) + '|' + scaleSig + '@' + panSig + '|' + (st.showWait ? 'run' : 'plan') + '|' + Object.keys(st.service).join('');
+      var keepKey = ids.join(',') + '|' + Math.round(box.width) + 'x' + Math.round(box.height) + '|' + scaleSig + '@' + panSig + '|' + (st.showWait ? 'run' : 'plan') + '|' + Object.keys(st.service).join('') + '|' + (st.profit ? Object.keys(st.profit).map(function (k) { var q = st.profit[k]; return k + (q.tier === 'lo' && q.free > 0 ? q.free : ''); }).join(',') : '');
       // 잠깐 다른 크기가 됐다 돌아와도(긴급 조정 시트 등) 그 크기에서 처음 잡은 자리로 — 묶음별로 기억(최대 40개)
       if (keep.key !== keepKey) { if (!keeps[keepKey] && Object.keys(keeps).length >= 40) keeps = {}; keep = keeps[keepKey] = keeps[keepKey] || { key: keepKey, lab: {}, face: {}, svc: {} }; }
       // 카메라가 아직 자리 잡기 전(정류장이 틀 밖에 투영됨)의 배치는 기억하지 않는다 — 틀 안으로 끌어온 자리가 고정되면 이름표가 엉뚱한 곳에 남는다
@@ -171,6 +171,10 @@
         el.className = 'net-label'; el.dataset.node = id;
         el.appendChild(document.createElement('span')).textContent = narrow && n.short ? n.short : n.name;
         if (narrow && n.short) { el.title = n.name; el.setAttribute('aria-label', n.name); }
+        /* 2026-11-10 정류장 수익성: 1명당 운임 3단계 이름표(남색 짙음=높음). 낮은 곳에 무임 승객이 있으면 이름 옆에 "무임 k명" — 폭을 재기 전에 붙인다 */
+        var pf = st.profit && st.profit[id];
+        if (pf && pf.tier) { var tl = pf.tier === 'hi' ? '높음' : pf.tier === 'lo' ? '낮음' : '중간'; el.classList.add('net-profit-' + pf.tier); el.setAttribute('aria-label', n.name + ', 1명당 운임 ' + tl + (pf.tier === 'lo' && pf.free > 0 ? ', 무임 ' + pf.free + '명' : ''));
+          if (pf.tier === 'lo' && pf.free > 0) { var fr = document.createElement('span'); fr.className = 'net-free'; fr.textContent = '무임 ' + pf.free + '명'; el.appendChild(fr); } }
         if (st.newNodes.indexOf(id) >= 0) { var nb = document.createElement('span'); nb.className = 'net-new'; nb.textContent = narrow ? '새' : '새 정류장'; el.appendChild(nb); el.classList.add('is-new'); }
         // P1-4(2026-11-02): 공공서비스 정류장(외곽 마을·병원 등)은 계획 중에도 정차 횟수와 지원금 조건을 이름표 옆에(6회를 채우면 색이 바뀜)
         if (st.service[id]) { var sv = document.createElement('span'); sv.className = 'net-service' + (st.service[id].done ? ' done' : ''); var progress=document.createElement('strong'),reward=document.createElement('span');progress.className='service-progress';progress.textContent=st.service[id].progress||st.service[id].text;reward.className='service-reward';reward.textContent=st.service[id].reward||'';sv.append(progress,reward); sv.title = st.service[id].title || sv.textContent; el.appendChild(sv);
@@ -343,7 +347,7 @@
       setFaces: function (list) { st.faces = list || []; redraw(); },
       facePos: function (id) { return facePos[id] || null; },
       setOptions: function (o) {
-        if ('showWait' in o) st.showWait = !!o.showWait; if ('show' in o) st.show = !!o.show; if ('service' in o) st.service = o.service || {};
+        if ('showWait' in o) st.showWait = !!o.showWait; if ('show' in o) st.show = !!o.show; if ('service' in o) st.service = o.service || {}; if ('profit' in o) st.profit = o.profit || null;
         if ('newNodes' in o) { var was = st.newNodes.join(), at = o.newAt || 0; st.newNodes = o.newNodes || []; if (was !== st.newNodes.join() || at !== st.newAt) { st.newAt = at; var left = 2700 - (performance.now() - at); if (st.newNodes.length && left > 0) root.setTimeout(redraw, left); } }
         redraw();
       },

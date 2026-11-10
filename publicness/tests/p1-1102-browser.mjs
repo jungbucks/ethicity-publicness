@@ -243,11 +243,11 @@ try {
     const page = await fresh('no3d=1', { width: 1280, height: 800 });
     await play(page, 1);
     await page.locator('#plan-ai-toggle').click(); await page.waitForTimeout(400);
-    assert.equal(await page.locator('#goal-desc-reach').textContent(), '처음 정해 둔 출발 지역(외곽 마을·구도심 시장)의 도착률을 높여요.');
+    assert.equal(await page.locator('#goal-desc-reach').textContent(), '사람이 정해 둔 지역과 탑승 기록이 가장 적은 지역에 버스가 서게 해요. 기록이 없어도 챙겨요.');
     await page.locator('#plan-ai-close').click();
     const ended = await page.evaluate(() => { const S = PB.Session; return typeof S.startRun; });
     assert.equal(ended, 'function');
-    assert.deepEqual(page.errors, []); ok('P2-4 1단계 ‘소외 지역 연결’ = 처음 정해 둔 출발 지역(외곽 마을·구도심 시장)'); await page.close();
+    assert.deepEqual(page.errors, []); ok('P2-4 1단계 ‘소외 지역 연결’ = 정차 우선(사람이 정해 둔 지역 + 탑승 기록 최저 지역) 문구'); await page.close();
   }
   console.log(`PASS p1-1102: ${passed.length} checks`);
 } finally { await browser.close(); server.close(); }

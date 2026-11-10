@@ -69,7 +69,25 @@
     if(config.day&&family&&phase>=family.fromPhase)family.origins.forEach(function(origin,index){
       for(var member=0;member<family.members;member++)out.push({id:phase*100000+70000+index*100+member,key:'P'+phase+'-family-'+index+'-'+member,o:origin,d:family.destination,t:family.depart+index*4+(seed%3),kind:'base',familyId:'P'+phase+'-family-'+index,familySize:family.members,leg:'outbound',returnTrip:{earliest:family.returnAt,stay:family.stay,destination:origin}});
     });
+    markElder(config, phase, out);
     return sortReqs(out);
+  }
+  /* 어르신 무임 대상 표시(2026-11-10): 일반 요청 중 대상 구역(config.elderFree.zones)이 출발·도착에 있고 그 단계에 열린 구역이면 hash<share인 요청에 elder:true */
+  function hash(key, salt) {
+    var h = 2166136261, s = String(key) + '#' + salt, i;
+    for (i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+    /* 끝 글자만 다른 입력(salt)끼리 상관되지 않게 murmur3 fmix32 눈사태 마무리 */
+    h ^= h >>> 16; h = Math.imul(h, 0x85ebca6b) >>> 0; h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35) >>> 0; h ^= h >>> 16;
+    return (h >>> 0) / 4294967296;
+  }
+  function markElder(config, phase, list) {
+    var E = config.elderFree; if (!E) return;
+    var open = {}; config.nodes.forEach(function (n) { if ((n.fromPhase || 1) <= phase) open[n.id] = true; });
+    list.forEach(function (q) {
+      if (q.kind !== 'base' || q.residentId || q.familyId) return;
+      var hit = (E.zones.indexOf(q.o) >= 0 && open[q.o]) || (E.zones.indexOf(q.d) >= 0 && open[q.d]);
+      if (hit && hash(q.key, 1) < E.share) q.elder = true;
+    });
   }
 
   // 세션 시작 시 단계 순서대로 유형→시각→OD를 한 번씩 추첨(무사건도 세 값을 모두 소비)
@@ -112,7 +130,7 @@
   }
   // 안내에 쓰는 이번 단계 이동 요청 구성. planned = 미리 정해진 이동, followUps = 목적지에 도착하면 생기는 다음 이동(주요 인물·가족)의 최대 수
   function requestPlan(config, phase, seed) { var b = base(config, phase, seed); return { planned: b.length, followUps: b.filter(function (q) { return q.returnTrip; }).length }; }
-  var api = { requestPlan:requestPlan, residents:residents, clock:clock,duration:duration,period:period,directional: directional, base: base, drawEvents: drawEvents, extra: extra, sortReqs: sortReqs, stopLoad: stopLoad, LOAD_TIERS: LOAD_TIERS };
+  var api = { requestPlan:requestPlan, residents:residents, clock:clock,duration:duration,period:period,directional: directional, base: base, hash: hash, drawEvents: drawEvents, extra: extra, sortReqs: sortReqs, stopLoad: stopLoad, LOAD_TIERS: LOAD_TIERS };
   root.PB = root.PB || {};
   root.PB.Demand = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

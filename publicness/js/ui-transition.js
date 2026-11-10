@@ -181,6 +181,7 @@
   if(sp){var settle=el('div',{id:'result-settle'}),sline=function(a,b,c){var n=el('p',c?{'class':c}:null);n.appendChild(el('span',null,a));n.appendChild(el('b',null,b));settle.appendChild(n);},sg=PB.UI.Econ.signed;
    sline('운행 중 (기본 지원 + 운임 − 운영·연료)',sg(sp.running));sline('종료 정산 (보유비 −'+App.won(sp.holding)+(sp.lease?', 임차료 −'+App.won(sp.lease):'')+', 공공서비스 수행분 +'+App.won(sp.service)+')',sg(sp.settle));sline('최종 이번 단계 수지',sg(sp.total),'settle-final');head.appendChild(settle);}
   var trend=PB.UI.Econ.trendLine(s,'이번 단계');if(trend)head.appendChild(el('p',{id:'result-trend','class':'trend-line'+(trend.warn?' warn':'')},trend.text));
+  if(PB.UI.fairness&&PB.UI.fairness.profitLegend&&(function(sf){return Object.keys(sf).some(function(k){return sf[k].tier;});})(PB.Metrics.stopFares(res)))head.appendChild(PB.UI.fairness.profitLegend(App));
   // 2. 인물 카드
   var people=el('section',{id:'result-people','class':'result-people','aria-labelledby':'result-people-h'});people.appendChild(el('h3',{id:'result-people-h'},'주민들의 하루'));
   if(cards){people.appendChild(cards);people.appendChild(el('p',{'class':'note'},'카드를 누르면 작은 지도에서 그 구간을 보여 줘요.'));}
@@ -198,7 +199,7 @@
   var most=res.passengers.reduce(function(a,p){return !a||p.waitTotal>a.waitTotal?p:a;},null),rd=most&&s.config.residents.filter(function(r){return r.id===most.residentId;})[0];
   var key=el('section',{id:'result-key-metrics','class':'result-key-metrics'});key.appendChild(el('h3',null,'가장 오래 기다린 사람'));key.appendChild(el('p',null,most?App.duration(most.waitTotal)+' · '+(rd?rd.name:App.nodeName(most.o)+' 출발 승객'):'발생한 요청 없음'));
   key.appendChild(el('p',{'class':'note'},'목적지까지 못 간 사람이 운행이 끝날 때까지 기다린 시간도 포함해요. 잇는 노선이 없는 요청은 대기 시간과 별도로 상세 기록에서 확인해요.'));put(key);
-  put(summary);
+  put(summary);if(PB.UI.fairness&&PB.UI.fairness.stopTable)put(PB.UI.fairness.stopTable(App,s,res));
   var decisions=(s.emergencyLog||[]).filter(function(a){return a.phase===s.phase;}),mids=(s.midChanges||[]).filter(function(c){return c.phase===s.phase;});
   if(decisions.length||mids.length){var report=el('section',{id:'emergency-report'});report.appendChild(el('h3',null,'운행 중 바꾼 것'));
    mids.forEach(function(c){var applied=c.kind==='move'&&res.log.filter(function(e){return e.type==='reassign'&&e.bus===c.busId&&e.t>=c.at;})[0];report.appendChild(el('p',{'class':'mid-change-line'},PB.UI.midLine(App,c)+(c.kind!=='move'?' · 그 뒤 이 노선 버스는 바뀐 정류장을 따랐어요(이번 운행만).':applied?' · '+App.clock(applied.data.starts)+'부터 달림':' · 운행이 끝날 때까지 옮겨 가지 못했어요.')));});decisions.forEach(function(a){var applied=res.log.filter(function(e){return e.type==='reassign'&&e.bus===a.busId&&e.t>=a.at;})[0];report.appendChild(el('p',null,App.clock(a.at)+' · '+(a.busId==null?'변경 없이 계속':'버스 한 대 → '+PB.Names.route(a.routeNum)+(applied?' · '+App.clock(applied.data.starts)+'부터 투입':' · 운행 종료까지 안전하게 옮길 기회가 없었어요.'))));});
@@ -217,7 +218,7 @@
   var mapButton=el('button',{type:'button','class':'btn',id:'result-map-toggle',onclick:function(){document.body.classList.toggle('result-map-open');mapButton.setAttribute('aria-expanded',String(document.body.classList.contains('result-map-open')));App.syncStage({});}},'결과 지도 보기');details.insertBefore(mapButton,sm.nextSibling);
   // 다음 단계 버튼은 아래 고정 바(자세히를 펼쳐도 밀려나지 않게)
   var bar=el('div',{id:'result-next-bar','class':'result-next-bar'});bar.appendChild(next);
-  panel.textContent='';[eyebrow,title,head,notice,family,people,evs,aiCard(App,s,h,last),think(App,s,h,last),details,bar].forEach(function(n){if(n)panel.appendChild(n);});
+  panel.textContent='';[eyebrow,title,head,notice,family,people,evs].concat(PB.UI.fairness&&PB.UI.fairness.resultBlocks?PB.UI.fairness.resultBlocks(App,s,h):[],[aiCard(App,s,h,last),think(App,s,h,last),details,bar]).forEach(function(n){if(n)panel.appendChild(n);});
   var cut=PB.UI.nextCut&&!last?PB.UI.nextCut(s):null;if(cut&&PB.Cutscene.preload)PB.Cutscene.preload(cut);
   return result;
  };

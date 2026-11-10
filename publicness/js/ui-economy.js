@@ -96,7 +96,7 @@
     var res = s.current && s.current.result; if (!res) return null;
     var F = s.config.finance, W = s.config.bus.window, plan = s.current.plan, g = S.graph(s), t = Math.max(0, Math.min(W, tf));
     var leased = plan.buses.filter(function (b) { return b.leased; }).length, provided = plan.buses.length - leased;
-    var riders = res.passengers.filter(function (p) { return p.firstBoardT != null && p.firstBoardT <= t; }).length, op = 0, km = 0;
+    var riders = res.passengers.filter(function (p) { return p.firstBoardT != null && p.firstBoardT <= t && !p.free; }).length, op = 0, km = 0;
     res.timelines.forEach(function (tl) { var m = tl.opMinutes || 0; op += Math.max(0, Math.min(m, t - (W - m))); km += Q.driven(g, tl.segments, t); });
     var service = 0, sv = F.service;
     if (sv) sv.stops.filter(function (x) { return x.fromPhase <= s.phase && g.has(x.id); }).forEach(function (x) {

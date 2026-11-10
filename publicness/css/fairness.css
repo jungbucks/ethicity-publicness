@@ -1,0 +1,39 @@
+/* 공정성·포용 개편(2026-11-10): 계획 화면 청원·무임 정책 카드. 얇은 전체 테두리만(왼쪽 색 띠 없음), 노선 색·위험 빨강·주의 주황 안 씀 */
+.fair-card { margin: 8px 0; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-in, 8px); background: #fff; min-width: 0; }
+.fair-card h3 { margin: 0 0 6px; font-size: 17px; }
+.fair-card p { margin: 0 0 6px; word-break: keep-all; overflow-wrap: anywhere; }
+.fair-fact { font-weight: 600; }
+.fair-frame { margin-bottom: 4px; }
+.fair-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0 0 8px; }
+.fair-option { min-height: 44px; white-space: normal; }
+.fair-option[aria-pressed="true"] { border: 2px solid var(--sem-action); background: var(--accent-soft); color: var(--accent-ink); }
+.fair-why { display: flex; align-items: center; gap: 6px; line-height: 1.4; }
+.fair-card .note-blank.note-reason { flex: 1 1 auto; width: auto; min-width: 0; }
+.fair-card .note-saved { display: block; min-height: 1.2em; margin: 0; }
+.fair-required { margin: 4px 0; color: #5A6478; font-weight: 600; }
+@media (max-width: 600px) { .fair-card { padding: 10px; } }
+/* 정류장 수익성 이름표(2026-11-10): 남색 3단계. 노선 색·위험 빨강·주의 주황 안 씀 */
+#stage .net-label.net-profit-hi { background: #1F2E4D; color: #fff; }
+#stage .net-label.net-profit-mid { background: #C9D3E3; color: #1F2E4D; }
+#stage .net-label.net-profit-lo { background: #fff; color: var(--map-label-ink); }
+.net-label .net-free { color: #5A6478; font-size: 11px; font-weight: 700; }
+.profit-opt { display: flex; align-items: center; gap: 8px; min-height: 44px; margin: 4px 0; }
+.profit-opt input { width: 20px; height: 20px; }
+.profit-legend { margin: 0 0 8px; }
+.profit-chip { display: inline-block; padding: 0 8px; border-radius: 10px; font-weight: 700; font-size: 12px; border: 1px solid #C9D3E3; }
+.profit-chip.hi { background: #1F2E4D; color: #fff; }
+.profit-chip.mid { background: #C9D3E3; color: #1F2E4D; }
+.profit-chip.lo { background: #fff; color: #5A6478; }
+#stop-fares { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+#stop-fares th, #stop-fares td { padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }
+#stop-fares th:first-child, #stop-fares td:first-child { text-align: left; white-space: normal; }
+#stage .net-label.net-profit-hi .net-wait { color: #1F2E4D; }
+/* 보고서 금배지(2026-11-10): 받음 = 은은한 금색 테두리·별, 아직 = 흐린 테두리. 인쇄에선 글자(받음/아직)로 구분 */
+.badge-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 8px; }
+.badge { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 8px 10px; border: 1px solid #C9CED8; border-radius: 10px; color: #5A6478; background: #fff; }
+.badge-star { font-size: 20px; line-height: 1; flex: none; }
+.badge-label { flex: 1 1 auto; min-width: 0; word-break: keep-all; overflow-wrap: anywhere; line-height: 1.4; }
+.badge-state { flex: none; font-size: 13px; }
+.badge.is-earned { border: 2px solid #B8892B; background: #FFF8E6; color: #3A2E10; }
+.badge.is-earned .badge-star { color: #B8892B; }
+@media print { .report .badge.is-not { border-style: dashed; } .report .badge.is-earned { border: 2px solid #000; background: none; } }

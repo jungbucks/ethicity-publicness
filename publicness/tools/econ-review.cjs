@@ -5,6 +5,7 @@
 // 수치는 게임용 가상 값이며 실제 교통사업 원가가 아니다.
 const fs = require('fs'), path = require('path');
 const cfg = require('../js/config.js'); if (process.env.ECON) Object.assign(cfg.finance, JSON.parse(process.env.ECON)); // 단가 비교: ECON='{"basePerBus":10000}'
+if (process.env.ELDER === 'off') delete cfg.elderFree; // 무임 없는 기준선: ELDER=off
 S = require('../js/session.js'), N = require('../js/narrative.js'), G = require('../js/graph.js');
 const route = (ns) => ({ nodes: ns, stops: ns.map(() => true) });
 
@@ -68,9 +69,10 @@ function apply(s, name) {
   }
 }
 
-function play(opt, name) {
+function play(opt, name, policy) { // policy: undefined(keep) | 'abolish'(4단계부터)
   const s = S.create(cfg, opt), phases = [];
   while (s.stage !== 'ending') {
+    if (policy === 'abolish' && cfg.elderFree && s.phase === cfg.elderFree.policyPhase) s.elderPolicy = { phase: s.phase, choice: 'abolish' };
     S.beginPlan(s); apply(s, name);
     if (S.validate(s).length) throw new Error(name + ' ' + s.phase + ': ' + S.validate(s).join(' / '));
     S.startRun(s); const h = S.finishRun(s), k = h.metrics.costs, z = h.metrics.zones;
@@ -81,20 +83,23 @@ function play(opt, name) {
   }
   const reactions = N.endingReactions(s.config, s.history);
   const arrived = phases.reduce((a, p) => a + p.arrived, 0), Nall = phases.reduce((a, p) => a + p.N, 0);
-  return { name, mode: s.mode, seed: s.seed, balance: S.balance(s), end: s.end.cause, deficits: s.deficits, ledger: s.ledger,
+  const so = S.scoresOverall(s), mob = [], mobLast = so && so.mobility ? so.mobility.score : null;
+  const fare = Math.round(s.history.reduce((a, h) => a + (h.metrics.costs.fare || 0), 0)), stayed = s.history.reduce((a, h) => a + ((h.elder && h.elder.stayed) || 0), 0);
+  return { name, policy: policy || 'keep', fare, stayed, mobility: mobLast, mobAll: mob, mode: s.mode, seed: s.seed, balance: S.balance(s), end: s.end.cause, deficits: s.deficits, ledger: s.ledger,
     arrival: Math.round(100 * arrived / Nall), satisfied: reactions.filter((r) => r.satisfied).length + '/' + reactions.length, phases };
 }
 
 if (require.main === module) {
   const seeds = (process.argv[2] || '7,42,1234').split(',').map(Number), rows = [];
-  for (const name of Object.keys(STRATEGIES)) {
-    rows.push(play({ mode: 'default' }, name));
-    for (const seed of seeds) rows.push(play({ mode: 'fixed', seed }, name));
+  const policies = process.env.ELDER === 'off' ? [undefined] : [undefined, 'abolish'];
+  for (const name of Object.keys(STRATEGIES)) for (const pol of policies) {
+    rows.push(play({ mode: 'default' }, name, pol));
+    for (const seed of seeds) rows.push(play({ mode: 'fixed', seed }, name, pol));
   }
   const pad = (x, n) => String(x).padEnd(n);
-  console.log(pad('전략', 11) + pad('모드', 12) + pad('최종잔액', 11) + pad('결말', 10) + pad('적자', 5) + pad('도착%', 6) + pad('인물', 6) + '단계 수지 / 외곽·병원 도착');
-  rows.forEach((r) => console.log(pad(r.name, 11) + pad(r.mode === 'default' ? '기본' : 'seed ' + r.seed, 12) + pad(r.balance.toLocaleString(), 11) + pad(r.end, 10) + pad(r.deficits, 5) + pad(r.arrival, 6) + pad(r.satisfied, 6) +
+  console.log(pad('전략', 11) + pad('무임', 8) + pad('모드', 12) + pad('최종잔액', 11) + pad('결말', 10) + pad('적자', 5) + pad('이동충족', 9) + pad('운임', 9) + pad('집에', 5) + pad('도착%', 6) + pad('인물', 6) + '단계 수지 / 외곽·병원 도착');
+  rows.forEach((r) => console.log(pad(r.name, 11) + pad(r.policy, 8) + pad(r.mode === 'default' ? '기본' : 'seed ' + r.seed, 12) + pad(r.balance.toLocaleString(), 11) + pad(r.end, 10) + pad(r.deficits, 5) + pad(r.mobility, 9) + pad(r.fare, 9) + pad(r.stayed, 5) + pad(r.arrival, 6) + pad(r.satisfied, 6) +
     r.phases.map((p) => Math.round(p.total / 1000) + 'k').join(' ') + ' | ' + r.phases.map((p) => p.outer || '-').join(' / ')));
-  fs.writeFileSync(path.join(__dirname, '../tests/_econ-review.json'), JSON.stringify(rows, null, 1));
+  fs.writeFileSync(path.join(__dirname, process.env.ELDER === 'off' ? '../tests/_econ-review-noelder.json' : '../tests/_econ-review.json'), JSON.stringify(rows, null, 1));
 }
 module.exports = { play, STRATEGIES, apply };

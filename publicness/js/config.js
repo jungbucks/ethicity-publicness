@@ -100,6 +100,11 @@
       lease: { fee: 25000, perPhase: 2 }, // 추가 임차: 이번 단계 1대당(보유비 대신 — 쉬어도 듦), 단계당 최대 2대
       service: { amount: 20000, minStops: 6, stops: [{ id: 'F', label: '외곽 마을', fromPhase: 1 }, { id: 'D', label: '병원', fromPhase: 1 }, { id: 'K', label: '복지관', fromPhase: 5 }] }
     },
+    /* 어르신 무임(2026-11-10): 대상 = 일반 요청 중 이 구역을 오가는 share 비율. 폐지(abolish)는 policyPhase부터, 대상 중 abolishStay 비율은 집에 머문다 */
+    elderFree: { share: 0.3, zones: ['F', 'D', 'K'], abolishStay: 0.5, policyPhase: 4 },
+    /* 기울어진 탑승 기록(2026-11-10): AI 추천은 지난 운행의 탑승 기록만 본다. 1단계 기록(예전 노선)에 없는 출발 구역 = hiddenAtStart */
+    rideLog: { hiddenAtStart: ['F'] },
+    petition: { phase: 2, t: 45 },
     events: { pNone: 0.60, pDemand: 0.85, timeBase: 35, timeSpan: 26, extraPerMin: 2, extraMinutes: 6 },
     defaultSeed: 42,
     rush: { share: 0.75, outbound: 8, inbound: 50, spread: 10, jitter: 4 },

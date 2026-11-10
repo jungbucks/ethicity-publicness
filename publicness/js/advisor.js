@@ -16,7 +16,7 @@
 
   var Evaluation = NODE ? require('./resident-evaluation.js') : root.PB.ResidentEvaluation;
 
-  var KEYS = ['phase', 'g', 'requests', 'owned', 'fourthAllowed', 'fourthMustBeNew', 'prevMetrics', 'prevRouteIds', 'plan', 'config'];
+  var KEYS = ['phase', 'g', 'requests', 'owned', 'fourthAllowed', 'fourthMustBeNew', 'prevMetrics', 'prevRouteIds', 'plan', 'config', 'rideRatios'];
 
   function makeRevealed(src) {
     var out = {};
@@ -26,17 +26,16 @@
   }
 
   function targets(rev) {
-    var cfg = rev.config;
-    if (!rev.prevMetrics) return cfg.reachInitial.slice();
-    var zones = rev.prevMetrics.zones;
-    var ranked = Object.keys(zones).filter(function (id) { return zones[id].N > 0 && id !== cfg.newZone; })
-      .sort(function (a, b) { return zones[a].rate - zones[b].rate || (a < b ? -1 : 1); });
-    if (rev.phase === cfg.newTownPhase && rev.g.has(cfg.newZone)) return [cfg.newZone, ranked[0]];
-    if (rev.g.has(cfg.newZone) && zones[cfg.newZone] && zones[cfg.newZone].N > 0) {
-      ranked = Object.keys(zones).filter(function (id) { return zones[id].N > 0; })
-        .sort(function (a, b) { return zones[a].rate - zones[b].rate || (a < b ? -1 : 1); });
-    }
-    return ranked.slice(0, 2);
+    var cfg = rev.config, rs = rev.rideRatios;
+    if (rev.phase <= 1 || !rs) return cfg.reachInitial.slice();
+    var ids = Object.keys(rs).filter(function (id) { return rev.g.has(id); });
+    var lowest = ids.filter(function (id) { return id !== cfg.newZone; })
+      .sort(function (a, b) { return rs[a] - rs[b] || (a < b ? -1 : 1); }).slice(0, 2);
+    var out = [];
+    if (rs.F === 0 && rev.g.has('F')) out.push('F');
+    if (rev.phase === cfg.newTownPhase && rev.g.has(cfg.newZone)) out.push(cfg.newZone);
+    lowest.forEach(function (id) { if (out.indexOf(id) < 0) out.push(id); });
+    return out.slice(0, 3);
   }
 
   function allStop(nodes) { return { nodes: nodes, stops: nodes.map(function () { return true; }) }; }
@@ -85,7 +84,7 @@
   }
 
   // 사전식 비교 점수(클수록 좋음)
-  function score(goal, metrics, sim, tg) {
+  function score(goal, metrics, sim, tg, plan) {
     if (goal === 'profit') return [metrics.costs.total, metrics.arrived];
     if (goal === 'time') {
       var cost = 0, arrived = 0;
@@ -97,9 +96,12 @@
       });
       return [-cost, arrived];
     }
+    var stopped = {};
+    ((plan && plan.buses) || []).forEach(function (b) { if (b.route) b.route.nodes.forEach(function (n, i) { if (b.route.stops[i]) stopped[n] = true; }); });
+    var stopShare = tg.length ? tg.filter(function (z) { return stopped[z]; }).length / tg.length : 0;
     var rates = tg.map(function (z) { return metrics.zones[z]; }).filter(function (z) { return z && z.N > 0; }).map(function (z) { return z.rate; });
     var mean = rates.length ? rates.reduce(function (s, x) { return s + x; }, 0) / rates.length : 0;
-    return [mean, metrics.arrived];
+    return [stopShare, mean, metrics.arrived];
   }
   function compare(a, b) {
     for (var i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] > b[i] ? 1 : -1;
@@ -135,7 +137,7 @@
       evaluated++;
       var sim = Sim.run({ g: rev.g, config: rev.config, phase: rev.phase, plan: plan, requests: rev.requests });
       var m = Metrics.summarize(sim, rev.g, plan, rev.config);
-      var sc = mustNew && !fourthOk(plan) ? [-Infinity, -Infinity] : score(goal, m, sim, tg);
+      var sc = mustNew && !fourthOk(plan) ? [-Infinity, -Infinity] : score(goal, m, sim, tg, plan);
       return { plan: plan, sim: sim, metrics: m, score: sc };
     }
     function neighbors(cur, allow) {

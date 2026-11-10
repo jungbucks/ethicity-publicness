@@ -113,8 +113,9 @@ test('suggestions need recorded causes', () => {
 test('representative strategies: no-service is never rated, money above the reserve adds nothing, outer gaps stay visible', () => {
   const none = play({ mode: 'default' }, 'none'), center = play({ mode: 'default' }, 'center'), loop = play({ mode: 'default' }, 'loop'), bal = play({ mode: 'default' }, 'balanced');
   assert.equal(none.finance, '보류'); assert.equal(center.finance, 0);
+  /* 2026-11-10 어르신 무임 — 운임은 유료 첫 탑승만이라 balanced의 잔액이 줄지만, 무임 비율 0.3에서는 예비비에 닿아 100 */
   assert.equal(loop.finance, 100); assert.equal(bal.finance, 100);
-  assert.ok(loop.balance > bal.balance, '잔액은 순환이 더 많지만 점수는 같다');
+  assert.ok(loop.balance > bal.balance, '잔액은 순환이 더 많다(예비비를 넘은 쪽은 100점에서 멈춘다)');
   assert.equal(center.outer.split('/')[0], '0', '중심가 집중은 외곽 0건 완료가 따로 드러난다');
   [none, center, loop, bal].forEach((r) => assert.equal(r.N, none.N, '같은 시나리오면 평가 수요가 같다'));
   const g = play({ mode: 'fixed', seed: 42 }, 'block-first'), d = play({ mode: 'fixed', seed: 42 }, 'balanced');

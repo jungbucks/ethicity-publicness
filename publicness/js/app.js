@@ -332,7 +332,7 @@
     if (s.config.challengeApplied) routes.forEach(function (r) { r.kind = r.num === 5 ? 'express' : r.num === 6 ? 'regional' : null; });
     // 인물 얼굴 자리는 계획·운행 화면(2026-11-01: 운행 중에도 얼굴이 지도에서 사라지지 않게). 결과·엔딩에선 비움
     if (App.net) App.net.setFaces(s.stage === 'plan' || s.stage === 'run' ? PB.Demand.residents(s.config, s.phase).map(function (rd) { return { id: rd.id, node: rd.o, size: 40 }; }) : []);
-    if (App.net) App.net.setOptions({ showWait: s.stage === 'run' || s.stage === 'result' });
+    if (App.net) App.net.setOptions({ showWait: s.stage === 'run' || s.stage === 'result', profit: PB.UI && PB.UI.fairness ? PB.UI.fairness.profitMap(s) : null });
     v.setRoutes(routes);
     // A view refresh can happen while paused, when the playback tick does not run.
     // Restore physical transfer roads here as well as during active playback.

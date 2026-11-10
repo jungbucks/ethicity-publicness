@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 const require=createRequire(import.meta.url),cfg=require('../js/config.js'),S=require('../js/session.js'),A=require('../js/advisor.js');
 test('AI baseline exposes the same service verdict as departure, including long waits',()=>{
- const s=S.create(cfg);S.beginPlan(s);
+ // 2026-11-10 기울어진 탑승 기록 뒤: AI는 1단계 외곽 마을 요청을 못 본다 → 같은 수요를 볼 때 같은 판정인지 확인하려고 숨김 구역을 비운 설정으로 본다
+ const s=S.create(Object.assign({},cfg,{rideLog:{hiddenAtStart:[]}}));S.beginPlan(s);
  // 2026-11-01 강 건너기 ×1.5 뒤: 옛 F-D-A-G-B-C는 모두 귀가 미완료가 되어, 나래가 하루를 마치되 오래 기다리는 노선으로 바꿈
  S.updateRoute(s,1,{nodes:['C','B','G','A','D','F'],stops:[true,true,true,true,true,true]});
  S.assign(s,1,1);

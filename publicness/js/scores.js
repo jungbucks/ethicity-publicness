@@ -74,8 +74,9 @@
   function tally(list) { return { N: list.length, done: list.filter(function (u) { return u.done; }).length }; }
 
   // 한 단계 이동 수요 충족. passengers = Sim 결과 승객(귀가 요청 포함)
-  function mobility(config, phase, seed, ev, passengers) {
-    var byKey = {}, list = units(config, phase, seed, ev), seen = {}, excluded = 0;
+  function mobility(config, phase, seed, ev, passengers, stayed) {
+    var byKey = {}, home = {}, list = units(config, phase, seed, ev), seen = {}, excluded = 0;
+    (stayed || []).forEach(function (k) { home[k] = true; });
     passengers.forEach(function (p) { if (!(p.key in byKey)) byKey[p.key] = p; });
     list = list.filter(function (u) { if (seen[u.key]) return false; seen[u.key] = true; return true; }); // 같은 요청을 두 번 세지 않는다
     list = list.filter(function (u) { if (!u.feasible) excluded++; return u.feasible; });
@@ -83,10 +84,11 @@
       var p = byKey[u.key];
       u.done = !!p && p.status === 'arrived';
       if (u.done) return;
-      if (!p) { var parent = byKey[u.parent]; u.reason = u.kind === 'followUp' && parent && parent.status === 'arrived' ? 'lateParent' : u.kind === 'followUp' ? 'parentFailed' : 'time'; }
+      if (!p && (home[u.key] || (u.parent && home[u.parent]))) u.reason = 'stayHome';
+      else if (!p) { var parent = byKey[u.parent]; u.reason = u.kind === 'followUp' && parent && parent.status === 'arrived' ? 'lateParent' : u.kind === 'followUp' ? 'parentFailed' : 'time'; }
       else u.reason = p.fail === 'NO_LINK' ? 'noLink' : p.deniedBoardings > 0 ? 'full' : 'time';
     });
-    var O = opts(config), all = tally(list), reasons = { noLink: 0, full: 0, time: 0, parentFailed: 0, lateParent: 0 }, kinds = {}, zones = {}, pairs = {};
+    var O = opts(config), all = tally(list), reasons = { noLink: 0, full: 0, time: 0, parentFailed: 0, lateParent: 0, stayHome: 0 }, kinds = {}, zones = {}, pairs = {};
     list.forEach(function (u) {
       var k = kinds[u.kind] || (kinds[u.kind] = { N: 0, done: 0 }); k.N++; if (u.done) k.done++;
       var z = zones[u.o] || (zones[u.o] = { N: 0, done: 0 }); z.N++; if (u.done) z.done++;
@@ -111,10 +113,10 @@
   }
 
   // 단계 정산 직후 기록(Session.finishRun → entry.scores). plan = 출발 계획, passengers = 실제 운행 승객, balance = 정산 뒤 누적 잔액
-  function phaseScores(config, g, phase, seed, ev, plan, passengers, balance) {
+  function phaseScores(config, g, phase, seed, ev, plan, passengers, balance, stayed) {
     var fleet = plan.buses.filter(function (b) { return !b.leased; }).length;
     var served = plan.buses.some(function (b) { return b.route && b.route.nodes && b.route.nodes.length >= 2; });
-    return { version: VERSION, phase: phase, mobility: mobility(config, phase, seed, ev, passengers), finance: finance(balance, reserve(config, g, fleet), served) };
+    return { version: VERSION, phase: phase, mobility: mobility(config, phase, seed, ev, passengers, stayed), finance: finance(balance, reserve(config, g, fleet), served) };
   }
 
   // 게임 전체(또는 조기 종료까지): 이동 = 단계 합계의 완료/평가 수요(단계 퍼센트 평균이 아님), 재정 = 마지막 정산 잔액 / 마지막 단계 기준 예비비.

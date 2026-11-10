@@ -40,6 +40,52 @@ test('build: 랜덤·파산·계약 종료·planLog 없는 예전 게임·빈 �
   s.end={cause:'contract',phase:2};s.mode='fixed';assert.equal(R.build(s,f).meta.end.split(' · ')[0],'운영 계약 종료(2단계)');assert.equal(R.build(s,f).meta.mode,'지정 세팅 · 번호 777');
 });
 test('fileName: 인쇄할 때만 쓰는 PDF 이름(이름은 저장 안 함)', () => {
-  assert.equal(R.fileName(' 김 하늘/1 ',new Date(2026,10,9)),'공공성_보고서_김_하늘_1_20261109');
-  assert.equal(R.fileName('',new Date(2026,0,2)),'공공성_보고서_20260102');
+  assert.equal(R.fileName(' 김 하늘/1 ',new Date(2026,10,9)),'공정성포용성_보고서_김_하늘_1_20261109');
+  assert.equal(R.fileName('',new Date(2026,0,2)),'공정성포용성_보고서_20260102');
+});
+
+// --- 공정성·포용 개편: 선택 줄과 금배지 ---
+const FX=require('./fairness-fixture.cjs');
+const real=()=>({won:n=>Math.round(n)+'원',duration:v=>v+'초',rate:r=>Math.round(r*100)+'%',name:id=>id,route:n=>'노선'+n,choices:{},date:new Date(2026,10,10)});
+const earned=(s,id)=>R.badges(s).find(b=>b.id===id).earned;
+test('badges: 5개 고정 순서, 정책 내용과 무관', () => {
+  const s=FX.finishedSession({petition:'reflect',elder:'abolish',whyBoth:true});
+  assert.deepEqual(R.badges(s).map(b=>b.id),['residents','petition','record','reasons','solvent']);
+  const flip=FX.finishedSession({petition:'not-now',elder:'keep',whyBoth:true});
+  assert.equal(earned(flip,'reasons'),true);
+  assert.equal(earned(s,'reasons'),earned(flip,'reasons'));
+  assert.equal(earned(s,'solvent'),s.end.cause==='complete');
+  R.badges(s).forEach(b=>{assert.equal(typeof b.label,'string');assert.equal(typeof b.earned,'boolean');});
+});
+test('badges: reasons는 둘 다 적어야, 옛 저장본은 어르신만', () => {
+  assert.equal(earned(FX.finishedSession({petition:'reflect',elder:'keep'}),'reasons'),false);
+  assert.equal(earned(FX.finishedSession({petition:'reflect',elder:'keep',why_elder:true}),'reasons'),false);
+  const old=FX.finishedSession({elder:'keep',why_elder:true});delete old.fixedPetition;delete old.petitionReply;
+  assert.equal(earned(old,'reasons'),true);
+});
+test('badges: solvent·record·petition·residents 조건', () => {
+  const s=FX.finishedSession({petition:'reflect',elder:'keep'});
+  s.end={cause:'bankrupt'};assert.equal(earned(s,'solvent'),false);
+  const z=((s.config.rideLog||{}).hiddenAtStart||[])[0];assert.ok(z,'숨은 구역 설정');
+  s.history[0].rideLog[z]={requests:5,rode:2,arrived:1};assert.equal(earned(s,'record'),true);
+  s.history.forEach(h=>{Object.keys(h.rideLog).forEach(k=>{h.rideLog[k].rode=0;});});assert.equal(earned(s,'record'),false);
+  const pz=s.fixedPetition.zone;
+  s.history[1].rideLog[pz]={requests:10,rode:5,arrived:4};s.history[2].rideLog[pz]={requests:10,rode:8,arrived:8};
+  assert.equal(earned(s,'petition'),true);
+  s.history[2].rideLog[pz]={requests:10,rode:8,arrived:4};assert.equal(earned(s,'petition'),false);
+  delete s.fixedPetition;assert.equal(earned(s,'petition'),false);
+  const e=FX.finishedSession({});e.history=[];assert.equal(earned(e,'residents'),false);
+});
+test('fileName 접두어', () => { assert.match(R.fileName('김',new Date(2026,10,10)),/^공정성포용성_보고서_김_20261110$/); });
+test('choices 줄: 이유 비면 (쓰지 않음), 없으면 null', () => {
+  const s=FX.finishedSession({petition:'reflect',elder:'abolish'});
+  const c=R.build(s,real()).choices,z=s.fixedPetition.zone;
+  assert.match(c.petition,new RegExp('^2단계 '+z+' 주민 청원 · 3단계 답 → 반영한다 · 이유: \\(쓰지 않음\\) · 못 간 이동 \\d+건 → \\d+건$'));
+  assert.equal(c.elder,'4단계 어르신 무임승차 폐지 · 이유: (쓰지 않음)');
+  const w=FX.finishedSession({petition:'not-now',elder:'keep',whyBoth:true});
+  assert.match(R.build(w,real()).choices.petition,/이번엔 못 한다 · 이유: 이유 petition · /);
+  assert.equal(R.build(w,real()).choices.elder,'4단계 어르신 무임승차 유지 · 이유: 이유 elder');
+  assert.deepEqual(R.build(FX.finishedSession({}),real()).choices,{petition:null,elder:null});
+  const old=FX.finishedSession({elder:'keep'});delete old.fixedPetition;assert.equal(R.build(old,real()).choices.petition,null);
+  old.history.forEach(h=>delete h.rideLog);assert.doesNotThrow(()=>{R.build(old,real());R.badges(old);});
 });

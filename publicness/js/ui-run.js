@@ -29,7 +29,7 @@
         items.push({ t: e.t, cls: 'event', text: app().clock(e.t) + ' · 갑자기 ' + app().nodeName(od.o) + '에서 ' + PB.Narrative.josa(app().nodeName(od.d), '으로') + ' 가려는 요청이 늘었어요(' + app().duration(c.events.extraMinutes) + ' 동안 12건).' });
       }
       if (e.type === 'petition') {
-        var complaint = '우리 동네에서 출발한 요청 ' + e.data.count + '건이 아직 도착하지 못했어요.';
+        var complaint = '우리 동네에서 출발한 요청 ' + e.data.count + '건이 아직 도착하지 못했어요.' + (e.data.fixed && e.data.noRecord ? ' 지난번엔 버스가 없어서 다들 걸어 다녔죠. 기록에 있을 리가 없잖아요.' : '');
         items.push({ t: e.t, cls: 'event', node: e.node, bubble: { kind: 'petition', text: complaint }, text: app().clock(e.t) + ' · ' + app().nodeName(e.node) + ' 주민 청원: “' + complaint + '”' });
       }
     });

@@ -14,7 +14,7 @@ const rev = (phase, extra = {}) => ({
   phase, g: G.build(cfg, phase), requests: Dm.base(cfg, phase, 42), owned: 3, fourthAllowed: phase >= 3,
   prevMetrics: null, prevRouteIds: [], plan: draftPlan(), config: cfg, ...extra
 });
-const WHITELIST = ['phase', 'g', 'requests', 'owned', 'fourthAllowed', 'fourthMustBeNew', 'prevMetrics', 'prevRouteIds', 'plan', 'config'];
+const WHITELIST = ['phase', 'g', 'requests', 'owned', 'fourthAllowed', 'fourthMustBeNew', 'prevMetrics', 'prevRouteIds', 'plan', 'config', 'rideRatios'];
 
 test('revealed phase carries only public inputs (AC3)', () => {
   const r3 = A.makeRevealed({ phase: 3, g: G.build(cfg, 3), requests: Dm.base(cfg, 3, 42), owned: 3, fourthAllowed: true, prevMetrics: null, prevRouteIds: [], plan: draftPlan(), config: cfg, seed: 42, events: [1] });
@@ -28,8 +28,9 @@ test('revealed phase carries only public inputs (AC3)', () => {
 test('reach targets', () => {
   assert.deepEqual(A.targets(rev(1)), ['F', 'E']);
   const prev = { zones: { A: { N: 10, rate: 0.9 }, B: { N: 10, rate: 0.2 }, C: { N: 5, rate: 0.5 }, D: { N: 0, rate: null }, H: { N: 4, rate: 0.2 } } };
-  assert.deepEqual(A.targets(rev(2, { prevMetrics: prev })), ['B', 'H']);
-  assert.deepEqual(A.targets(rev(3, { prevMetrics: prev })), ['I', 'B']);
+  const rs = { A: 0.9, B: 0.2, C: 0.5, D: 1, H: 0.2 }; /* 2단계부터는 탑승 기록 비율(rideRatios)이 기준 */
+  assert.deepEqual(A.targets(rev(2, { prevMetrics: prev, rideRatios: rs })), ['B', 'H']);
+  assert.deepEqual(A.targets(rev(3, { prevMetrics: prev, rideRatios: rs })), ['I', 'B', 'H']);
 });
 
 test('candidates bounded, deterministic, include draft and examples', () => {
@@ -74,7 +75,7 @@ test('recommendation never worsens the goal score', () => {
   for (const goal of ['profit', 'time', 'reach']) {
     const rec = A.recommendSync(r, goal);
     const t = A.targets(r);
-    const s0 = A.score(goal, rec.baseline, rec._baseSim, t), s1 = A.score(goal, rec.expected, rec._sim, t);
+    const s0 = A.score(goal, rec.baseline, rec._baseSim, t, r.plan), s1 = A.score(goal, rec.expected, rec._sim, t, rec.plan);
     assert.ok(A.compare(s1, s0) >= 0, goal);
   }
 });
@@ -121,4 +122,45 @@ test('async recommend matches sync', async () => {
   const b = A.recommendSync(r, 'profit');
   assert.deepEqual(a.plan, b.plan);
   assert.ok(ticks.length > 1);
+});
+
+// 소외 지역 연결 = 정차 여부 우선(2026-11-10)
+const Session = require('../js/session.js');
+const realCfg = require('../js/config.js');
+const fx = require('./fairness-fixture.cjs');
+const planCfg = () => { const s = Session.create(realCfg); Session.beginPlan(s); return s; };
+const hasF = (rec) => rec.plan.buses.some((b) => b.route && b.route.nodes.includes('F'));
+
+test('reach: 기록 0건이어도 1단계 제안은 외곽 마을에 정차한다', () => {
+  const s = planCfg();
+  const rec = A.recommendSync(Session.revealed(s), 'reach');
+  assert.ok(hasF(rec));
+});
+test('time 목표는 기록 0건인 외곽 마을을 고를 이유가 없다(1단계)', () => {
+  const s = planCfg();
+  const rec = A.recommendSync(Session.revealed(s), 'time');
+  assert.ok(!hasF(rec));
+});
+test('targets: 2단계 F 비율 0이면 F가 맨 앞', () => {
+  const s = fx.playTo(realCfg, 1, fx.withoutF);
+  Session.nextPhase(s);
+  const r = Session.revealed(s);
+  assert.equal(r.rideRatios.F, 0);
+  const tg = A.targets(r);
+  assert.equal(tg[0], 'F');
+  assert.ok(tg.length <= 3 && new Set(tg).size === tg.length);
+});
+test('targets: 비율이 가장 낮은 두 곳(같으면 이름 순) + 비율 0이 아닌 F는 앞에 안 붙는다', () => {
+  const g = { has: () => true };
+  const rs = { A: 0.9, B: 0.2, C: 0.5, F: 0.4, H: 0.2 };
+  assert.deepEqual(A.targets({ phase: 2, g, config: realCfg, rideRatios: rs }), ['B', 'H']);
+});
+test('score(reach): 정차 비율이 도착률보다 먼저 비교된다', () => {
+  const m = { zones: { F: { N: 5, rate: 0 }, E: { N: 5, rate: 0.9 } }, arrived: 1 };
+  const route = (nodes) => ({ buses: [{ id: 1, route: { nodes, stops: nodes.map(() => true) } }] });
+  const withF1 = A.score('reach', m, null, ['F', 'E'], route(['F', 'E']));
+  const noF = A.score('reach', m, null, ['F', 'E'], route(['E', 'B']));
+  assert.equal(withF1[0], 1); assert.equal(noF[0], 0.5);
+  assert.equal(A.compare(withF1, noF), 1);
+  assert.equal(withF1.length, 3);
 });
