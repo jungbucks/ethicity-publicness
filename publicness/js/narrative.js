@@ -21,12 +21,15 @@
   }
   // 동적 낱말 뒤 조사: josa('다은','은는') → '다은은', josa('고속버스터미널','이었') → '고속버스터미널이었'
   var PAIRS = { '은는': ['은', '는'], '이가': ['이', '가'], '을를': ['을', '를'], '과와': ['과', '와'], '이었': ['이었', '였'], '으로': ['으로', '로'], '이에요': ['이에요', '예요'] };
-  function josa(word, kind) {
+  function particle(word, kind) {
     var w = String(word), p = PAIRS[kind], c = w.charCodeAt(w.length - 1);
-    if (!p) return w;
-    if (kind === '으로' && c >= 0xac00 && c <= 0xd7a3 && (c - 0xac00) % 28 === 8) return w + '로'; // ㄹ 받침은 ‘로’
-    return w + (batchim(w) ? p[0] : p[1]);
+    if (!p) return '';
+    if (kind === '으로' && c >= 0xac00 && c <= 0xd7a3 && (c - 0xac00) % 28 === 8) return '로'; // ㄹ 받침은 ‘로’
+    return batchim(w) ? p[0] : p[1];
   }
+  function josa(word, kind) { return String(word) + particle(word, kind); }
+  // 괄호 풀이가 낱말 뒤에 붙을 때: 조사는 괄호 앞 낱말의 받침을 따른다 — josaNote('산업·일자리','20건 중 10건','과와') → '산업·일자리(20건 중 10건)와'
+  function josaNote(word, note, kind) { return String(word) + '(' + note + ')' + particle(word, kind); }
   // {이가}{은는}은 바로 앞에 채워진 낱말의 받침을 본다
   function fill(text, vars) {
     var out = '', re = /\{([^}]+)\}/g, last = 0, m, prev = '';
@@ -108,7 +111,8 @@
   function dayKept(r) { return r.satisfied != null ? !!r.satisfied : r.dayStatus === 'complete'; }
   function dayLine(config, who, days, complete, kept) {
     var word = who.itineraries ? '일정' : '왕복', sv = config.service, rule = sv && sv.maxWait != null ? '기준(' + Demand.duration(config, sv.maxWait) + ' 이내)' : '기준';
-    return (days === complete ? word + ' ' + complete + '일 중 ' : days + '일 중 ' + word + ' ' + complete + '일, 그중 ') + rule + '을 지킨 날 ' + kept + '일이에요.';
+    /* 2026-11-11 플레이테스트 4: 단위를 인물 카드(‘누적 0/1회’)와 같은 ‘회’로 — 전에는 엔딩만 ‘2일 중 일정 0일’이었다 */
+    return (days === complete ? word + ' ' + complete + '회 중 ' : days + '회 중 ' + word + ' ' + complete + '회, 그중 ') + rule + '을 지킨 것은 ' + kept + '회예요.';
   }
   function residentStory(records, residentId, config) {
     if(config.day){
@@ -208,18 +212,19 @@
       var seen={},completed=0,days=0,finished=0;history.forEach(function(h){if(seen[h.phase]||h.phase<r.fromPhase||h.phase>config.phases.length)return;seen[h.phase]=true;var rec=h.residents&&h.residents[r.id];if(rec)days++;if(rec&&rec.dayStatus==='complete')finished++;if(rec&&(rec.satisfied!=null?rec.satisfied:rec.dayStatus==='complete'))completed++;});
       var satisfied=completed>=thresholds[r.id];
       var line=lines[r.id][satisfied?0:1];if(config.challengeApplied&&r.itineraries&&satisfied)line='운동장에서의 일정 뒤에도 다음 목적지까지 갈 수 있었어요. 돌아가는 길까지 함께 챙겨 줘서 고마워요!';
-      return {id:r.id,name:r.name+' · '+(satisfied?'만족':'불만족'),satisfied:satisfied,completed:completed,threshold:thresholds[r.id],image:images[r.id],text:line+'\n'+dayLine(config,r,days,finished,completed)+' 만족 기준은 '+thresholds[r.id]+'일 이상이에요.'};
+      return {id:r.id,name:r.name+' · '+(satisfied?'만족':'불만족'),satisfied:satisfied,completed:completed,threshold:thresholds[r.id],image:images[r.id],text:line+'\n'+dayLine(config,r,days,finished,completed)+' 만족 기준은 '+thresholds[r.id]+'회 이상이에요(누적 '+completed+'/'+thresholds[r.id]+'회).'};
     });
   }
   function won(n){var r=Math.round(n);return (n<0?'−':'')+(r===0&&n<0?'1':Math.abs(r).toLocaleString('ko-KR'))+'원'+(r===0&&n<0?' 미만':'');}
   function endingConclusion(reactions,history,end){
     var allSatisfied=reactions.length>0&&reactions.every(function(r){return r.satisfied;});
     var profit=history.reduce(function(total,h){return total+h.metrics.costs.total;},0);
-    var verdict=allSatisfied?'다양한 사람들을 만족시켰다.':'도시 노선을 나름 잘 설계했다. 하지만 이게 최선이었을까?';
+    /* 2026-11-11 플레이테스트 13: 총평만 반말 평서체였다 — 다른 화면처럼 해요체로. 금액 이름은 다른 화면과 같은 ‘누적 잔액’(운영 종료 때는 ‘보유 잔액’ 그대로) */
+    var verdict=allSatisfied?'다양한 사람들을 만족시켰어요.':'도시 노선을 나름 잘 설계했어요. 하지만 이게 최선이었을까요?';
     var happy=reactions.filter(function(r){return r.satisfied;}).length,who=reactions.length?'주요 인물 '+reactions.length+'명 중 '+happy+'명이 만족했지만, ':'';
     if(end&&end.cause==='bankrupt')verdict=who+'학기 말 잔액이 '+won(profit)+'이라 파산했어요. 주민의 이동은 지키면서 운영 비용을 다시 설계해 봐요.';
-    else if(end&&end.cause==='contract')verdict='단계 적자가 누적 세 번 쌓여 운영 계약이 종료됐다. 그동안 주민이 해낸 이동은 기록에 남아 있다. 어디서 돈이 나갔는지부터 다시 보자.';
-    return {name:'솔잎마을의 한 학기',image:'intro-village.webp',allSatisfied:allSatisfied,profit:profit,verdict:verdict,text:verdict+'\n'+(end&&end.cause&&end.cause!=='complete'?'보유 잔액 ':'총 수익 ')+won(profit)+'\n지원금·운임에서 운영 비용을 뺀 '+history.length+'단계 누적 금액'};
+    else if(end&&end.cause==='contract')verdict='단계 적자가 누적 세 번 쌓여 운영 계약이 종료됐어요. 그동안 주민이 해낸 이동은 기록에 남아 있어요. 어디서 돈이 나갔는지부터 다시 봐요.';
+    return {name:'솔잎마을의 한 학기',image:'intro-village.webp',allSatisfied:allSatisfied,profit:profit,verdict:verdict,text:verdict+'\n'+(end&&end.cause&&end.cause!=='complete'?'보유 잔액 ':'누적 잔액 ')+won(profit)+'\n지원금·운임에서 운영 비용을 뺀 '+history.length+'단계 합계'};
   }
   // 결과 카드: 판정(Session.residentVerdict — 출발 경고와 같은 기준)과 구간별 상태
   function residentResult(rd,r,passengers,window){
@@ -300,10 +305,15 @@
    *  · 단계 주제 지역(THEME)은 유지. 주제 지역이 최다가 아니면 ‘가장 많이 남은 곳은 X · 이번 단계에서 살펴볼 곳은 Y’로 둘을 구분한다
    *  · 주제 지역 출발 도착률 90% 미만(또는 출발 이동 없음)이면 단계 고정 질문(phaseEthics)을 보이고(ethics: true), 90% 이상이면 보이지 않는다(ethics: false) */
   var FOCUS_RATE = 0.9, FOCUS_MIN_N = 5; // 2026-11-06 P1-4: 건수가 너무 적은 곳(1건 중 1건)이 비율로 앞서지 않게. 그런 곳뿐이면 그대로 쓴다
-  function thinkFocus(config, phase, passengers, mobility) {
+  /* 2026-11-11 교사 플레이테스트 1·10:
+   *  · 목적지까지 못 간 이동이 0건인 곳은 ‘살펴볼 곳’으로 짚지 않는다(주제 지역이 여러 곳이면 못 간 이동이 있는 곳만). 짚을 곳이 없으면 그 문장을 뺀다.
+   *  · 다만 AI가 못 본 곳(opts.unseen[id] = {seen: 0, real: n} — ‘AI가 본 이동과 실제 이동’ 카드와 같은 값)은 까닭을 적어 한 줄 남긴다(‘살펴볼 곳’이라 부르지 않음).
+   *  · 문장 끝의 ‘다음에는 누구의 이동을 살필까요?’는 바로 아래 소제목과 겹쳐서 뺐다.
+   *  · 괄호 뒤 조사(과/와·이에요/예요)는 괄호 앞 낱말의 받침을 따른다 */
+  function thinkFocus(config, phase, passengers, mobility, opts) {
     var ids = (THEME[phase] || []).filter(function (id) { return config.nodes.some(function (n) { return n.id === id && (n.fromPhase || 1) <= phase; }); });
     if (!ids.length) return { bridge: '', ethics: true };
-    var ps = passengers || [], names = ids.map(function (id) { return nodeName(config, id); }).join('·'), zones = mobility && mobility.zones;
+    var ps = passengers || [], names = ids.map(function (id) { return nodeName(config, id); }).join('·'), zones = mobility && mobility.zones, unseen = (opts && opts.unseen) || {};
     function stat(list) {
       var N = 0, arrived = 0;
       if (zones) list.forEach(function (id) { var z = zones[id]; if (z) { N += z.N; arrived += z.done; } });
@@ -315,18 +325,25 @@
     var enough = pool.filter(function (z) { return z.N >= FOCUS_MIN_N; }); if (enough.length) pool = enough;
     pool.sort(function (a, b) { return b.left / b.N - a.left / a.N || b.left - a.left; });
     var worst = pool[0] || null, tied = pool[1] && pool[1].left / pool[1].N === worst.left / worst.N ? pool[1] : null;
-    var themeIsWorst = !!worst && ids.length === 1 && (ids[0] === worst.id || (!!tied && ids[0] === tied.id)), ethics = !t.N || t.rate < FOCUS_RATE, line = '';
+    /* 살펴볼 곳 = 주제 지역 가운데 못 간 이동이 있는 곳만 */
+    var open = ids.filter(function (id) { return stat([id]).left > 0; }), f = stat(open), openNames = open.map(function (id) { return nodeName(config, id); }).join('·');
+    var themeIsWorst = !!worst && open.length === 1 && (open[0] === worst.id || (!!tied && open[0] === tied.id)), ethics = !t.N || t.rate < FOCUS_RATE, line = '';
     if (worst) {
-      var one = function (z) { return nodeName(config, z.id) + '(' + z.N + '건 중 ' + z.left + '건 목적지까지 못 감)'; };
-      line = tied ? '남은 비율이 가장 큰 곳은 ' + one(worst) + '과 ' + one(tied) + '이에요.' : '남은 비율이 가장 큰 곳은 ' + josa(nodeName(config, worst.id), '이에요') + '. 출발한 이동 ' + worst.N + '건 중 ' + worst.left + '건은 목적지까지 못 갔어요.';
+      var one = function (z, kind) { return josaNote(nodeName(config, z.id), z.N + '건 중 ' + z.left + '건 목적지까지 못 감', kind); };
+      line = tied ? '남은 비율이 가장 큰 곳은 ' + one(worst, '과와') + ' ' + one(tied, '이에요') + '.' : '남은 비율이 가장 큰 곳은 ' + josa(nodeName(config, worst.id), '이에요') + '. 출발한 이동 ' + worst.N + '건 중 ' + worst.left + '건은 목적지까지 못 갔어요.';
     }
     if (!t.N) line += (line ? ' ' : '') + '이번에는 ' + names + '에서 출발한 이동이 없었어요.';
     else if (!worst) line = names + '에서 출발한 이동 ' + t.N + '건이 모두 도착했어요.';
-    else if (!themeIsWorst) line += ' 이번 단계에서 살펴볼 곳은 ' + josa(names, '이에요') + '(' + (t.left ? '출발 ' + t.N + '건 중 ' + t.left + '건 목적지까지 못 감' : '출발 ' + t.N + '건 모두 도착') + ').';
-    if (!ethics && worst) line += ' 다음에는 누구의 이동을 살필까요?';
-    return { bridge: line, ethics: ethics, theme: t, worst: worst };
+    else if (open.length && !themeIsWorst) line += ' 이번 단계에서 살펴볼 곳은 ' + josa(openNames, '이에요') + '(출발 ' + f.N + '건 중 ' + f.left + '건 목적지까지 못 감).';
+    /* 모두 도착했지만 AI가 못 본 주제 지역: 왜 짚는지 까닭을 적는다 */
+    ids.forEach(function (id) {
+      var u = unseen[id], z = stat([id]);
+      if (!u || u.seen !== 0 || !(u.real > 0) || !z.N || z.left > 0) return;
+      line += (line ? ' ' : '') + josa(nodeName(config, id), '은는') + (worst ? ' 출발 ' + z.N + '건이 모두 도착했지만,' : '') + ' AI가 본 이동 0건 · 실제 ' + u.real + '건이라 AI 제안에서 빠지기 쉬운 곳이에요.';
+    });
+    return { bridge: line, ethics: ethics, theme: t, worst: worst, focus: open };
   }
-  function bridgeLine(config, phase, passengers, mobility) { return thinkFocus(config, phase, passengers, mobility).bridge; }
+  function bridgeLine(config, phase, passengers, mobility, opts) { return thinkFocus(config, phase, passengers, mobility, opts).bridge; }
   // 인물 결과 한 줄: 어느 이동인지, 어디서 얼마나 기다렸는지, 만차·노선 없음, 그 노선의 버스 수·간격
   // routeInfo(routeId) → {num, buses, headway} | null (화면이 운행 계획에서 찾아 넘긴다. 없으면 노선 정보 생략)
   function residentLine(config, rd, rec, passengers, routeInfo) {
@@ -365,7 +382,7 @@
     if (worst) return head + legText(worst, worst === back ? backLabel : outLabel) + (Evaluation.overWait(config, worst.waitTotal) ? ', 기준 ' + dur(sv.maxWait) + ' 넘김' : '');
     return head + ((rec.reasons || [])[0] ? rec.reasons[0].text : '이동을 마치지 못했어요.');
   }
-  var api = { criterionState: criterionState, mergeRepeats: mergeRepeats, bridgeLine: bridgeLine, thinkFocus: thinkFocus, residentLine: residentLine, THEME: THEME, won:won, financeReview:financeReview, josa:josa, residentResult:residentResult,satisfactionTargets:satisfactionTargets,satisfactionText:satisfactionText,residentTally:residentTally,endingReactions:endingReactions,endingConclusion:endingConclusion, fill: fill, bubbles: bubbles, residentStory: residentStory, zoneSubtitleText: zoneSubtitleText, hookLines: hookLines, nodeName: nodeName };
+  var api = { criterionState: criterionState, mergeRepeats: mergeRepeats, bridgeLine: bridgeLine, thinkFocus: thinkFocus, residentLine: residentLine, THEME: THEME, won:won, financeReview:financeReview, josa:josa, josaNote:josaNote, residentResult:residentResult,satisfactionTargets:satisfactionTargets,satisfactionText:satisfactionText,residentTally:residentTally,endingReactions:endingReactions,endingConclusion:endingConclusion, fill: fill, bubbles: bubbles, residentStory: residentStory, zoneSubtitleText: zoneSubtitleText, hookLines: hookLines, nodeName: nodeName };
   root.PB = root.PB || {};
   root.PB.Narrative = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

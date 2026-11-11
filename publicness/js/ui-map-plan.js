@@ -5,7 +5,7 @@
 (function(root){
   'use strict';
   var PB=root.PB,S=PB.Session,original=PB.UI.plan,state={session:null,phase:null,text:false,ai:false,bus:null,from:null,person:null};
-  var SPRITE='assets/art/bus-sprite.webp',HIT=44,MARGIN=12,HINT_KEY='ethicity.publicness.busHint',drag=null;
+  var SPRITE='assets/art/bus-sprite.webp',HIT=44,MARGIN=12,HINT_KEY='ethicity.publicness.busHint',drag=null,fairRO=null;
   function app(){return PB.App;}
   function button(id,text,fn){var b=app().el('button',{id:id,type:'button','class':'btn',onclick:fn},text);return text==='×'?PB.Icons.label(b,'close','닫기'):id==='btn-lease'?PB.Icons.label(b,'plus',text.replace(/^\+\s*/,'')):b;}
   function redraw(){app().keepFocus=true;app().render();}
@@ -264,7 +264,13 @@
     text.setAttribute('aria-expanded',String(state.text));text.setAttribute('aria-controls','panel');ai.setAttribute('aria-expanded',String(state.ai));ai.setAttribute('aria-controls','plan-ai-popover');actions.appendChild(text);actions.appendChild(ai);actions.appendChild(panel.querySelector('#btn-depart'));bar.appendChild(actions);
     var message=panel.querySelector('#plan-message');bar.appendChild(App.el('p',{id:'map-plan-message',role:'status'},state.bus!=null?(state.from!=null?R(state.from)+'의 버스 한 대를 골랐어요. 다른 노선을 누르면 옮기고, ‘대기로 돌리기’로 회수해요.':B(state.bus)+'를 보낼 노선을 누르세요 — 지도의 선, 선 끝 색 점, 노선 버튼 모두 돼요.'):PB.Names.text(message.textContent)));
     /* 청원·무임 정책 카드와 ‘골라야 출발’ 줄은 글 편집 패널이 아니라 노선 도구 맨 위(노선 칩보다 위)에 둔다 — 안 열어도 보여야 출발할 수 있다 */
-    ['choice-required','elder-card','petition-card'].forEach(function(id){var n=panel.querySelector('#'+id);if(n)bar.insertBefore(n,bar.firstChild);});
+    /* 2026-11-11 플레이테스트 3: ‘골라야 출발’ 줄은 카드 안에 들어 있다(ui-fairness whyLine). 카드 없이 줄만 있는 예외일 때만 따로 옮긴다 — 넓은 화면에서는 css가 오른쪽 칸(slot)에 고정 */
+    var loose=panel.querySelector('#choice-required');if(loose&&!loose.closest('.fair-card'))bar.insertBefore(loose,bar.firstChild);
+    ['elder-card','petition-card'].forEach(function(id){var n=panel.querySelector('#'+id);if(n)bar.insertBefore(n,bar.firstChild);});
+    /* 넓은 화면에서 카드가 칸보다 길 때(단계 배너가 떠 있는 몇 초·규칙을 펼쳤을 때)는 아래쪽(선택 버튼·‘골라야 출발’ 줄)이 보이게 — 배너가 첫 클릭에 사라지며 칸이 늘어나도 버튼이 제자리라 그 클릭이 빗나가지 않는다 */
+    var fcard=bar.querySelector('.fair-card'),pinFair=function(){if(fcard&&document.body.classList.contains('rail')&&fcard.scrollHeight>fcard.clientHeight+1)fcard.scrollTop=fcard.scrollHeight;};
+    root.requestAnimationFrame(pinFair);
+    if(fairRO){fairRO.disconnect();fairRO=null;}if(fcard&&root.ResizeObserver){fairRO=new root.ResizeObserver(pinFair);fairRO.observe(fcard);}/* 알림이 떠서 칸이 잠깐 줄어들 때도 */
     var issues=panel.querySelector('#plan-errors'),oldIssues=document.querySelector('#map-strip #plan-errors');if(oldIssues)oldIssues.remove();
     /* 휴대폰 배치(2026-11-02)는 오류 줄을 알림 줄(시간·수지 줄 위 겹침)에 — 정류장 하나만 이은 동안 잠깐 생겼다 사라지는 줄 때문에 지도 크기가 바뀌지 않게 */
     if(issues.textContent){var bc=document.body.classList,strip=document.getElementById('map-strip');if(strip&&(bc.contains('phone-p')||bc.contains('phone-l')||bc.contains('rail')||bc.contains('sheet')))strip.appendChild(issues);else bar.appendChild(issues);}

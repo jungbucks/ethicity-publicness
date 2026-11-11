@@ -16,7 +16,11 @@
 
   var Evaluation = NODE ? require('./resident-evaluation.js') : root.PB.ResidentEvaluation;
 
-  var KEYS = ['phase', 'g', 'requests', 'owned', 'fourthAllowed', 'fourthMustBeNew', 'prevMetrics', 'prevRouteIds', 'plan', 'config', 'rideRatios'];
+  /* allowNodes(2026-11-11 플레이테스트 2): 후보 노선·소외 지역 대상에 쓸 수 있는 정류장. 결과 화면 ‘AI라면?’은 다음 단계 수요로 계산하지만
+   * 아직 지도에 없는 정류장을 추천하지 않도록 이번 단계에 보이는 정류장만 넘긴다. 없으면(계획 화면) 그 단계 지도 전체 */
+  var KEYS = ['phase', 'g', 'requests', 'owned', 'fourthAllowed', 'fourthMustBeNew', 'prevMetrics', 'prevRouteIds', 'plan', 'config', 'rideRatios', 'allowNodes'];
+  function allowed(rev, id) { return !rev.allowNodes || rev.allowNodes.indexOf(id) >= 0; }
+  function routeAllowed(rev, r) { return !rev.allowNodes || !r || r.nodes.every(function (id) { return allowed(rev, id); }); }
 
   function makeRevealed(src) {
     var out = {};
@@ -27,13 +31,13 @@
 
   function targets(rev) {
     var cfg = rev.config, rs = rev.rideRatios;
-    if (rev.phase <= 1 || !rs) return cfg.reachInitial.slice();
-    var ids = Object.keys(rs).filter(function (id) { return rev.g.has(id); });
+    if (rev.phase <= 1 || !rs) return cfg.reachInitial.filter(function (id) { return allowed(rev, id); });
+    var ids = Object.keys(rs).filter(function (id) { return rev.g.has(id) && allowed(rev, id); });
     var lowest = ids.filter(function (id) { return id !== cfg.newZone; })
       .sort(function (a, b) { return rs[a] - rs[b] || (a < b ? -1 : 1); }).slice(0, 2);
     var out = [];
-    if (rs.F === 0 && rev.g.has('F')) out.push('F');
-    if (rev.phase === cfg.newTownPhase && rev.g.has(cfg.newZone)) out.push(cfg.newZone);
+    if (rs.F === 0 && rev.g.has('F') && allowed(rev, 'F')) out.push('F');
+    if (rev.phase === cfg.newTownPhase && rev.g.has(cfg.newZone) && allowed(rev, cfg.newZone)) out.push(cfg.newZone);
     lowest.forEach(function (id) { if (out.indexOf(id) < 0) out.push(id); });
     return out.slice(0, 3);
   }
@@ -44,7 +48,7 @@
   function candidates(rev, goal) {
     var g = rev.g, max = rev.config.ai.maxCandidates, seen = {}, must = [], fill = [];
     function add(list, r) {
-      if (!validRoute(g, r)) return;
+      if (!validRoute(g, r) || !routeAllowed(rev, r)) return;
       var id = Graph.routeId(r);
       if (seen[id]) return;
       seen[id] = true;
@@ -109,7 +113,7 @@
   }
 
   function sanitize(rev, plan) {
-    return { buses: plan.buses.map(function (b) { return { id: b.id, route: validRoute(rev.g, b.route) && (!rev.config.challengeApplied || (b.id===9 ? b.route.nodes.length===2&&b.route.nodes.indexOf('N')>=0 : b.route.nodes.indexOf('N')<0&&(b.id!==7||new Set(b.route.nodes).size<=3))) ? b.route : null, offset: rev.config.map ? 0 : b.offset }; }) };
+    return { buses: plan.buses.map(function (b) { return { id: b.id, route: validRoute(rev.g, b.route) && routeAllowed(rev, b.route) && (!rev.config.challengeApplied || (b.id===9 ? b.route.nodes.length===2&&b.route.nodes.indexOf('N')>=0 : b.route.nodes.indexOf('N')<0&&(b.id!==7||new Set(b.route.nodes).size<=3))) ? b.route : null, offset: rev.config.map ? 0 : b.offset }; }) };
   }
   function samePlan(a, b) {
     return a.buses.every(function (x, i) {

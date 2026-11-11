@@ -14,6 +14,6 @@ test('incomplete outward or second trips do not count and duplicate phases count
 });
 test('final verdict requires everyone satisfied and profit sums signed net totals',()=>{
  const hs=history({haneul:4,narae:4,jun:4,sol:2,yuna:2,daeun:1});hs.forEach((h,i)=>h.metrics={costs:{total:i===0?-5000:1000}});
- let c=N.endingConclusion(N.endingReactions(cfg,hs),hs);assert.equal(c.allSatisfied,true);assert.equal(c.profit,-1000);assert.match(c.text,/총 수익 −1,000원/);
- hs[3].residents.daeun.dayStatus='returnIncomplete';c=N.endingConclusion(N.endingReactions(cfg,hs),hs);assert.equal(c.allSatisfied,false);assert.equal(c.verdict,'도시 노선을 나름 잘 설계했다. 하지만 이게 최선이었을까?');
+ let c=N.endingConclusion(N.endingReactions(cfg,hs),hs);assert.equal(c.allSatisfied,true);assert.equal(c.profit,-1000);assert.match(c.text,/누적 잔액 −1,000원/);
+ hs[3].residents.daeun.dayStatus='returnIncomplete';c=N.endingConclusion(N.endingReactions(cfg,hs),hs);assert.equal(c.allSatisfied,false);assert.equal(c.verdict,'도시 노선을 나름 잘 설계했어요. 하지만 이게 최선이었을까요?');/* 2026-11-11 플레이테스트 13: 해요체 */
 });

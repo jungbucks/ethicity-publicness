@@ -20,7 +20,7 @@ try{for(const [w,h] of [[1280,800],[375,812]]){
  const place=await page.evaluate(()=>{const t=document.querySelector('#think-note'),c=document.querySelector('#think-choice'),a=document.querySelector('#ai-note');
   return {inThink:!!t&&t.closest('#result-think')!==null,afterChoice:!!(t&&c&&(c.compareDocumentPosition(t)&Node.DOCUMENT_POSITION_FOLLOWING)),inAi:!!a&&a.closest('#result-ai')!==null,next:!!document.querySelector('#btn-next-phase:not([disabled])')};});
  assert.deepEqual(place,{inThink:true,afterChoice:true,inAi:true,next:true},'자리·다음 단계 버튼 막지 않음');
- assert.deepEqual(await read(page),{kept:'',lost:'',what:'',why:'',view:'',jk:'을(를)',jl:'이(가)',jw:'을(를)'},'처음엔 빈칸');
+ assert.deepEqual(await read(page),{kept:'',lost:'',what:'',why:'',view:'',jk:'',jl:'',jw:''},'처음엔 빈칸 — 비어 있으면 뒤 조사도 안 보임(2026-11-11 플레이테스트 11)');
  await page.fill('#note-kept','순자 할머니');await page.fill('#note-lost','수지');
  await page.locator('#ai-note [data-ai-view="diff"]').click();await page.locator('#ai-note [data-ai-view="diff"]').click();await page.locator('#ai-note [data-ai-view="same"]').click();
  await page.fill('#note-ai-what','노선');await page.fill('#note-ai-why','외곽 마을 사람이 남아서');

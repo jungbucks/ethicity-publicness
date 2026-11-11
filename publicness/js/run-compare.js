@@ -12,7 +12,7 @@
   function summary(h, draft) {
     var m = h.metrics, rs = h.residents || {}, ids = Object.keys(rs).filter(function (id) { return rs[id]; });
     var routes = (draft && draft.routes || []).filter(function (r) { return r.nodes.length >= 2; }).map(function (r) {
-      return { num: r.num, nodes: r.nodes.slice(), buses: draft.buses.filter(function (b) { return b.routeNum === r.num; }).length };
+      return { num: r.num, nodes: r.nodes.slice(), stops: r.nodes.map(function (id, i) { return !r.stops || r.stops[i] !== false; }), buses: draft.buses.filter(function (b) { return b.routeNum === r.num; }).length };
     });
     return { phase: h.phase, maxWait: m.maxWait, missed: m.N - m.arrived, N: m.N, arrived: m.arrived, total: m.costs.total,
       people: { ok: ids.filter(function (id) { return rs[id].satisfied; }).length, total: ids.length }, routes: routes };
@@ -30,27 +30,55 @@
       .map(function (c) { return { c: c, r: c.rel(c.a, c.b) }; }).sort(function (x, y) { return y.r - x.r; }).slice(0, 3)
       .map(function (x) { return x.c.label + ' ' + x.c.show(x.c.a) + ' → ' + x.c.show(x.c.b); });
     var numbers = moved.length ? '지난번 같은 단계와 비교: ' + moved.join(' · ') : '지난번 같은 단계와 결과 숫자가 같아요.';
-    var changes = planChanges(prev.routes || [], cur.routes || [], f).slice(0, 2);
+    var all = planChanges(prev.routes || [], cur.routes || [], f), changes = all.slice(0, 2);
+    if (all.length > 2) changes.push('그 밖에 ' + (all.length - 2) + '가지');
     return { numbers: numbers, plan: changes.length ? '달라진 계획: ' + changes.join(' · ') : '계획은 지난번과 같아요.' };
   }
-  function setKey(r) { return r.nodes.slice().sort().join(','); }
+  /* 노선 짝 찾기와 순서 비교(2026-11-10 검토 1번). 정류장 집합(setKey)은 ‘어느 노선이 어느 노선인가’를 찾는 데만 쓰고, 짝을 찾은 뒤 순서·순환·정차 여부를 따로 본다.
+   * 엔진 규칙(js/schedule.js timeline·spacePlan): 버스는 노선 첫 정류장에서 출발해 끝에서 방향을 바꾸고, 같은 노선 버스의 출차 간격도 첫 정류장 기준이다.
+   * → 거꾸로 이은 노선(A–B–C / C–B–A)·순환의 시작점을 돌린 노선도 같은 시각에 다른 정류장에 서는 다른 운행이라 ‘같은 계획’으로 보지 않는다.
+   *   색 번호(num)만 다른 노선은 엔진 입력(정류장 순서·정차·버스 수)이 같아 같은 운행이다. */
+  function isLoop(n) { return n.length > 2 && n[0] === n[n.length - 1]; }
+  function openSeq(n) { return isLoop(n) ? n.slice(0, -1) : n.slice(); } // 순환의 닫는 정류장을 뺀 순서
+  function same(a, b) { return a.length === b.length && a.every(function (x, i) { return x === b[i]; }); }
+  function setKey(r) { return openSeq(r.nodes).sort().join(','); }
+  function knownStops(r) { return Array.isArray(r.stops) && r.stops.length === r.nodes.length; } // 예전 요약에는 정차 기록이 없다
+  function sameRun(p, c) { return same(p.nodes, c.nodes) && (!knownStops(p) || !knownStops(c) || same(p.stops.map(Boolean), c.stops.map(Boolean))); }
+  function rotated(a, b) { for (var k = 1; k < a.length; k++) if (same(a.slice(k).concat(a.slice(0, k)), b)) return true; return same(a, b); }
+  // 같은 정류장을 잇는 두 노선의 달라진 점(없으면 빈 배열)
+  function orderChanges(p, c, name, f) {
+    var out = [], pl = isLoop(p.nodes), cl = isLoop(c.nodes), po = openSeq(p.nodes), co = openSeq(c.nodes), rev = po.slice().reverse();
+    if (pl !== cl) out.push(name + (cl ? ' 순환으로 바꿈' : ' 순환을 풂'));
+    if (!same(po, co)) {
+      var start = name + ' 첫 출발 정류장 바꿈(' + f.name(po[0]) + ' → ' + f.name(co[0]) + ')';
+      if (pl && cl) out.push(rotated(po, co) ? start : rotated(rev, co) ? name + ' 도는 방향 바꿈' : name + ' 정류장 순서 바꿈');
+      else out.push(!pl && !cl && same(rev, co) ? start : name + ' 정류장 순서 바꿈');
+    } else if (pl === cl && knownStops(p) && knownStops(c)) {
+      c.nodes.forEach(function (id, i) { if (!!p.stops[i] !== !!c.stops[i] && c.nodes.indexOf(id) === i) out.push(name + ' ' + f.name(id) + (c.stops[i] ? ' 통과 → 정차' : ' 정차 → 통과')); });
+    }
+    return out;
+  }
   function planChanges(prev, cur, f) {
-    var out = [], restP = prev.slice(), restC = [];
-    function bus(name, a, b) { if (a !== b) out.push(name + ' 버스 ' + a + '대 → ' + b + '대'); }
-    // 같은 정류장들을 잇는 노선끼리(색이 달라도) → 같은 색끼리 → 남은 것
-    cur.forEach(function (c) { var p = restP.filter(function (x) { return setKey(x) === setKey(c); })[0]; if (!p) { restC.push(c); return; } restP.splice(restP.indexOf(p), 1); bus(f.route(c.num), p.buses, c.buses); });
-    restC.slice().forEach(function (c) {
-      var p = restP.filter(function (x) { return x.num === c.num; })[0]; if (!p) return;
-      restP.splice(restP.indexOf(p), 1); restC.splice(restC.indexOf(c), 1);
+    var out = [], buses = [], restP = prev.slice(), restC = cur.slice(); /* 노선 모양(순서·정류장·새 노선·없앰)을 먼저, 버스 수는 그 뒤에 */
+    function bus(name, a, b) { if (a !== b) buses.push(name + ' 버스 ' + a + '대 → ' + b + '대'); }
+    // 짝 찾기: ① 순서·정차까지 같은 노선(색이 달라도) → ② 같은 정류장들을 잇는 노선 → ③ 같은 색. 각 단계에서 같은 색을 먼저 고른다
+    function pair(match, each) {
+      restC.slice().forEach(function (c) {
+        var cands = restP.filter(function (x) { return match(x, c); }), p = cands.filter(function (x) { return x.num === c.num; })[0] || cands[0]; if (!p) return;
+        restP.splice(restP.indexOf(p), 1); restC.splice(restC.indexOf(c), 1); each(p, c, f.route(c.num));
+      });
+    }
+    pair(sameRun, function (p, c, name) { bus(name, p.buses, c.buses); });
+    pair(function (p, c) { return setKey(p) === setKey(c); }, function (p, c, name) { out.push.apply(out, orderChanges(p, c, name, f)); bus(name, p.buses, c.buses); });
+    pair(function (p, c) { return p.num === c.num; }, function (p, c, name) {
       var plus = c.nodes.filter(function (id, i) { return p.nodes.indexOf(id) < 0 && c.nodes.indexOf(id) === i; }), minus = p.nodes.filter(function (id, i) { return c.nodes.indexOf(id) < 0 && p.nodes.indexOf(id) === i; });
-      if (plus.length) out.push(f.route(c.num) + '에 ' + plus.map(f.name).join('·') + ' 더함');
-      if (minus.length) out.push(f.route(c.num) + '에서 ' + minus.map(f.name).join('·') + ' 뺌');
-      if (!plus.length && !minus.length) out.push(f.route(c.num) + ' 정류장 순서 바꿈');
-      bus(f.route(c.num), p.buses, c.buses);
+      if (plus.length) out.push(name + '에 ' + plus.map(f.name).join('·') + ' 더함');
+      if (minus.length) out.push(name + '에서 ' + minus.map(f.name).join('·') + ' 뺌');
+      bus(name, p.buses, c.buses);
     });
     restC.forEach(function (c) { out.push(f.route(c.num) + ' 새로 만듦(' + c.nodes.filter(function (id, i) { return c.nodes.indexOf(id) === i; }).map(f.name).join('–') + ', 버스 ' + c.buses + '대)'); });
     restP.forEach(function (p) { out.push(f.route(p.num) + '(' + p.nodes.filter(function (id, i) { return p.nodes.indexOf(id) === i; }).map(f.name).join('–') + ') 없앰'); });
-    return out;
+    return out.concat(buses);
   }
   function read(store) { try { var o = JSON.parse(store.getItem(KEY) || 'null'); return o && o.v === 1 && Array.isArray(o.runs) ? o : { v: 1, runs: [] }; } catch (e) { return { v: 1, runs: [] }; } }
   function previous(store, key, phase, runId) {

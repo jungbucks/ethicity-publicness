@@ -33,9 +33,9 @@ test('기준 초과 멈춤에 가는 길·돌아오는 길(leg)이 붙고, 갈�
 test('엔딩: 왕복한 날과 기준을 지킨 날을 한 문장으로(카드·컷이 같은 문장)', () => {
   const hist = [1, 2, 3, 4, 5].map(p => ({ phase: p, metrics: { costs: { total: 0 } }, residents: { haneul: { dayStatus: 'complete', satisfied: p !== 3, waitTotal: 1, o: 'B', d: 'C', homeT: 100 } } }));
   const r = N.endingReactions(cfg, hist).find(x => x.id === 'haneul');
-  assert.match(r.text, /왕복 5일 중 기준\(4시간 3분 이내\)을 지킨 날 4일이에요\. 만족 기준은 4일 이상이에요\.$/);
+  assert.match(r.text, /왕복 5회 중 기준\(4시간 3분 이내\)을 지킨 것은 4회예요\. 만족 기준은 4회 이상이에요\(누적 4\/4회\)\.$/);
   const story = N.residentStory(hist.map(h => h.residents.haneul), 'haneul', cfg);
-  assert.match(story.text, /왕복 5일 중 기준\(4시간 3분 이내\)을 지킨 날 4일이에요\.$/);
+  assert.match(story.text, /왕복 5회 중 기준\(4시간 3분 이내\)을 지킨 것은 4회예요\.$/);
 });
 test('파산 문장은 해요체', () => {
   const v = N.endingConclusion([], [{ metrics: { costs: { total: -1000 } } }], { cause: 'bankrupt' }).verdict;

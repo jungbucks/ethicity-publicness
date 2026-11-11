@@ -113,11 +113,11 @@ try {
     // P0-4: 숫자는 출발 생활권 표와 같다
     if (phase === 1) {
       assert.equal(r.zoneF.left, 0, '재현 1단계 외곽 마을 출발 모두 도착');
-      assert.match(r.bridge, /^남은 비율이 가장 큰 곳은 .+(이에요|예요)\. (출발한 이동 \d+건 중 \d+건은 목적지까지 못 갔어요\. )?이번 단계에서 살펴볼 곳은 외곽 마을이에요\(출발 \d+건 모두 도착\)\. 다음에는 누구의 이동을 살필까요\?$/); /* 11-05 P0-3 */
+      assert.match(r.bridge, /^남은 비율이 가장 큰 곳은 .+(이에요|예요)\. (출발한 이동 \d+건 중 \d+건은 목적지까지 못 갔어요\. )?외곽 마을은 출발 \d+건이 모두 도착했지만, AI가 본 이동 0건 · 실제 \d+건이라 AI 제안에서 빠지기 쉬운 곳이에요\.$/); /* 11-05 P0-3 → 2026-11-11: 모두 도착한 곳은 살펴볼 곳이라 하지 않고 AI가 못 본 까닭만, 질문은 소제목 한 번 */
       assert.deepEqual(r.prompt, [], '외곽 마을을 문제처럼 묻는 고정 문구 없음');
     } else {
       const N = r.zoneC.N + r.zoneD.N, left = r.zoneC.left + r.zoneD.left;
-      assert.ok(N > 0 && left >= 0); assert.match(r.bridge, /대학교·병원·공공서비스/, '주제 지역 90% 미만이면 그 지역을 함께(11-05 P0-3)');
+      assert.ok(N > 0 && left >= 0); assert.match(r.bridge, /대학교|병원·공공서비스/, '주제 지역 90% 미만이면 그 지역을 함께(11-05 P0-3, 2026-11-11부터 못 간 이동이 있는 곳만)');
       const e = stories.phaseEthics[1]; assert.deepEqual(r.prompt, [e.title + '. ' + e.text]);
     }
     assert.ok(await page.locator('#learning').count() === 1 && await page.locator('.learning-source').count() >= 1, '사례 카드·출처 그대로');

@@ -14,7 +14,7 @@ const rev = (phase, extra = {}) => ({
   phase, g: G.build(cfg, phase), requests: Dm.base(cfg, phase, 42), owned: 3, fourthAllowed: phase >= 3,
   prevMetrics: null, prevRouteIds: [], plan: draftPlan(), config: cfg, ...extra
 });
-const WHITELIST = ['phase', 'g', 'requests', 'owned', 'fourthAllowed', 'fourthMustBeNew', 'prevMetrics', 'prevRouteIds', 'plan', 'config', 'rideRatios'];
+const WHITELIST = ['phase', 'g', 'requests', 'owned', 'fourthAllowed', 'fourthMustBeNew', 'prevMetrics', 'prevRouteIds', 'plan', 'config', 'rideRatios', 'allowNodes']; // allowNodes(2026-11-11) = 후보 노선에 쓸 수 있는 정류장(지금 지도에 보이는 곳) — 공개 정보를 좁히기만 한다
 
 test('revealed phase carries only public inputs (AC3)', () => {
   const r3 = A.makeRevealed({ phase: 3, g: G.build(cfg, 3), requests: Dm.base(cfg, 3, 42), owned: 3, fourthAllowed: true, prevMetrics: null, prevRouteIds: [], plan: draftPlan(), config: cfg, seed: 42, events: [1] });

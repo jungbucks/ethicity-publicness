@@ -161,7 +161,7 @@
     sec.appendChild(el('label',{'for':'final-reflection'},'처음과 비교해 누구의 이동을 더 살피게 되었나요? 내 운영 결과를 근거로 한두 문장 남겨 보세요.'));
     var answer=el('textarea',{id:'final-reflection',rows:3,'class':'textarea'});answer.value=typeof s.finalReflection==='string'?s.finalReflection:'';
     answer.addEventListener('input',function(){s.finalReflection=answer.value;App.save();});sec.appendChild(answer);
-    sec.appendChild(el('p',{'class':'note'},'선택 입력 · 이 브라우저에 자동 저장돼요. 점수와 보상에는 영향을 주지 않아요.'));
+    sec.appendChild(el('p',{'class':'note'},'선택 입력 · '+(App.saveOk===false?'':'이 브라우저에 자동 저장돼요. ')+'점수와 보상에는 영향을 주지 않아요.'));/* 저장이 안 되는 동안에는 저장된다고 말하지 않는다(상단 #save-status가 알림) */
     var bar=el('div',{id:'review-done-bar'});bar.appendChild(el('button',{type:'button','class':'btn btn-primary',id:'btn-review-done',onclick:function(){openEnding(App,false);}},'완료 · 결과로'));if(UI.openReport)bar.appendChild(el('button',{type:'button','class':'btn',id:'btn-review-report',onclick:function(){UI.openReport(App,'review');}},'내 운영 보고서'));sec.appendChild(bar);panel.appendChild(sec);return {};
   }
 
@@ -191,7 +191,7 @@
       panel.appendChild(who);
     }
     panel.appendChild(el('p', {id:'ending-verdict','class':'outcome-lead'}, conclusion.verdict));
-    panel.appendChild(el('p', {id:'ending-profit'}, (failed?'보유 잔액 ':'총 수익 ')+App.won(conclusion.profit)+' · 지원금 포함 누적 손익'));
+    panel.appendChild(el('p', {id:'ending-profit'}, (failed?'보유 잔액 ':'누적 잔액 ')+App.won(conclusion.profit)+' · 지원금·운임에서 비용을 뺀 '+s.history.length+'단계 합계'));/* 2026-11-11 플레이테스트 13: ‘총 수익 · 누적 손익’ → 다른 화면과 같은 ‘누적 잔액’ */
     if (UI.finalScores) panel.appendChild(UI.finalScores(App, s));
     var reviewActions=el('div',{'class':'review-actions'});
     reviewActions.appendChild(el('button',{type:'button','class':'btn btn-primary',id:'btn-game-review',onclick:function(){openEnding(App,true);}},'돌아보기'));

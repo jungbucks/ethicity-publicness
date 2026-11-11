@@ -363,9 +363,11 @@
     var records = log ? Object.keys(log).reduce(function (k, z) { return k + log[z].rode; }, 0) : RideLog.visible(aiBase(s), rs).length;
     return { ratios: rs, records: records, hidden: graph(s).nodes.filter(function (z) { return rs[z] === 0; }) };
   }
-  function revealed(s) {
+  /* opts.allowNodes(2026-11-11): 후보 노선에 쓸 정류장을 좁힌다 — 결과 화면 ‘AI라면?’이 다음 단계 수요로 계산하면서도 아직 지도에 없는 정류장을 추천하지 않게 */
+  function revealed(s, opts) {
     var h = s.history[s.history.length - 1], rs = rideRatios(s);
     return Advisor.makeRevealed({
+      allowNodes: opts && opts.allowNodes ? opts.allowNodes.slice() : null,
       phase: s.phase, g: graph(s), requests: RideLog.visible(aiBase(s), rs), rideRatios: rs, owned: s.owned,
       fourthAllowed: !s.config.progression && s.phase >= s.config.fourthFromPhase, fourthMustBeNew: !s.config.progression && s.fourthPhase === s.phase, prevMetrics: h ? h.metrics : null,
       prevRouteIds: prevRouteIds(s), plan: toPlan(s), config: s.config
@@ -409,6 +411,13 @@
     var zone = best || bw || 'F', e2 = z[zone] || { total: 0, open: 0 };
     return { zone: zone, t: t, count: e2.open, total: e2.total };
   }
+  /* 청원이 말한 이동을 같은 기준으로 다시 세기(2026-11-11 플레이테스트 8): 그 구역에서 t분까지 생긴 요청 가운데 t분에 아직 도착하지 못한 건수.
+   * 3단계 정산 때 2단계 고정 청원과 같은 구역·같은 시각으로 세어 entry.petitionCheck에 남긴다(결과 화면 ‘청원 그 뒤’가 2단계 값과 나란히 보여 줌) */
+  function petitionZoneAt(passengers, t, zone) {
+    var total = 0, open = 0;
+    (passengers || []).forEach(function (p) { if (p.t > t || p.o !== zone) return; total++; if (p.arriveT == null || p.arriveT > t) open++; });
+    return { zone: zone, t: t, count: open, total: total };
+  }
   function fixPetition(s, result) {
     var cp = s.config.petition;
     if (!cp || s.phase !== cp.phase) return;
@@ -440,8 +449,18 @@
   }
   /* 출발 전 점검(2026-11-05 P0-2): 예측이 아니라 지금 계획에서 바로 셀 수 있는 사실만 — 문구는 ui-plan departCheck.
    * 노선이 있어도 버스가 없으면 그 정류장에는 아무도 못 오므로 ‘운행하는 노선’만 센다. 새 정류장을 앞에 */
+  /* 노선별 배차 간격(2026-11-11 플레이테스트 7): 한 바퀴 시간 ÷ 그 노선 버스 수(자동 간격 출발과 같은 기준 — ui-economy headway와 같은 식).
+   * over = 주요 인물 대기 기준(config.service.maxWait, 4시간 3분)을 넘는 간격. 노선 탭·출발 확인창이 같은 값을 쓴다 */
+  function routeGaps(s) {
+    var g = graph(s), max = s.config.service ? s.config.service.maxWait : null;
+    return routesInOrder(s).map(function (r) {
+      var bs = s.draft.buses.filter(function (b) { return b.routeNum === r.num; }), ok = r.nodes.length >= 2 && !Graph.validateRoute(g, r).length;
+      var h = ok && bs.length ? Schedule.cycleMinutes(g, s.config, bs[0].id, r) / bs.length : null;
+      return { num: r.num, buses: bs.length, valid: ok, headway: h, over: h != null && max != null && h > max };
+    });
+  }
   function departChecks(s) {
-    var g = graph(s), buses = s.draft.buses, F = s.config.finance, phase = s.phase;
+    var g = graph(s), buses = s.draft.buses, F = s.config.finance, phase = s.phase, gaps = routeGaps(s);
     var running = s.draft.routes.filter(function (r) { return r.nodes.length >= 2 && !Graph.validateRoute(g, r).length && buses.some(function (b) { return b.routeNum === r.num; }); });
     function serves(id) { return running.some(function (r) { return r.nodes.some(function (n, i) { return n === id && r.stops[i]; }); }); }
     var resting = buses.filter(function (b) { return b.routeNum == null; }), owned = resting.filter(function (b) { return !b.leased; }), leased = resting.filter(function (b) { return b.leased; });
@@ -450,6 +469,7 @@
     return {
       noBus: !buses.some(function (b) { return b.routeNum != null; }),
       resting: owned.length, restingCost: owned.length * F.holding, restingLeased: leased.length, restingLeaseCost: leased.length * F.lease.fee,
+      overGap: gaps.filter(function (x) { return x.over; }), idleRoutes: gaps.filter(function (x) { return x.valid && !x.buses; }).map(function (x) { return x.num; }),
       unserved: unserved.filter(isNew).concat(unserved.filter(function (id) { return !isNew(id); })), newStops: fresh,
       residents: Demand.residents(s.config, phase).filter(function (rd) { return !serves(rd.o) || !serves(rd.d); }).map(function (rd) { return { id: rd.id, name: rd.name, o: rd.o, d: rd.d }; })
     };
@@ -604,6 +624,7 @@
     };
     entry.eventFare = s.config.finance.fare * c.result.passengers.filter(function (p) { return p.kind === 'extra' && p.firstBoardT != null; }).length;
     entry.rideLog = RideLog.fromRun(c.result.passengers);
+    if (s.fixedPetition && s.phase === s.fixedPetition.phase + 1) entry.petitionCheck = petitionZoneAt(c.result.passengers, s.fixedPetition.t, s.fixedPetition.zone);
     s.history.push(entry);
     if (s.config.petition && s.phase === s.config.petition.phase && c.result.petition) { var fp = c.result.petition; s.fixedPetition = { phase: s.phase, zone: fp.zone, t: fp.t, count: fp.count, total: fp.total, noRecord: !!fp.noRecord }; }
     settle(s, entry);
@@ -743,9 +764,31 @@
     return s;
   }
 
+  /* 저장본 검사(2026-11-10 검토 4번) — 되살리기 전에 최소 뼈대와 stage·phase 범위를 본다. 문제없으면 null, 있으면 이유(문자열).
+   * 나중에 생긴 선택 필드(ledger·negStreak·scores·rideLog·runId·stageNotes …)는 보지 않는다 — restore가 채우거나 없는 대로 둔다 */
+  var STAGES = ['reveal', 'plan', 'run', 'result', 'ending'], MODES = ['default', 'random', 'fixed'];
+  function obj(x) { return !!x && typeof x === 'object' && !Array.isArray(x); }
+  function checkSave(d, baseConfig) {
+    if (!obj(d)) return 'session';
+    if (MODES.indexOf(d.mode) < 0) return 'mode';
+    if (typeof d.seed !== 'number' || !isFinite(d.seed)) return 'seed';
+    var c = d.config || (d.mode === 'default' ? baseConfig : null);
+    if (!obj(c) || !Array.isArray(c.phases) || !Array.isArray(c.nodes) || !obj(c.bus)) return 'config';
+    if (typeof d.phase !== 'number' || d.phase % 1 !== 0 || d.phase < 1 || d.phase > c.phases.length) return 'phase';
+    if (STAGES.indexOf(d.stage) < 0) return 'stage';
+    if (!Array.isArray(d.history) || !d.history.every(obj)) return 'history';
+    if (!obj(d.draft) || !Array.isArray(d.draft.routes) || !Array.isArray(d.draft.buses)) return 'draft';
+    return null;
+  }
+  // 검사하고 되살린다. 검사를 통과했어도 되살리다 예외가 나면(기록 속이 깨짐) 던지지 않고 null — 화면은 이어하기를 끄고 새 게임을 받는다
+  function safeRestore(d, baseConfig) {
+    try { if (checkSave(d, baseConfig)) return null; var s = restore(d, baseConfig); return obj(s) && obj(s.config) && Array.isArray(s.history) ? s : null; } catch (e) { return null; }
+  }
+
   var api = {
-    elderChoice: elderChoice, petitionAt: petitionAt, rideRequests: rideRequests, aiView: aiView,
-    departChecks:departChecks,dayInputs:dayInputs,midStatus:midStatus,midRoute:midRoute,midApply:midApply,runningRoutes:runningRoutes,routeBuses:routeBuses,emergencyDecision:emergencyDecision,EMERGENCY_AT:EMERGENCY_AT,busRouteAt:busRouteAt,emergencyPreview:emergencyPreview,emergencyImpact:emergencyImpact,routeNumOf:routeNumOf,
+    checkSave: checkSave, safeRestore: safeRestore,
+    elderChoice: elderChoice, petitionAt: petitionAt, petitionZoneAt: petitionZoneAt, rideRequests: rideRequests, aiView: aiView,
+    departChecks:departChecks,routeGaps:routeGaps,dayInputs:dayInputs,midStatus:midStatus,midRoute:midRoute,midApply:midApply,runningRoutes:runningRoutes,routeBuses:routeBuses,emergencyDecision:emergencyDecision,EMERGENCY_AT:EMERGENCY_AT,busRouteAt:busRouteAt,emergencyPreview:emergencyPreview,emergencyImpact:emergencyImpact,routeNumOf:routeNumOf,
     serialize: serialize, restore: restore, migrateTransition: migrateTransition, CHOICES: CHOICES, choiceKey: choiceKey, scoresOverall: scoresOverall, rescore: rescore, financeRule: financeRule, financeStatus: financeStatus, balance: balance, DEFICIT_LIMIT: DEFICIT_LIMIT, NEGATIVE_LIMIT: NEGATIVE_LIMIT, residentVerdict: residentVerdict, tripLimit: tripLimit, expectedRun: expectedRun,
     parseSeedParam: parseSeedParam, create: create, graph: graph, visibleNodeIds: visibleNodeIds, routeByNum: routeByNum,
     toPlan: toPlan, validate: validate, routeLimit: routeLimit, routesInOrder: routesInOrder, stopLimit:stopLimit, routeFits:routeFits, routeRule:routeRule, canAssign:canAssign, addRoute: addRoute, updateRoute: updateRoute, deleteRoute: deleteRoute,

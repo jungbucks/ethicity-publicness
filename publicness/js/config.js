@@ -10,7 +10,9 @@
   function allStop(nodes) { return { nodes: nodes, stops: nodes.map(function () { return T; }) }; }
 
   var config = {
-    SCENARIO_VERSION: 'pb-3.0.0',
+    // pb-3.1.0(2026-11-11): 교사 플레이테스트 13건 반영 — 수요·재정 수치는 그대로(화면·문장·AI 후보 범위·노선 이름만). 화면에서 새 빌드인지 알 수 있게 올림.
+    // 이 값은 자동 저장(ethicity.publicness.save)의 버전이자 ‘지난 운행 비교’ 키(모드|seed|버전)라, 올리면 예전 저장본은 이어하기에 안 뜨고 예전 운행은 비교에 안 나온다
+    SCENARIO_VERSION: 'pb-3.1.0',
     day: { start: 300, end: 1380 },
     progression: { routes: [2, 3, 4, 4, 4], buses: [2, 3, 4, 5, 6] },
     challenge: {
@@ -156,7 +158,8 @@
     ui: {
       // 2026-10-27 사용자 결정: 서울 지하철 계열(1 신분당선·2~6호선, 채도 낮춘 값) 유지 — 시각 위계 지시서의 흑백 구분용 새 팔레트는 되돌림
       routeColors: ['#C4505E', '#3F9B6B', '#D98A45', '#4A9CC2', '#8D77AA', '#A97C52'],
-      routeNames: ['빨강', '초록', '주황', '하늘', '보라', '갈색'],
+      // 2026-11-11 교사 플레이테스트 5: 4번 이름 ‘하늘’은 인물 하늘과 겹쳐(‘하늘 노선 운행을 시작해요’) ‘파랑’으로 — 색(routeColors)은 그대로, 이름만. 인물 이름(하늘·나래·준·솔·유나·다은·진호)과 겹치지 않게 둘 것
+      routeNames: ['빨강', '초록', '주황', '파랑', '보라', '갈색'],
       map: { line: 7, lineActive: 11, casing: 2.5, stop: 9, cap: 10 }, // 지도 px: 노선 굵기·선택 노선·흰 테두리·정류장 마커 반지름·번호 원 반지름
       wait: { caution: 10, danger: 20 } // 정류장 대기 pill: 10명 이상 주의(주황), 20명 이상 위험(빨강)
     },

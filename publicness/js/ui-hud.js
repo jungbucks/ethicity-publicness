@@ -62,6 +62,12 @@
   function residentsNow() { var s = app().s; return PB.Demand.residents(s.config, s.phase); }
   function tally() { var s = app().s; return PB.Narrative.residentTally(s.config, s.history); }
 
+  /* 하루 일정 전체 한 줄(2026-11-11 플레이테스트 4 — 두 번째 이동이 다른 곳으로 가는 인물): ‘14:00 고속버스터미널→종합운동장 → (20:00 이후) 종합운동장→밀집 주거지, 23:00 전 도착’.
+   * 23:00 = 운행이 끝나는 시각(config.bus.window). 계획 화면 칩의 이름·눌렀을 때 안내·글 편집의 ‘오늘 지켜볼 사람’이 같은 문장을 쓴다 */
+  function itinerary(rd) {
+    var A = app(), s = A.s, end = A.clock(s.config.bus.window);
+    return A.clock(rd.depart) + ' ' + A.nodeName(rd.o) + '→' + A.nodeName(rd.d) + ' → (' + A.clock(rd.returnAt) + ' 이후) ' + A.nodeName(rd.d) + '→' + A.nodeName(rd.returnTo) + ', ' + end + ' 전 도착';
+  }
   // 칩 한 줄(형식은 지시서대로) + 화면 낭독용 긴 설명
   function chip(rd, t) {
     var A = app(), st = PB.Narrative.criterionState(t), b = el('button', { type: 'button', 'class': 'person-chip' + (st === 'impossible' ? ' impossible' : st === 'done' ? ' done' : ''), id: 'person-chip-' + rd.id, 'data-resident': rd.id });
@@ -70,8 +76,10 @@
     b.appendChild(el('span', { 'class': 'person-chip-time' }, A.clock(rd.depart)));
     b.appendChild(el('span', { 'class': 'person-chip-trip' }, shortName(rd.o) + '→' + shortName(rd.d)));
     if (t) b.appendChild(el('span', { 'class': 'person-chip-count' }, t.completed + '/' + t.threshold));
+    /* 2026-11-11 플레이테스트 4: 두 번째 이동이 다른 곳으로 가는 인물(유나·다은)은 칩에 다음 이동도 — ‘20:00 이후 →주거지’(오른쪽 칸이 좁아 한 줄에 들어가게 짧게). 운행이 끝나는 시각(23:00 전 도착)은 읽어 주는 이름·눌렀을 때 안내에 */
+    if (rd.returnTo) b.appendChild(el('span', { 'class': 'person-chip-next' }, A.clock(rd.returnAt) + ' 이후 →' + shortName(rd.returnTo)));
     if (st === 'impossible') b.appendChild(el('span', { 'class': 'person-chip-flag' }, '기준 달성 불가'));
-    var label = rd.name + ' · ' + A.clock(rd.depart) + ' ' + A.nodeName(rd.o) + '에서 ' + A.nodeName(rd.d) + '까지' + (t ? ' · 학기 누적 ' + t.completed + '/' + t.threshold + '회' : '') +
+    var label = rd.name + ' · ' + (rd.returnTo ? itinerary(rd) : A.clock(rd.depart) + ' ' + A.nodeName(rd.o) + '에서 ' + A.nodeName(rd.d) + '까지') + (t ? ' · 학기 누적 ' + t.completed + '/' + t.threshold + '회' : '') +
       (st === 'impossible' ? ' · 남은 단계로는 기준 달성 불가' : st === 'done' ? ' · 기준 달성' : '') + ' · 누르면 지도에 경로를 보여 줘요';
     b.setAttribute('aria-label', label); b.title = label;
     b.setAttribute('aria-pressed', String(picked.id === rd.id && picked.key === key()));
@@ -153,9 +161,17 @@
       svg('polyline', { points: pts, 'class': 'pp-casing' }, o); svg('polyline', { points: pts, 'class': 'pp-line', stroke: leg.color }, o);
     });
     else { var a = P(rd.o), b = P(rd.d); svg('line', { x1: a.left, y1: a.top, x2: b.left, y2: b.top, 'class': 'pp-missing' }, o); }
-    [rd.o, rd.d].forEach(function (id, i) { var p = P(id); svg('circle', { cx: p.left, cy: p.top, r: 17, 'class': 'pp-ring ' + (i ? 'to' : 'from') }, o); });
+    /* 두 번째 이동이 다른 곳으로 가는 인물(유나·다은)은 다음 이동 구간도 함께 그린다(2026-11-11 플레이테스트 4) */
+    var path2 = rd.returnTo ? pathFor(routesNow(), rd.d, rd.returnTo) : null;
+    if (rd.returnTo) {
+      if (path2) path2.legs.forEach(function (leg) { var pts = leg.nodes.map(function (id) { var p = P(id); return p.left + ',' + p.top; }).join(' '); svg('polyline', { points: pts, 'class': 'pp-casing' }, o); svg('polyline', { points: pts, 'class': 'pp-line', stroke: leg.color }, o); });
+      else { var c = P(rd.d), d2 = P(rd.returnTo); svg('line', { x1: c.left, y1: c.top, x2: d2.left, y2: d2.top, 'class': 'pp-missing' }, o); }
+    }
+    [rd.o, rd.d].concat(rd.returnTo ? [rd.returnTo] : []).forEach(function (id, i) { var p = P(id); svg('circle', { cx: p.left, cy: p.top, r: 17, 'class': 'pp-ring ' + (i ? 'to' : 'from') }, o); });
     if (!timer) timer = setInterval(function () { if (!document.querySelector('#person-path')) { clearInterval(timer); timer = null; return; } drawPath(false); }, 400);
-    if (announce) A.toast(rd.name + ' · ' + A.nodeName(rd.o) + '에서 ' + A.nodeName(rd.d) + '까지 · ' + (path ? path.legs.map(function (l) { return PB.Names.color(l.num); }).join('에서 ') + (path.transfer ? '(' + A.nodeName(path.transfer) + '에서 갈아타기)' : '') + ' 노선으로 이어져요' : '잇는 노선이 없어요'), { ms: 3200 });
+    var say = function (p) { return p ? p.legs.map(function (l) { return PB.Names.color(l.num); }).join('에서 ') + (p.transfer ? '(' + A.nodeName(p.transfer) + '에서 갈아타기)' : '') + ' 노선' : '잇는 노선 없음'; };
+    if (announce && rd.returnTo) A.toast(rd.name + ' · ' + itinerary(rd) + ' · 첫 이동 ' + say(path) + ' · 다음 이동 ' + say(path2), { ms: 5200 });
+    else if (announce) A.toast(rd.name + ' · ' + A.nodeName(rd.o) + '에서 ' + A.nodeName(rd.d) + '까지 · ' + (path ? path.legs.map(function (l) { return PB.Names.color(l.num); }).join('에서 ') + (path.transfer ? '(' + A.nodeName(path.transfer) + '에서 갈아타기)' : '') + ' 노선으로 이어져요' : '잇는 노선이 없어요'), { ms: 3200 });
   }
 
   // 결과 화면 인물 카드의 작은 지도: 이번 단계 정류장·운행 노선(옅게) + 그 사람의 문제 구간(굵게, 깜빡임)
@@ -185,5 +201,5 @@
 
   root.addEventListener('resize', function () { if (picked.id) drawPath(false); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && picked.id && !document.querySelector('dialog[open]')) { picked = { key: null, id: null }; clearPath(); syncPressed(); } });
-  PB.Hud = { layout: function () { if (picked.id && document.querySelector('#person-path')) drawPath(false); }, render: render, live: live, toggle: toggle, pathFor: pathFor, along: along, routesNow: routesNow, linkHint: linkHint, miniMap: miniMap, shortName: shortName, selected: function () { return picked.id; } };
+  PB.Hud = { layout: function () { if (picked.id && document.querySelector('#person-path')) drawPath(false); }, render: render, live: live, toggle: toggle, pathFor: pathFor, itinerary: itinerary, along: along, routesNow: routesNow, linkHint: linkHint, miniMap: miniMap, shortName: shortName, selected: function () { return picked.id; } };
 })(window);

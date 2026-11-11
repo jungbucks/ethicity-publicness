@@ -21,15 +21,27 @@
   App.contractTitle = function (end) { return end && end.balance >= 0 ? '적자 누적으로 운영 계약 종료(이전 규칙)' : '잔액 부족으로 운영 계약 종료'; };
   App.setSpeed = function (v) { if (PB.Storage.SPEEDS.indexOf(v) < 0) return; App.speed = v; PB.Storage.writeSpeed(v); };
   // 자동 저장 — 화면을 그릴 때마다(계획 편집·출발·결과·다음 단계). 운행 결과는 저장하지 않고 다시 계산한다
+  // 저장 결과를 돌려준다(2026-11-10 검토 3번): true = 저장됨, false = 저장 안 됨(접근 차단·용량 초과), null = 저장할 것이 없음(첫 화면).
+  // 실패 안내는 상단 바 #save-status 한 곳만 갱신한다(입력마다 알림을 쌓지 않는다). 다시 저장되면 숨긴다. 게임과 입력은 저장 여부와 상관없이 이어진다
+  App.saveOk = null;
+  App.SAVE_FAIL = '저장이 안 돼요. 이 창에서는 계속할 수 있지만 새로고침하면 기록이 사라질 수 있어요.';
   App.save = function () {
-    if (!App.s || document.body.getAttribute('data-screen') === 'title') return;
-    PB.Storage.writeSave({ version: cfg.SCENARIO_VERSION, savedAt: Date.now(), session: S.serialize(App.s) });
+    if (!App.s || document.body.getAttribute('data-screen') === 'title') return null;
+    var ok = PB.Storage.writeSave({ version: cfg.SCENARIO_VERSION, savedAt: Date.now(), session: S.serialize(App.s) });
+    if (ok !== App.saveOk) { App.saveOk = ok; var n = $('#save-status'); if (n) { n.hidden = ok; n.textContent = ok ? '' : App.SAVE_FAIL; n.title = ok ? '' : App.SAVE_FAIL; } document.body.classList.toggle('save-failed', !ok); /* 상단 바 자리 확보(css) */ }
+    return ok;
   };
+  // 입력 칸 옆 상태 줄에 쓸 말 — 성공했을 때만 ‘저장했어요.’
+  App.savedText = function (ok) { return ok === true ? '저장했어요.' : ok === false ? '저장하지 못했어요.' : ''; };
+  // 이어하기. 저장본을 되살리지 못하면(검사 실패·되살리다 예외) 아무것도 바꾸지 않고 false(2026-11-10 검토 4번)
   App.resume = function (saved) {
-    App.s = S.restore(saved.session, cfg);
+    var back = saved ? S.safeRestore(saved.session, cfg) : null;
+    if (!back) return false;
+    App.s = back;
     App._sceneKey = null; App.arrival = { phase: App.s.phase, at: 0, changes: App.phaseChanges(App.s), line: '', done: true }; /* 이어하기: 배너는 다시 안 띄우고 ‘새’ 표시만(P1-3) */
     var st = App.s.stage;
     App.go(st === 'run' ? 'run' : st === 'reveal' ? 'reveal' : st === 'result' ? 'result' : st === 'ending' ? 'ending' : 'plan');
+    return true;
   };
 
   function routeStyle(num) {
@@ -602,22 +614,35 @@
     $('#opt-motion').addEventListener('change', function (e) { App.motion = e.target.checked; App.view.setReducedMotion(App.reducedMotion()); });
     App.sound = PB.Storage.readSound(); $('#opt-sound').checked = App.sound;
     App.speed = PB.Storage.readSpeed();
+    /* 시나리오 버전을 첫 화면 구석과 설정 창에 작게(2026-11-11) — 새 빌드인지 화면에서 알 수 있게. 엔딩 #end-seed에도 있다 */
+    ['#title-version', '#settings-version'].forEach(function (q) { var n = $(q); if (n) n.textContent = '버전 ' + cfg.SCENARIO_VERSION; });
     $('#opt-sound').addEventListener('change', function (e) { App.setSound(e.target.checked); if (App.sound) App.chime(); });
     // 캐릭터 소개 → 맵 화면 위 Stage 1 카드 → 교육 모달 → 단계 안내 순서. 세팅 라디오는 소개 전에 읽어 둔다
     // 소개 컷 → 지도 계획 위에 Stage 1 카드(2026-11-01 사용자: Stage 카드가 안 뜬다)
     function newGame() { PB.Cutscene.play('intro', function () { App.startGame(); var c = App.s.config; PB.Cutscene.play('stage', function () {}, null, { number: 1, total: c.phases.length, name: c.phases[0] }); }); }
     // 저장된 진행이 있으면 ‘이어하기’를 먼저 보여 주고, 새로 시작은 지워도 되는지 한 번 묻는다
-    var saved = PB.Storage.readSave(cfg.SCENARIO_VERSION), cont = $('#btn-continue');
+    if (!PB.Storage.canSave() && $('#save-note')) { $('#save-note').textContent = '이 브라우저에서는 진행을 저장할 수 없어요. 이 창에서는 끝까지 할 수 있지만 새로고침하거나 창을 닫으면 기록이 사라져요.'; $('#save-note').classList.add('is-alert'); /* 간단 화면에서도 보이게 */ }
+    // 이어하기는 검사를 통과한 저장본만(뼈대 + stage·phase 범위). 깨진 저장본은 이어하기를 켜지 않고 한 줄로 알린 뒤 새 게임을 받는다 — 원문은 새 게임 전에 따로 남긴다
+    function validSave(o) { return !S.checkSave(o.session, cfg); }
+    function readState() { return PB.Storage.saveState(cfg.SCENARIO_VERSION, null, validSave); }
+    var first = readState(), saved = first.save, cont = $('#btn-continue'), brokenSave = first.state === 'broken';
+    function showBroken() {
+      brokenSave = true; if (cont) cont.hidden = true;
+      $('#continue-note').textContent = '저장된 진행을 불러오지 못해서 이어할 수 없어요. 새로 시작할 수 있어요.'; $('#continue-note').classList.add('is-alert'); /* 간단 화면에서도 보이게 */
+      $('#btn-start').textContent = '첫 운행 계획하기'; $('#btn-start').classList.add('btn-primary');
+    }
+    if (brokenSave) showBroken();
     if (saved && cont) {
       var ss = saved.session, total = (ss.config ? ss.config.phases.length : cfg.phases.length);
       cont.hidden = false;
       $('#continue-note').textContent = (ss.mode === 'default' ? '기본' : '랜덤') + ' 세팅 · ' + (ss.stage === 'ending' ? (ss.end && ss.end.cause === 'bankrupt' ? '파산으로 운영 종료' : ss.end && ss.end.cause === 'contract' ? App.contractTitle(ss.end) : '학기 마무리') : ss.phase + ' / ' + total + '단계 ' + ({ reveal: '계획', plan: '계획', run: typeof ss.runCursor==='number'?'운행 이어보기':'운행(출발 직전 계획으로 돌아가요)', result: '결과' }[ss.stage] || '')) + ' · ' + new Date(saved.savedAt).toLocaleString('ko-KR');
-      cont.addEventListener('click', function () { App.resume(PB.Storage.readSave(cfg.SCENARIO_VERSION) || saved); });
+      cont.addEventListener('click', function () { if (!App.resume(readState().save || saved)) showBroken(); });
       $('#btn-start').textContent = '새로 시작하기';
       $('#btn-start').classList.remove('btn-primary');
     }
     $('#btn-start').addEventListener('click', function () {
-      if (PB.Storage.readSave(cfg.SCENARIO_VERSION)) { App.restartToNew = true; $('#confirm-restart').showModal(); return; }
+      if (!brokenSave && readState().save) { App.restartToNew = true; $('#confirm-restart').showModal(); return; }
+      if (brokenSave) PB.Storage.keepBroken();
       newGame();
     });
     App.newGame = newGame;

@@ -27,7 +27,7 @@ try{for(const [w,h] of [[1280,800],[375,812]]){
  const fmt=await page.evaluate(([a,b])=>({miss:a.missed+'건 → '+b.missed+'건',wait:PB.App.duration(a.maxWait)+' → '+PB.App.duration(b.maxWait)}),[first,now]);
  if(first.missed!==now.missed&&c.numbers.includes('목적지까지 못 간 이동'))assert.ok(c.numbers.includes('목적지까지 못 간 이동 '+fmt.miss),'숫자는 결과 값 그대로: '+c.numbers);
  if(c.numbers.includes('최장 대기'))assert.ok(c.numbers.includes('최장 대기 '+fmt.wait),c.numbers);
- assert.equal(c.plan,'달라진 계획: 빨강 노선 버스 1대 → 2대 · 초록 노선(기차역–산업·일자리) 없앰');
+ assert.equal(c.plan,'달라진 계획: 초록 노선(기차역–산업·일자리) 없앰 · 빨강 노선 버스 1대 → 2대');
  assert.ok(await page.evaluate(()=>{const a=document.querySelector('#result-rerun'),b=document.querySelector('.result-big');return !!(a&&b&&(b.compareDocumentPosition(a)&Node.DOCUMENT_POSITION_FOLLOWING));}),'큰 숫자 바로 아래');
  await page.screenshot({path:`${SHOT}/_shot-result-compare-${w}.png`});
  console.log('  ok',w,c.numbers,'/',c.plan);

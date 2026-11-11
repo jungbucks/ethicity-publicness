@@ -15,7 +15,7 @@ try{
   assert.equal(await page.locator('#goal-intro-h').textContent(),name+' · 만족');await page.locator('#story-image').evaluate(img=>img.decode());
   if(index===0)await page.screenshot({path:'publicness/tests/_shot-ending-reaction.png'});await page.locator('#story-next').click();
  }
- assert.match(await page.locator('#story-full').textContent(),/다양한 사람들을 만족시켰다/);assert.match(await page.locator('#story-full').textContent(),/총 수익/);
+ assert.match(await page.locator('#story-full').textContent(),/다양한 사람들을 만족시켰어요/);assert.match(await page.locator('#story-full').textContent(),/누적 잔액/);
  await page.screenshot({path:'publicness/tests/_shot-ending-all.png'});await page.locator('#story-next').click();
  await page.evaluate(()=>PB.App.render());assert.ok(!await page.locator('#goal-intro').evaluate(d=>d.open));
  await page.evaluate(()=>{PB.App.s.history[4].residents.daeun.dayStatus='returnIncomplete';PB.App.s.history[3].residents.daeun.satisfied=false;PB.App.s.history[4].residents.daeun.satisfied=false;PB.App.render();});await page.locator('#btn-ending-replay').click();

@@ -38,8 +38,9 @@
     <button type="button" class="btn btn-primary btn-lg" id="btn-continue" hidden>이어하기</button>
     <p class="note" id="continue-note"></p>
     <button type="button" class="btn btn-primary btn-lg" id="btn-start">첫 운행 계획하기</button>
-    <p class="note">진행은 이 브라우저에 자동으로 저장돼요. 새로고침하거나 창을 닫았다가 열어도 ‘이어하기’로 계속할 수 있어요.</p>
+    <p class="note" id="save-note">진행은 이 브라우저에 자동으로 저장돼요. 새로고침하거나 창을 닫았다가 열어도 ‘이어하기’로 계속할 수 있어요.</p>
     <button type="button" class="btn" id="title-text-toggle" aria-pressed="false">설명 보기</button>
+    <p class="app-version" id="title-version"></p>
   </div>
   <figure class="title-art" aria-hidden="true">
     <img id="title-img" src="assets/art/title-two-stops.webp" alt="" onerror="this.parentNode.classList.add('placeholder'); this.remove();">
@@ -55,6 +56,7 @@
   <ol id="top-phase" class="phase-steps" aria-label="단계"></ol>
   <span id="top-balance" class="balance"></span>
   <span id="top-deficit" class="deficit-count" hidden></span>
+  <span id="save-status" class="save-status" role="status" hidden></span>
   <span class="top-actions">
     <button type="button" class="btn btn-ghost" id="btn-panel-toggle" hidden onclick="PB.App.togglePanel()">패널 접기</button>
     <button type="button" class="btn btn-ghost" id="btn-view-toggle" hidden>지도·텍스트 보기</button>
@@ -122,7 +124,7 @@
     <ul>
       <li>정류장 두 곳 이상을 이어 노선을 만들면 대기 버스 1대가 바로 운행해요. 지도 아래 대기 버스를 노선으로 끌어 놓으면 증차, 노선 위 색 점(2대 이상이면 ×2처럼 표시)을 대기로 끌면 회수, 다른 노선에 놓으면 이동이에요(누르고 고르기·키보드로도 돼요). 같은 노선의 버스는 자동으로 간격을 두고 출발해요. AI 제안은 지도에서 미리 보고 적용할 수 있어요.</li>
       <li>지도에서 정류장을 누르거나 드래그해서 자유롭게 연결해요. 노선 양 끝 어디서든 이어 갈 수 있고, 정류장을 선 위로 끌어 놓으면(또는 선 중간을 정류장으로 당기면) 그 두 정류장 사이에 들어가요. 선을 두 번 누르면(더블클릭·두 번 탭) 그 구간(두 정류장 사이 길)만 없어져요(↶ 되돌리기로 복구). 선 위에 마우스를 올리거나 손가락으로 길게 누르면 이 방법을 다시 알려 줘요. 시작점으로 연결하면 순환하고, 열린 노선은 왕복해요.</li>
-      <li>노선은 번호 대신 색과 선 모양으로 구분해요 — 빨강 실선, 초록 이중선, 주황 점선, 하늘 동글 점선. 번호가 필요하면 설정에서 ‘노선 번호 표시’를 켜요.</li>
+      <li>노선은 번호 대신 색과 선 모양으로 구분해요 — 빨강 실선, 초록 이중선, 주황 점선, 파랑 동글 점선. 번호가 필요하면 설정에서 ‘노선 번호 표시’를 켜요.</li>
       <li>두 노선이 <b>모두 정차하는</b> 정류장에서만 한 번 갈아탈 수 있어요. 지도에서 선이 겹치기만 하는 곳은 환승 정류장이 아니에요.</li>
       <li>3단계부터는 운행 중 11:00~15:00에 한 번 ‘노선 고치기 · 한 번’을 눌러 멈추고, 정류장 하나 더하기·빼기나 버스 한 대 옮기기 중 하나를 바꿀 수 있어요. 버스는 가던 정류장까지 간 뒤 바뀐 노선을 따라요. 빠진 정류장에서 내리려던 사람은 다음 정류장에서 내려요. 고친 것은 그날 운행에만 쓰고, 다음 단계 계획은 출발한 모양 그대로예요. 안 써도 괜찮아요.</li>
     </ul>
@@ -143,6 +145,7 @@
   <label class="check"><input type="checkbox" id="opt-bgm" checked> 배경음악(이어폰을 쓸 때 추천)</label>
   <label class="check"><input type="checkbox" id="opt-motion"> 움직임 줄이기</label>
   <label class="check"><input type="checkbox" id="opt-route-numbers"> 노선 번호 표시(지도·노선 버튼에 번호를 함께 보여요. 노선은 색과 선 모양 — 실선·이중선·점선·동글 점선 — 으로도 구분해요)</label>
+  <p class="app-version" id="settings-version"></p>
   <form method="dialog"><button class="btn btn-primary" type="submit">닫기</button></form>
 </dialog>
 

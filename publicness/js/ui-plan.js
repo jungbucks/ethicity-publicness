@@ -216,10 +216,12 @@
     var a=v.before,b=v.after,W=app().won,D=app().duration,pa=peopleCount(a),pb=peopleCount(b),day=st().config.day;
     function who(m){return Object.keys(m.residents||{}).filter(function(id){return m.residents[id]&&m.residents[id].satisfied===true;}).map(function(id){return st().config.residents.filter(function(r){return r.id===id;})[0].name;}).join('·');}
     var rows=[{id:'rec-row-arrived',name:'도착',x:a.arrived+'건',y:b.arrived+'건',d:b.arrived-a.arrived},{id:'rec-row-wait',name:'최장 대기',x:D(a.maxWait),y:D(b.maxWait),d:a.maxWait-b.maxWait},{id:'rec-row-nolink',name:'노선 없음',x:a.noLink+'건',y:b.noLink+'건',d:a.noLink-b.noLink}];
-    if(day)rows.push({id:'rec-people',name:'주요 인물 기준 충족',x:pa.ok+'/'+pa.total+'명'+(who(a)?' ('+who(a)+')':''),y:pb.ok+'/'+pb.total+'명'+(who(b)?' ('+who(b)+')':''),d:pb.ok-pa.ok});
+    /* 2026-11-11 플레이테스트 9: 이름 목록을 숫자와 같은 줄에 괄호로 붙이면 좁은 칸에서 글자가 겹쳤다 — 숫자 아래 작은 줄로 따로, 가운뎃점 뒤에서 줄바꿈 가능 */
+    if(day)rows.push({id:'rec-people',name:'주요 인물 기준 충족',x:pa.ok+'/'+pa.total+'명',xw:who(a),y:pb.ok+'/'+pb.total+'명',yw:who(b),d:pb.ok-pa.ok});
     rows.push({id:'rec-row-profit',name:'예상 수지',x:W(a.costs.total),y:W(b.costs.total),d:b.costs.total-a.costs.total});
     var t=el('table',{id:'rec-compare','class':'rec-compare'}),head=el('tr');['','내 노선','AI 제안'].forEach(function(h){head.appendChild(el('th',{scope:'col'},h));});var th=el('thead');th.appendChild(head);t.appendChild(th);var body=el('tbody');
-    rows.forEach(function(r){var tr=el('tr',{id:r.id});tr.appendChild(el('th',{scope:'row'},r.name));tr.appendChild(el('td',null,r.x));var td=el('td',{'class':r.d>0?'better':r.d<0?'worse':'same'},r.y);td.appendChild(el('span',{'class':'rec-delta'},r.d>0?'좋아짐':r.d<0?'나빠짐':'같음'));tr.appendChild(td);body.appendChild(tr);});
+    function names(td,w){if(w)td.appendChild(el('span',{'class':'rec-who'},w.split('·').join('·​')));return td;}
+    rows.forEach(function(r){var tr=el('tr',{id:r.id});tr.appendChild(el('th',{scope:'row'},r.name));tr.appendChild(names(el('td',null,r.x),r.xw));var td=names(el('td',{'class':r.d>0?'better':r.d<0?'worse':'same'},r.y),r.yw);td.appendChild(el('span',{'class':'rec-delta'},r.d>0?'좋아짐':r.d<0?'나빠짐':'같음'));tr.appendChild(td);body.appendChild(tr);});
     t.appendChild(body);return t;
   }
   function ai(panel){
@@ -256,11 +258,16 @@
     reset.setAttribute('aria-label','노선 모두 지우기 — 버스는 대기로, 되돌리기로 복구');sec.appendChild(reset);var list=el('div',{'class':'route-tabs'});
     /* 노선 칩(2026-11-02 휴대폰 정리): ‘1번 · 운행 대기’ 대신 색·선 모양 견본 + 상태(운행 대기·미배정·버스 N대) — 지도에서 노선 번호를 뺀 것과 같게. 이름(빨강 노선 등)은 aria-label·title.
      * 설정 ‘노선 번호 표시’를 켜면 견본 옆에 번호. 같은 크기 칩(css), 고른 노선만 테두리 */
-    var newRoutes=app().phaseChanges(st()).newRouteNums;/* 이번 단계에 새로 생긴 노선 칩(P1-3) */
+    var newRoutes=app().phaseChanges(st()).newRouteNums,gaps=S.routeGaps(st());/* 이번 단계에 새로 생긴 노선 칩(P1-3) · 노선별 배차 간격(2026-11-11) */
     S.routesInOrder(st()).forEach(function(r){var on=assigned(r.num).length,kind=(S.stopLimit(st(),r.num)===2?'광역 ':S.stopLimit(st(),r.num)===3?'직행 ':'')+(G.isLoop(r)?'순환 ':''),status=!on?'미배정':'버스 '+on+'대';
       var b=btn('','route-'+r.num,function(){P.editing=r.num;P.anchor=null;P.mapSegment=null;P.mapEnd=null;P.preview=false;P.message='정류장을 잇거나 선 중간을 당겨 보세요.';render();},'route-tab');
-      var rc=app().routeStyle(r.num).color,top=el('span',{'class':'route-tab-top'});top.appendChild(PB.Names.swatch(r.num,rc));top.appendChild(el('span',{'class':'route-tab-name'},C(r.num)));var fresh=newRoutes.indexOf(r.num)>=0;b.appendChild(top);b.appendChild(el('span',{'class':'route-tab-meta'},[kind.trim(),fresh?'새 노선':''].filter(Boolean).join(' · ')));b.appendChild(el('span',{'class':'route-tab-status'},status));
-      b.setAttribute('aria-label',R(r.num)+(fresh?' · 새 노선':'')+(kind?' · '+kind.trim():'')+' · '+status);b.title=b.getAttribute('aria-label');
+      var rc=app().routeStyle(r.num).color,top=el('span',{'class':'route-tab-top'});top.appendChild(PB.Names.swatch(r.num,rc));top.appendChild(el('span',{'class':'route-tab-name'},C(r.num)));var fresh=newRoutes.indexOf(r.num)>=0;b.appendChild(top);
+      /* 2026-11-11 플레이테스트 7: 칩 셋째 줄에 배차 간격(한 바퀴 ÷ 버스 수). 주요 인물 대기 기준(4시간 3분)을 넘으면 주의 색 + 굵게, 읽어 주는 이름에도 적는다.
+       * 둘째 줄 = 버스 수(+순환·직행·광역·새 노선), 셋째 줄 = 간격. 간격을 셀 수 없으면(버스 없음·미완성) 셋째 줄은 빈 줄 */
+      var gp=gaps.filter(function(x){return x.num===r.num;})[0],gapText=gp&&gp.headway!=null?'간격 약 '+app().duration(gp.headway):'',over=!!(gp&&gp.over);
+      b.appendChild(el('span',{'class':'route-tab-status'},[kind.trim(),fresh?'새 노선':'',status].filter(Boolean).join(' · ')));
+      var gapEl=el('span',{'class':'route-tab-gap'+(over?' is-over':'')});if(gapText){gapEl.appendChild(el('span',{'class':'gap-word'},'간격 약 '));gapEl.appendChild(document.createTextNode(app().duration(gp.headway)));}b.appendChild(gapEl);if(over)b.classList.add('gap-over');
+      b.setAttribute('aria-label',R(r.num)+(fresh?' · 새 노선':'')+(kind?' · '+kind.trim():'')+' · '+status+(gapText?' · '+gapText+(over?'(기준 '+app().duration(st().config.service.maxWait)+' 넘음)':''):''));b.title=b.getAttribute('aria-label');
       b.setAttribute('aria-pressed',String(P.editing===r.num));b.style.setProperty('--route',rc);b.classList.add('route-color');if(PB.MapNetwork&&PB.MapNetwork.luminance(rc)>0.35)b.classList.add('light');list.appendChild(b);});
     var add=btn('+ 새 노선','btn-new-route',function(){startRoute();render('.next-stop');});add.disabled=st().draft.routes.length>=S.routeLimit(st());list.appendChild(add);sec.appendChild(list);sec.appendChild(el('p',{'class':'note'},'이번 단계: 노선 최대 '+S.routeLimit(st())+'개 · 버스 '+st().owned+'대'));var r=active();
     if(r){var c=el('div',{'class':'route-card editing','data-num':r.num}),ok=!G.validateRoute(S.graph(st()),r).length;
@@ -357,7 +364,7 @@
     var sec=el('section',{id:'resident-chips','aria-labelledby':'cast-h'});sec.appendChild(el('h3',{id:'cast-h'},'오늘 지켜볼 사람'));
     var row=el('div',{'class':'chips'});
     list.forEach(function(rd){var t=tally[rd.id];
-      var b=btn(rd.name+' · '+app().clock(rd.depart)+' '+app().nodeName(rd.o)+' → '+app().nodeName(rd.d)+(t?' · 누적 '+t.completed+'/'+t.threshold+'회'+(t.completed>=t.threshold?' 달성':''):''),'resident-chip-'+rd.id,function(){
+      var b=btn(rd.name+' · '+(rd.returnTo&&PB.Hud&&PB.Hud.itinerary?PB.Hud.itinerary(rd):app().clock(rd.depart)+' '+app().nodeName(rd.o)+' → '+app().nodeName(rd.d))+/* 유나·다은은 다음 이동까지(2026-11-11) */(t?' · 누적 '+t.completed+'/'+t.threshold+'회'+(t.completed>=t.threshold?' 달성':''):''),'resident-chip-'+rd.id,function(){
         app().view.setSelected([rd.o,rd.d]);app().view.flash(rd.o);app().view.flash(rd.d);
         document.querySelector('#plan-message').textContent=rd.name+' · 출발 '+app().nodeName(rd.o)+', 목적지 '+PB.Narrative.josa(app().nodeName(rd.d),'을를')+' 지도에 표시했어요.';
       },'resident-chip');b.dataset.resident=rd.id;row.appendChild(b);});
@@ -397,7 +404,7 @@
       agenda.appendChild(el('p',{'class':'note'},'늦게 도착하면 체류 시간을 채운 뒤 귀가해요. 목적지에 못 갔다면 귀가 요청도 생기지 않아요.'));panel.appendChild(agenda);
     }
     panel.appendChild(el('p',{id:'plan-message',role:'status','class':P.preview?'callout':'note'},PB.Names.text(P.message||hint())));
-    var FA=UI.fairness,hooks={rerender:render,nudge:P.nudge||null};if(FA){var fc=s.phase===3?FA.petitionCard(App,s,hooks):s.phase===4?FA.elderCard(App,s,hooks):null,fr=FA.required(App,s);if(fc)panel.appendChild(fc);if(fr)panel.appendChild(fr);if(FA.profitToggle)panel.appendChild(FA.profitToggle(App,s,hooks));}
+    var FA=UI.fairness,hooks={rerender:render,nudge:P.nudge||null};if(FA){var fc=s.phase===3?FA.petitionCard(App,s,hooks):s.phase===4?FA.elderCard(App,s,hooks):null,fr=fc?null:FA.required(App,s);/* ‘골라야 출발’ 줄은 카드 안 맨 아래에 있다(2026-11-11) — 카드가 없을 때만 따로 */if(fc)panel.appendChild(fc);if(fr)panel.appendChild(fr);if(FA.profitToggle)panel.appendChild(FA.profitToggle(App,s,hooks));}
     // 노선을 하나라도 완성한 뒤에만 막힌 이유를 띄운다(처음엔 위 안내가 할 일을 알려 줌)
     var blocked=s.draft.routes.some(function(r){return r.nodes.length>=2;})?blockers():[];if(blocked.length)blocker(panel,blocked);
     routes(panel);buses(panel);outlook(panel);ai(panel);
@@ -418,9 +425,12 @@
     var c=S.departChecks(s),out=[],W=app().won,N=app().nodeName,F=s.config.finance;
     function list(a,fmt){return a.slice(0,4).map(fmt).join(', ')+(a.length>4?' 외 '+(a.length-4)+'곳':'');}
     if(c.noBus)out.push({id:'depart-no-bus',text:'이대로 출발하면 아무도 버스를 탈 수 없어요.'});
+    /* 2026-11-11 플레이테스트 7: 배차 간격이 기준을 넘는 노선 · 버스가 없는 노선 · 노선이 없는 정류장을 먼저 요약(문제가 없으면 줄이 없다 — 전처럼 제목 한 줄) */
+    if(c.overGap.length)out.push({id:'depart-over-gap',text:'배차 간격이 기준('+app().duration(s.config.service.maxWait)+')을 넘는 노선: '+c.overGap.map(function(x){return C(x.num)+'(버스 '+x.buses+'대 · 약 '+app().duration(x.headway)+')';}).join(', ')+'.'});
+    if(c.idleRoutes.length&&!c.noBus)out.push({id:'depart-idle-routes',text:'버스가 없는 노선: '+c.idleRoutes.map(function(n){return C(n);}).join(', ')+' — 이 노선은 운행하지 않아요.'});
+    if(c.unserved.length)out.push({id:'depart-unserved',text:'노선이 없는 정류장 '+c.unserved.length+'곳: '+list(c.unserved,function(id){return N(id)+(c.newStops.indexOf(id)>=0?'(새)':'');})+'.'});
     if(c.resting)out.push({id:'depart-resting',text:'쉬는 버스 '+c.resting+'대 · 이번 단계 보유비 '+c.resting+' x '+W(F.holding)+' = '+W(c.restingCost)+'이 그대로 나가요.'});
     if(c.restingLeased)out.push({id:'depart-resting-leased',text:'빌린 버스 '+c.restingLeased+'대가 쉬어요 · 임차료 '+W(c.restingLeaseCost)+'이 그대로 나가요.'});
-    if(c.unserved.length)out.push({id:'depart-unserved',text:'노선이 없는 정류장 '+c.unserved.length+'곳: '+list(c.unserved,function(id){return N(id)+(c.newStops.indexOf(id)>=0?'(새)':'');})+'.'});
     if(c.residents.length)out.push({id:'depart-residents',text:'출발지나 목적지에 노선이 없는 사람: '+c.residents.map(function(r){return r.name+'('+N(r.o)+'→'+N(r.d)+')';}).join(', ')+'.'});
     return {noBus:c.noBus,lines:out};
   }

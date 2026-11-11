@@ -77,10 +77,12 @@ try{
     await page.goto(base+(process.env.SHOT3D?'':'?no3d=1'));await phase3(page);
     await page.evaluate(()=>{window.__samples=[];window.__sampler=setInterval(()=>{const st=PB.UI.runState();if(!st)return;window.__samples.push({tf:st.tf,slowed:st.slowed,shown:st.shown});},5);});
     await page.locator('#speed-2').click();
-    await page.waitForFunction(()=>PB.UI.runState().tf>44,null,{timeout:30000,polling:20});
+    /* 2026-11-11 플레이테스트 6: 어떤 배속이든 11:00에 한 번 멈춰서 알린다(전에는 2×에서 4초쯤만 열려 있었다) */
+    await page.waitForFunction(()=>{const st=PB.UI.runState();return st.hold&&st.tf===st.fixAt;},null,{timeout:30000,polling:20});
+    assert.match(await page.locator('#run-statusbar-text').innerText(),/^11:00 .*이제 15:00까지 노선을 한 번 고칠 수 있어요/);
     const samples=await page.evaluate(()=>{clearInterval(window.__sampler);return window.__samples;});
-    assert.ok(samples.filter(x=>x.tf>30&&x.tf<44).length>=1,'표본');
-    assert.ok(samples.filter(x=>x.tf>30&&x.tf<44).every(x=>!x.slowed&&x.shown===2),'11:00 앞뒤로 감속 없이 2×');
+    assert.ok(samples.filter(x=>x.tf>30&&x.tf<40).length>=1,'표본');
+    assert.ok(samples.filter(x=>x.tf>30&&x.tf<40).every(x=>!x.slowed&&x.shown===2),'11:00 전까지 감속 없이 2×');
     assert.equal(await page.locator('#run-fix').isDisabled(),false,'11:00 뒤 버튼 켜짐');
     await page.locator('#run-fix').click();await page.locator('#emergency-dialog[open]').waitFor();
     const box=await page.evaluate(()=>{const d=document.querySelector('#emergency-dialog'),r=d.getBoundingClientRect(),m=document.querySelector('#stage').getBoundingClientRect();return {modal:d.matches(':modal'),inPanel:!!d.closest('#panel'),overlap:!(r.right<=m.left||r.left>=m.right||r.bottom<=m.top||r.top>=m.bottom),now:document.querySelector('#fix-now').textContent};});

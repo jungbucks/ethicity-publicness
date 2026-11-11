@@ -65,6 +65,10 @@
 .person-chip.done .person-chip-count { color: var(--ok); }
 .person-chip-flag { padding: 1px 7px; border-radius: 9px; background: var(--warn-soft); color: var(--sem-caution-ink); font-size: 12px; font-weight: 700; }
 @media (max-width: 500px) { .person-chip { font-size: 13px; gap: 4px; padding-right: 9px; } .person-chip-face { width: 28px; height: 28px; } }
+/* 2026-11-11 플레이테스트 4: 두 번째 이동이 다른 곳으로 가는 인물(유나·다은)의 다음 이동 한 줄 ‘20:00 이후 →주거지’ */
+.person-chip-next { color: var(--text-mute); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+body[data-screen=run] .person-chip-next { display: none; }
+body.rail .person-chip-next, body.phone-p .person-chip-next, body.phone-l .person-chip-next { grid-column: 2 / -1; justify-self: start; font-size: 11px; line-height: 1.3; white-space: normal; overflow-wrap: anywhere; }
 
 /* 경로 강조(칩·지도 얼굴을 누르면): 굵은 노선 색 + 흰 테두리, 처음 몇 번 깜빡임. 없으면 굵은 주황 점선 */
 #person-path { position: absolute; inset: 0; z-index: 6; pointer-events: none; overflow: visible; }
@@ -152,9 +156,10 @@ body[data-screen=run] .person-chip-time, body[data-screen=run] .person-chip-trip
 #result-ai-body p { margin: 0 0 6px; }
 #result-ai-rows { margin: 0 0 8px; padding: 0; list-style: none; }
 #result-ai-rows li { margin: 0; padding: 4px 8px; border-radius: 8px; word-break: keep-all; }
-#result-ai-rows li.ai-picked { background: #fff; box-shadow: inset 3px 0 0 var(--accent, var(--text)); }
-.ai-picked-tag { margin-left: 6px; font-size: 13px; font-weight: 700; color: var(--text-mute); white-space: nowrap; }
-.ai-picked-tag[hidden] { display: none; }
+/* 표시된 줄은 흰 바탕 + 얇은 전체 테두리(왼쪽 색 띠 없음). ‘내가 고른 기준’(실제로 적용한 AI 제안) · ‘내 목표와 가까운 기준’(결과 화면에서 고른 목표) — 2026-11-11 */
+#result-ai-rows li.ai-picked, #result-ai-rows li.ai-applied { background: #fff; box-shadow: inset 0 0 0 1px var(--border); }
+.ai-tag { margin-left: 6px; font-size: 13px; font-weight: 700; color: var(--text-mute); white-space: nowrap; }
+.ai-tag[hidden] { display: none; }
 /* 2026-11-09 테스터 6번: 단계별 생각 쓰기(#think-note · #ai-note) — 문장 안 빈칸, 쓴 낱말에 맞춰 조사가 바뀜. 카드 안에 또 상자를 만들지 않고 윗줄로만 나눔 */
 .think-note { margin: 16px 0 0; padding: 14px 0 0; border-top: 1px solid var(--border); }
 .think-note h4 { margin: 0 0 2px; font-size: 17px; }
@@ -164,6 +169,7 @@ body[data-screen=run] .person-chip-time, body[data-screen=run] .person-chip-trip
 .note-blank.note-reason { width: calc(100% - 5.5em); min-width: 10em; }
 .note-blank:focus-visible { outline: 2px solid var(--sem-action); outline-offset: 1px; border-color: var(--sem-action); }
 .note-josa { margin-left: 1px; }
+.note-nowrap { white-space: nowrap; }
 .note-views { display: inline-flex; flex-wrap: wrap; gap: 6px; vertical-align: middle; margin: 0 4px; }
 .note-view { min-height: 44px; padding: 6px 12px; }
 .note-view[aria-pressed="true"] { border: 2px solid var(--sem-action); background: var(--accent-soft); color: var(--accent-ink); }

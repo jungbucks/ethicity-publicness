@@ -121,10 +121,21 @@
     R.onBusAt = function (pid, m) { var on = (R.boardsByPid[pid] || []).filter(function (t) { return t <= m; }).length, off = (offs[pid] || []).filter(function (t) { return t <= m; }).length; return on > off; };
     clearAlerts();
     syncControls();
+    /* 2026-11-11 플레이테스트 6: 상태 줄은 운행을 시작할 때마다 새로 쓴다 — 전에는 지난 단계의 마지막 문장(‘11:00 · 이제 15:00까지…’)이 남아 06:03에도 보였다.
+     * 11:00 전에는 ‘11:00부터’, 창이 열린 뒤 이어 보는 운행이면 ‘이제 15:00까지’ */
+    setStatus(startText(s));
     R.timer = root.setInterval(tick, 50);
     R.raf=root.requestAnimationFrame(function loop() { if (!R || R.done) return; tick(); R.raf = root.requestAnimationFrame(loop); });
   }
 
+  // 운행을 시작할 때 상태 줄 첫 문장(노선 고치기는 3단계부터, 11:00~15:00에 한 번)
+  function startText(s) {
+    var st = PB.Session.midStatus(s, R.tf), span = fixSpan().split('~');
+    if (st.why === 'early') return '운행 시작 · ' + span[0] + '부터 노선을 한 번 고칠 수 있어요.';
+    if (st.ok) return '이제 ' + span[1] + '까지 노선을 한 번 고칠 수 있어요(‘노선 고치기 · 한 번’).';
+    return '운행 시작';
+  }
+  UI.runStartText = function () { return R ? startText(R.s) : ''; };
   function stop() {
     if (!R) return;
     root.clearInterval(R.timer);
@@ -143,7 +154,8 @@
     // 확인창(건너뛰기·도움말·설정 등 모달)이 열려 있는 동안은 시계를 멈춘다 — 닫히면 R.last가 이미 지금이라 원래 배속으로 이어 간다(2026-11-01)
     if (document.hidden || R.paused || modalOpen()) return;
     var App = app(), cp = nextCheckpoint();
-    var stopAt = P.nextStop(R.tf, { mode: R.mode, notables: R.stops, checkpoint: cp });
+    /* 2026-11-11 플레이테스트 6: 노선을 고칠 수 있게 되는 11:00에는 어떤 배속이든 한 번 멈춰서 알린다(2×로는 4초쯤만 열려 있었다). 테스트용 빠른 재생(__pbFast)은 서지 않는다 */
+    var stopAt = P.nextStop(R.tf, { mode: R.mode, notables: R.stops, checkpoint: cp, must: root.__pbFast ? null : R.fixAt });
     var tf = Math.min(W, P.advance(R.tf, Math.min(dt, 250), R.mode === 'next' ? P.NEXT : R.speed, App.msPerMinute(), cp, R.slow));
     var reached = stopAt && tf >= stopAt.t;
     if (reached) tf = stopAt.t;

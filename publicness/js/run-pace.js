@@ -96,6 +96,9 @@
       var first = (opts.notables || []).filter(function (n) { return n.t > tf; })[0];
       if (first && (!best || first.t < best.t)) best = { t: first.t, kind: 'notable', items: opts.notables.filter(function (n) { return n.t === first.t; }) };
     }
+    /* must(2026-11-11 플레이테스트 6): 어떤 배속이든 한 번 서는 시각 — 노선을 고칠 수 있게 되는 11:00. 그 시각의 멈춤 목록(같은 시각 인물 판정 포함)을 함께 싣는다 */
+    var must = opts.must != null && opts.must > tf ? opts.must : null;
+    if (must != null && (!best || must <= best.t)) best = { t: must, kind: 'notable', items: (opts.notables || []).filter(function (n) { return n.t === must; }) };
     return best;
   }
 

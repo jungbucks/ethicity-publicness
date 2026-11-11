@@ -34,16 +34,18 @@
   return ul;
  }
  /* AI라면?(2026-11-06 P0-2) — AI 없이 직접 푼 학생도 AI의 판단을 보게. 계산은 계획 화면 ‘AI 제안’과 같은 함수(Advisor.recommend·Session.previewRec·expected)이고,
-  * 입력은 다음 단계 계획 화면과 같은 사본(Session.plannedNext)이라 다음 단계에서 같은 기준을 열면 같은 변화가 나온다. 결과 화면에 들어올 때 한 번만 계산해 s.aiCards[단계]에 둔다 */
+  * 입력은 다음 단계 계획 화면과 같은 사본(Session.plannedNext)이다(2026-11-11부터 후보 노선은 이번 단계에 보이는 정류장으로만 — 다음 단계에 새 정류장이 생기면 그 계획 화면의 제안과 달라질 수 있다). 결과 화면에 들어올 때 한 번만 계산해 s.aiCards[단계]에 둔다 */
  var AI_GOALS=[{id:'time',name:'빠른 이동'},{id:'reach',name:'소외 지역 연결'},{id:'profit',name:'수익'}],AI_PICK={many:'time',longest:'reach'},aiJob=null;
  function planSig(plan){return plan.buses.map(function(b){return b.route?b.route.nodes.join('-'):'쉬기';}).sort().join('|');}
- function planSource(s,h){
-  var plan=s.current&&s.current.plan,rec=s.lastRec,entry=(s.goalHistory||[]).filter(function(e){return e.phase===h.phase;})[0],goal=entry&&AI_GOALS.filter(function(g){return g.id===entry.goal;})[0];
-  if(!plan||!rec||!rec.plan||!entry||entry.action!=='accept'||!goal)return '이번 계획은 직접 만들었어요.';
-  if(planSig(plan)===planSig(rec.plan))return '이번 계획은 AI ‘'+goal.name+'’ 제안을 적용했어요.';
+ /* 출처 한 줄 + 실제로 적용한 AI 기준(goal, 없으면 null — ‘내가 고른 기준’ 표시는 이것이 있을 때만, 2026-11-11 플레이테스트 2) */
+ function planOrigin(s,h){
+  var plan=s.current&&s.current.plan,rec=s.lastRec,entry=(s.goalHistory||[]).filter(function(e){return e.phase===h.phase;})[0],goal=entry&&AI_GOALS.filter(function(g){return g.id===entry.goal;})[0],own={text:'이번 계획은 직접 만들었어요.',goal:null};
+  if(!plan||!rec||!rec.plan||!entry||entry.action!=='accept'||!goal)return own;
+  if(planSig(plan)===planSig(rec.plan))return {text:'이번 계획은 AI ‘'+goal.name+'’ 제안을 적용했어요.',goal:goal.id};
   var mine=planSig(plan).split('|').filter(function(x){return x!=='쉬기';}),kept=planSig(rec.plan).split('|').filter(function(x){return mine.indexOf(x)>=0;});
-  return kept.length?'이번 계획은 AI ‘'+goal.name+'’ 제안을 적용했어요(일부 고침 포함).':'이번 계획은 직접 만들었어요.';
+  return kept.length?{text:'이번 계획은 AI ‘'+goal.name+'’ 제안을 적용했어요(일부 고침 포함).',goal:goal.id}:own;
  }
+ function planSource(s,h){return planOrigin(s,h).text;}
  function changeText(App,c){
   var N=PB.Narrative.josa,name=App.nodeName,R=PB.Names.route;
   if(c.type==='addRoute'){var ns=c.nodes,loop=ns.length>2&&ns[0]===ns[ns.length-1];return loop?N(ns.slice(0,-1).map(name).join('·'),'을를')+' 도는 순환 노선을':N(name(ns[0]),'과와')+' '+N(name(ns[ns.length-1]),'을를')+' 잇는 노선을';}
@@ -55,41 +57,51 @@
   return '지금 노선을 그대로 두는 것을';
  }
  function aiRate(m,ids){var N=0,done=0;ids.forEach(function(id){var z=m.zones[id];if(z&&z.N){N+=z.N;done+=z.N*z.rate;}});return N?done/N:0;}
+ /* 2026-11-11 플레이테스트 2:
+  *  · 화살표 앞 숫자(A)는 어느 기준이든 같은 값 = 내 계획을 그대로 둘 때의 (다음) 단계 전체 예상 도착률. 특정 지역 도착률·수지는 대상을 적어 뒤에 덧붙인다.
+  *  · nodes = 추천 계획이 지나는 정류장(검사용) — 모두 이번 단계에 보이는 정류장이어야 한다(aiCompute가 allowNodes로 좁힘) */
  function aiRow(App,base,before,rec,g){
-  var pv=S.previewRec(base,rec),after=S.expected(pv),change=changeText(App,S.planChange(base,pv)),names=(rec.targets||[]).map(App.nodeName).join('·'),F=PB.Metrics.fmtRate;
-  var aim=g.id==='time'?'도착 시간을 줄이려고':g.id==='reach'?names+'의 도착률을 높이려고':'수지를 키우려고';
+  var pv=S.previewRec(base,rec),after=S.expected(pv),change=changeText(App,S.planChange(base,pv)),tg=rec.targets||[],names=tg.map(App.nodeName).join('·'),F=PB.Metrics.fmtRate;
+  var aim=g.id==='time'?'도착 시간을 줄이려고':g.id==='reach'?(names?names+'의 도착률을 높이려고':'소외 지역의 도착률을 높이려고'):'수지를 키우려고';
   var total='예상 도착률 '+F(before.arrivalRate)+' → '+F(after.arrivalRate);
-  var num=g.id==='time'?total:g.id==='reach'?'예상 도착률 '+F(aiRate(before,rec.targets||[]))+' → '+F(aiRate(after,rec.targets||[])):'예상 수지 '+App.won(before.costs.total)+' → '+App.won(after.costs.total);
-  return {goal:g.id,name:g.name,sig:planSig(rec.plan),aim:aim,change:change,num:num,total:total};
+  var extra=g.id==='reach'&&names?names+' 도착률 '+F(aiRate(before,tg))+' → '+F(aiRate(after,tg)):g.id==='profit'?'예상 수지 '+App.won(before.costs.total)+' → '+App.won(after.costs.total):'';
+  var nodes=[];rec.plan.buses.forEach(function(b){if(b.route)b.route.nodes.forEach(function(n){if(nodes.indexOf(n)<0)nodes.push(n);});});
+  return {goal:g.id,name:g.name,sig:planSig(rec.plan),aim:aim,change:change,num:total+(extra?' · '+extra:''),total:total,base:F(before.arrivalRate),nodes:nodes.sort(),targets:tg.slice()};
  }
+ var AI_CARD_V=2;/* 저장된 카드 모양(s.aiCards) — 다르면 다시 계산 */
  function aiCompute(App,s,h,key){
   return new Promise(function(go){setTimeout(go,0);}).then(function(){
-   var base=S.plannedNext(s),before=S.expected(base),rows=[];
-   return AI_GOALS.reduce(function(p,g){return p.then(function(){return PB.Advisor.recommend(S.revealed(base),g.id);}).then(function(rec){rows.push(aiRow(App,base,before,rec,g));});},Promise.resolve()).then(function(){
-    return {key:key,source:planSource(s,h),rows:rows,same:rows.every(function(r){return r.sig===rows[0].sig;})};
+   /* 수요는 다음 단계 것(plannedNext)이지만 후보 노선은 이번 단계에 보이는 정류장으로만 — 아직 지도에 없는 정류장을 추천하지 않는다 */
+   var base=S.plannedNext(s),before=S.expected(base),rows=[],vis=S.visibleNodeIds(s),origin=planOrigin(s,h);
+   return AI_GOALS.reduce(function(p,g){return p.then(function(){return PB.Advisor.recommend(S.revealed(base,{allowNodes:vis}),g.id);}).then(function(rec){rows.push(aiRow(App,base,before,rec,g));});},Promise.resolve()).then(function(){
+    return {key:key,v:AI_CARD_V,source:origin.text,applied:origin.goal,visible:vis,rows:rows,same:rows.every(function(r){return r.sig===rows[0].sig;})};
    });
   });
  }
- // 고른 목표의 추천 한 줄과 접힌 세 기준 비교. 계산 캐시를 그대로 읽는다
+ /* 고른 목표의 추천 한 줄과 접힌 세 기준 비교. 계산 캐시를 그대로 읽는다.
+  * 표시 둘(2026-11-11): ‘내가 고른 기준’ = 이번 계획에 실제로 적용한 AI 제안의 기준(card.applied)일 때만 / ‘내 목표와 가까운 기준’ = 결과 화면에서 고른 목표(many→빠른 이동, longest→소외 지역 연결)에 대응시킨 것.
+  * 아무것도 고르지 않았으면 표시 없이 요약 줄만 ‘빠른 이동’ 기준으로 보인다 */
  function aiMark(sec,choice){
-  var goal=AI_PICK[choice];
-  if(sec._aiCard){var card=sec._aiCard,entry=(sec._aiSession.goalHistory||[]).filter(function(e){return e.phase===sec._aiPhase;})[0];goal=goal||AI_PICK[(sec._aiSession.choices||{})[sec._aiPhase-1]]||(entry&&entry.goal)||'time';var r=card.rows.filter(function(r){return r.goal===goal;})[0]||card.rows[0];q(sec,'#result-ai-summary').textContent='['+r.name+'] AI는 '+r.change+' 추천해요. ('+r.num+')';}
-  sec.querySelectorAll('[data-goal]').forEach(function(li){var on=li.dataset.goal===goal,tag=li.querySelector('.ai-picked-tag');li.classList.toggle('ai-picked',on);if(tag)tag.hidden=!on;});
+  if(!sec._aiCard)return;
+  var s=sec._aiSession,card=sec._aiCard,near=AI_PICK[choice]||AI_PICK[(s.choices||{})[sec._aiPhase-1]]||null,applied=card.applied||null,goal=near||applied||'time';
+  var r=card.rows.filter(function(r){return r.goal===goal;})[0]||card.rows[0];q(sec,'#result-ai-summary').textContent='['+r.name+'] AI는 '+r.change+' 추천해요. ('+r.num+')';
+  sec.querySelectorAll('[data-goal]').forEach(function(li){var on=li.dataset.goal===near,mine=li.dataset.goal===applied,t1=li.querySelector('.ai-picked-tag'),t2=li.querySelector('.ai-applied-tag');li.classList.toggle('ai-picked',on);li.classList.toggle('ai-applied',mine);if(t1)t1.hidden=!on;if(t2)t2.hidden=!mine;});
  }
  function aiPaint(sec,card,s,h,last){
   var body=q(sec,'#result-ai-body');body.textContent='';sec._aiCard=card;sec._aiSession=s;sec._aiPhase=h.phase;body.appendChild(el('p',{id:'result-ai-summary'}));var box=el('details',{id:'result-ai-more'});box.appendChild(el('summary',null,'AI 비교 더 보기'));body.appendChild(box);box.appendChild(el('p',{id:'result-ai-source'},card.source));
   var ul=el('ul',{id:'result-ai-rows','class':'plain'});
   if(card.same)box.appendChild(el('p',{id:'result-ai-same','class':'note'},'이번에는 세 기준의 추천이 같았어요.'));
-  card.rows.forEach(function(r){var li=el('li',{'data-goal':r.goal});li.appendChild(el('b',null,'['+r.name+'] '));li.appendChild(document.createTextNode('AI는 '+r.aim+' '+r.change+' 추천해요. ('+r.num+')'));var tag=el('span',{'class':'ai-picked-tag'},'내가 고른 기준');tag.hidden=true;li.appendChild(tag);ul.appendChild(li);});
+  card.rows.forEach(function(r){var li=el('li',{'data-goal':r.goal});li.appendChild(el('b',null,'['+r.name+'] '));li.appendChild(document.createTextNode('AI는 '+r.aim+' '+r.change+' 추천해요. ('+r.num+')'));
+   [['ai-applied-tag','내가 고른 기준'],['ai-picked-tag','내 목표와 가까운 기준']].forEach(function(x){var tag=el('span',{'class':x[0]+' ai-tag'},x[1]);tag.hidden=true;li.appendChild(tag);});ul.appendChild(li);});
   box.appendChild(ul);
-  box.appendChild(el('p',{'class':'note',id:'result-ai-note'},'AI 추천은 정답이 아니라, 무엇을 중요하게 보느냐에 따라 달라져요. 예상 수치는 '+(last?'이번':'다음')+' 단계 기본 수요 기준이에요.'));
+  box.appendChild(el('p',{'class':'note',id:'result-ai-note'},'AI 추천은 정답이 아니라, 무엇을 중요하게 보느냐에 따라 달라져요. 예상 수치는 '+(last?'이번':'다음')+' 단계 기본 수요 기준이고, 화살표 앞은 내 계획을 그대로 둘 때예요.'+(last?'':' AI는 지금 지도에 있는 정류장만 썼어요.')));
   aiMark(sec,(s.choices||{})[h.phase]);
  }
  function aiCard(App,s,h,last){
   var sec=el('section',{id:'result-ai','class':'result-ai','aria-labelledby':'result-ai-h'});sec.appendChild(el('h3',{id:'result-ai-h'},'AI라면?'));
   var box=el('div',{id:'result-ai-body'});sec.appendChild(box);sec.appendChild(aiNote(s,h));
   var key=planSig(s.current.plan)+'#'+h.metrics.arrived,saved=(s.aiCards||{})[h.phase];
-  if(saved&&saved.key===key){aiPaint(sec,saved,s,h,last);return sec;}
+  if(saved&&saved.key===key&&saved.v===AI_CARD_V){aiPaint(sec,saved,s,h,last);return sec;}
   box.appendChild(el('p',{'class':'note',role:'status',id:'result-ai-wait'},'AI가 세 기준으로 다시 짜 보고 있어요.'));
   if(!aiJob||aiJob.key!==key||aiJob.s!==s)aiJob={key:key,s:s,run:aiCompute(App,s,h,key)};
   aiJob.run.then(function(card){
@@ -101,7 +113,8 @@
  function think(App,s,h,last){
   var sec=el('section',{id:'result-think','class':'result-think','aria-labelledby':'result-think-h','data-phase':h.phase});
   sec.appendChild(el('h3',{id:'result-think-h'},'다음 운행 목표'));
-  var focus=PB.Narrative.thinkFocus(s.config,h.phase,s.current.result.passengers,h.scores&&h.scores.mobility);if(focus.bridge)sec.appendChild(el('p',{'class':'think-bridge',id:'think-bridge'},focus.bridge));/* P0-4·11-05 P0-3: 이번 결과로 고른 연결 문장(첫 줄 = 자세히의 가장 많이 남은 곳) */
+  var unseen=null;try{unseen=PB.UI.fairness&&PB.UI.fairness.seenStats?PB.UI.fairness.seenStats(s,h):null;}catch(e){unseen=null;}/* AI가 못 본 곳(2026-11-11): ‘AI가 본 이동과 실제 이동’ 카드와 같은 값 */
+  var focus=PB.Narrative.thinkFocus(s.config,h.phase,s.current.result.passengers,h.scores&&h.scores.mobility,{unseen:unseen});if(focus.bridge)sec.appendChild(el('p',{'class':'think-bridge',id:'think-bridge'},focus.bridge));/* P0-4·11-05 P0-3: 이번 결과로 고른 연결 문장(첫 줄 = 자세히의 가장 많이 남은 곳) */
   // 두 가지 선택형 답 — 자유 서술(reflections)과 따로 저장(고르면 글이 지워지던 문제 고침)
   var box=el('fieldset',{id:'think-choice','class':'think-choice'});box.appendChild(el('legend',null,last?'다음 학기라면 누구의 이동을 먼저 살필까요?':'다음에는 누구의 이동을 살필까요?'));
   var row=el('div',{'class':'think-options'});
@@ -117,12 +130,13 @@
  /* 2026-11-09 테스터 6번(6-A): 단계별 생각 쓰기 — 문장 틀 빈칸(비워도 됨, 점수·진행과 상관없음). 입력마다 s.stageNotes[단계]에 저장(js/stage-notes.js), 다시 그리면 그대로.
   * 학생은 낱말만 쓰고 뒤 조사(을/를·이/가)는 쓴 낱말에 맞춰 바뀐다. 마지막 엔딩 보고서에 문장으로 모인다 */
  function noteBox(id,title){var box=el('div',{id:id,'class':'think-note',role:'group','aria-labelledby':id+'-h'});box.appendChild(el('h4',{id:id+'-h'},title));box.appendChild(el('p',{'class':'note'},'빈칸을 채워 보세요. 비워도 괜찮아요. 점수와는 상관없어요.'));return box;}
- function noteSaved(box){var st=box.querySelector('.note-saved');if(st)st.textContent='저장했어요.';}
+ function noteSaved(box,ok){var st=box.querySelector('.note-saved');if(st)st.textContent=PB.App.savedText(ok);}/* 성공했을 때만 성공 문구(2026-11-10 검토 3번, 문구는 App.savedText 한 곳) */
  function blank(s,h,box,field,id,label,kind,max){
   var NT=PB.StageNotes,inp=el('input',{type:'text',id:id,'class':'note-blank'+(kind?'':' note-reason'),maxlength:String(max||40),autocomplete:'off','aria-label':label,placeholder:kind?'누구·무엇':'짧게'});
   inp.value=NT.get(s,h.phase)[field];var frag=document.createDocumentFragment();frag.appendChild(inp);
-  var js=kind?el('span',{id:id+'-josa','class':'note-josa'},NT.particle(inp.value,kind)):null;if(js)frag.appendChild(js);
-  inp.addEventListener('input',function(){NT.set(s,h.phase,field,inp.value);if(js)js.textContent=NT.particle(inp.value,kind);PB.App.save();noteSaved(box);});
+  /* 2026-11-11 플레이테스트 11: 빈칸이 비어 있으면 뒤 조사를 보이지 않는다(‘AI는 을(를) 바꾸자고 했다’처럼 틀이 그대로 읽히던 것). 낱말을 쓰면 그 받침에 맞는 조사가 붙는다 */
+  var josaOf=function(){return inp.value.trim()?NT.particle(inp.value,kind):'';},js=kind?el('span',{id:id+'-josa','class':'note-josa'},josaOf()):null;if(js)frag.appendChild(js);
+  inp.addEventListener('input',function(){NT.set(s,h.phase,field,inp.value);if(js)js.textContent=josaOf();noteSaved(box,PB.App.save());});
   return frag;
  }
  function line(parts){var p=el('p',{'class':'note-line'});parts.forEach(function(x){p.appendChild(typeof x==='string'?document.createTextNode(x):x);});return p;}
@@ -137,9 +151,9 @@
   box.appendChild(line(['AI는 ',blank(s,h,box,'aiWhat','note-ai-what','AI가 바꾸자고 한 것','을를'),' 바꾸자고 했다.']));
   var pick=el('span',{'class':'note-views',role:'group','aria-label':'AI와 같은 생각인지 다른 생각인지'});
   Object.keys(NT.VIEWS).forEach(function(k){var b=el('button',{type:'button','class':'btn note-view','data-ai-view':k,'aria-pressed':String(NT.get(s,h.phase).aiView===k)},NT.VIEWS[k]);
-   b.addEventListener('click',function(){NT.set(s,h.phase,'aiView',NT.get(s,h.phase).aiView===k?'':k);var now=NT.get(s,h.phase).aiView;pick.querySelectorAll('[data-ai-view]').forEach(function(n){n.setAttribute('aria-pressed',String(n.dataset.aiView===now));});PB.App.save();noteSaved(box);});pick.appendChild(b);});
+   b.addEventListener('click',function(){NT.set(s,h.phase,'aiView',NT.get(s,h.phase).aiView===k?'':k);var now=NT.get(s,h.phase).aiView;pick.querySelectorAll('[data-ai-view]').forEach(function(n){n.setAttribute('aria-pressed',String(n.dataset.aiView===now));});noteSaved(box,PB.App.save());});pick.appendChild(b);});
   box.appendChild(line(['나는 ',pick,'이다.']));
-  box.appendChild(line(['왜냐하면 ',blank(s,h,box,'aiWhy','note-ai-why','그렇게 생각한 까닭',null,120)]));
+  box.appendChild(line([el('span',{'class':'note-nowrap'},'왜냐하면'),' ',blank(s,h,box,'aiWhy','note-ai-why','그렇게 생각한 까닭',null,120)]));/* ‘왜냐하 / 면’으로 끊기지 않게 */
   box.appendChild(el('p',{'class':'note note-saved',role:'status'}));return box;
  }
  /* 2026-11-09 교사 플레이테스트 4: 같은 조건으로 다시 한 게임의 같은 단계와 비교 한두 줄(js/run-compare.js — 이미 계산된 숫자만).
