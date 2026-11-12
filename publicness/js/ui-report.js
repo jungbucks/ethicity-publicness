@@ -6,7 +6,7 @@
   var PB = root.PB, UI = PB.UI = PB.UI || {}, nameMem = '', baseTitle = null;
   function el(t, a, x) { return PB.App.el(t, a, x); }
   function fmt(App, s) {
-    return { won: App.won, duration: App.duration, rate: PB.Metrics.fmtRate, name: App.nodeName, route: function (n) { return PB.Names.route(n, s); }, choices: PB.Session.CHOICES, date: new Date() };
+    return { won: App.won, duration: App.duration, rate: PB.Metrics.fmtRate, name: App.nodeName, route: function (n) { return PB.Names.route(n, s); }, bus: function (id, from) { return PB.Names.bus(id, s, from); }, clock: App.clock, choices: PB.Session.CHOICES, date: new Date() };
   }
   function restoreTitle() { if (baseTitle != null) { document.title = baseTitle; baseTitle = null; } }
   function print() {
@@ -61,7 +61,17 @@
       var sec = el('section', { 'class': 'report-stage', 'data-phase': String(st.phase), 'aria-labelledby': 'report-stage-' + st.phase });
       sec.appendChild(el('h3', { id: 'report-stage-' + st.phase }, st.title));
       var ul = el('ul', { 'class': 'report-plan' }); st.plan.forEach(function (t) { ul.appendChild(el('li', null, t)); });
-      sec.appendChild(row('내 계획', ul));
+      sec.appendChild(row(st.planLabel || '내 계획', ul));
+      if (st.changes && st.changes.length) { /* 2026-11-12: 운행 중 고친 것은 출발 계획과 따로 — 시각·무엇을·고치기 전과 뒤 */
+        var cl = el('ul', { 'class': 'report-plan report-changes' });
+        st.changes.forEach(function (c) {
+          var li = el('li', { 'data-kind': c.kind }); li.appendChild(el('span', { 'class': 'report-change-head' }, c.head));
+          if (c.detail.length) { var dl = el('ul', { 'class': 'report-change-detail' }); c.detail.forEach(function (t) { dl.appendChild(el('li', null, t)); }); li.appendChild(dl); }
+          cl.appendChild(li);
+        });
+        if (st.changeNote) cl.appendChild(el('li', { 'class': 'report-change-note' }, st.changeNote));
+        sec.appendChild(row('운행 중 바꾼 것', cl));
+      }
       var nums = el('ul', { 'class': 'report-nums' });
       st.numbers.forEach(function (n) { var li = el('li', n[2] ? { 'class': 'is-' + n[2] } : null); var cut = n[2] ? n[1].indexOf(' (') : -1; /* 긴 줄(평가 대상)은 건수만 굵게, 괄호 속 풀이는 보통 굵기 */
         li.appendChild(el('span', null, n[0] + ' ')); li.appendChild(el('b', null, cut < 0 ? n[1] : n[1].slice(0, cut))); if (cut >= 0) li.appendChild(el('span', null, n[1].slice(cut))); nums.appendChild(li); });

@@ -2,7 +2,9 @@
  *  · 「다음 운행 목표」 아래: 이번에 나는 [kept]을/를 먼저 챙겼다. 그 대신 [lost]이/가 손해를 봤다.
  *  · 「AI라면?」 아래: AI는 [aiWhat]을/를 바꾸자고 했다. 나는 [aiView 같은/다른] 생각이다. 왜냐하면 [aiWhy].
  * 저장: 세션 선택 필드 s.stageNotes[단계] = {kept, lost, aiWhat, aiView:'same'|'diff', aiWhy} — 빈 값은 지운다(예전 저장본엔 없음, SCENARIO_VERSION 그대로).
- * 계획 기록: s.planLog[단계] = {routes:[{num, nodes, buses}], resting} — 결과 화면에서 출발한 계획(draft) 그대로. 엔딩 보고서가 노선을 색 이름으로 부르려고(history.plan엔 노선 번호가 없다). */
+ * 계획 기록: s.planLog[단계] = {routes:[{num, nodes, buses}], resting} — 결과 화면에서 출발한 계획(draft) 그대로. 엔딩 보고서가 노선을 색 이름으로 부르려고(history.plan엔 노선 번호가 없다).
+ *   운행 중 버스를 옮긴 단계만 moveStart:{버스 번호: 새 노선에서 달리기 시작한 엔진 시각 | null(끝까지 못 옮김)}를 덧붙인다(2026-11-12, 선택 필드 — 운행 기록은 그 단계 결과 화면에서만 볼 수 있어서).
+ *   운행 중 고친 내용 자체는 s.midChanges에 있다 — 보고서(js/report.js changeItems)가 출발 계획과 따로 싣는다. */
 (function (root) {
   'use strict';
   var FIELDS = ['kept', 'lost', 'aiWhat', 'aiView', 'aiWhy'], VIEWS = { same: '같은 생각', diff: '다른 생각' }, MAX = 200, EMPTY = '(쓰지 않음)';
@@ -46,7 +48,16 @@
       resting: buses.filter(function (b) { return b.routeNum == null; }).length
     };
   }
-  function logPlan(s, phase, draft) { s.planLog = s.planLog || {}; s.planLog[phase] = routesOf(draft); return s.planLog[phase]; }
+  function logPlan(s, phase, draft, result) {
+    var prev = s.planLog && s.planLog[phase], p = routesOf(draft), start = null;
+    var moves = (s.midChanges || []).filter(function (c) { return c.phase === phase && c.kind === 'move'; });
+    if (moves.length && result && result.log) {
+      start = {};
+      moves.forEach(function (c) { var e = result.log.filter(function (x) { return x.type === 'reassign' && x.bus === c.busId && x.t >= c.at; })[0]; start[c.busId] = e && e.data && typeof e.data.starts === 'number' ? e.data.starts : null; });
+    } else if (moves.length && prev && prev.moveStart) start = prev.moveStart; /* 운행 기록 없이 다시 부르면 앞서 적은 값을 지우지 않는다 */
+    if (start) p.moveStart = start;
+    s.planLog = s.planLog || {}; s.planLog[phase] = p; return p;
+  }
   // 보고서용 계획: 기록이 있으면 그대로, 없으면(이 기능 전에 한 단계) history.plan의 버스 노선을 묶는다. 색 번호는 지금 초안에 같은 정류장 노선이 있을 때만
   function planOf(s, h) {
     if (s.planLog && s.planLog[h.phase]) return s.planLog[h.phase];

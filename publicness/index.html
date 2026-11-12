@@ -15,6 +15,7 @@
 <link rel="stylesheet" href="css/midday.css">
 <link rel="stylesheet" href="css/report.css">
 <link rel="stylesheet" href="css/fairness.css">
+<link rel="stylesheet" href="css/title-type.css">
 </head>
 <body data-screen="title" class="minimal-ui">
 <!-- Match the initial presentation before the title can paint; game initialization is unchanged. -->
@@ -24,8 +25,8 @@
 <!-- 시작 화면 -->
 <section id="screen-title" class="title-screen" aria-labelledby="title-h1">
   <div class="title-copy">
-    <p class="eyebrow" id="title-sub">AI 마을버스 운영단</p>
-    <h1 id="title-h1">이번 정류장은…</h1>
+    <p class="eyebrow" id="title-sub">윤리시티 · 공공성 편</p>
+    <h1 id="title-h1" class="series-title"><span class="title-ink bus-word"><span class="title-text">이번 정류장은…</span><img src="assets/title-type/title.png" alt="" aria-hidden="true" onload="this.parentElement.classList.add('is-ready')" onerror="this.parentElement.classList.remove('is-ready')"></span><svg class="title-route" viewBox="0 0 172 12" width="172" height="12" aria-hidden="true" focusable="false"><path d="M5 6H167" fill="none" stroke="currentColor" stroke-width="1.2"/><g fill="white" stroke="currentColor" stroke-width="1.5"><circle cx="5" cy="6" r="3"/><circle cx="59" cy="6" r="3"/><circle cx="113" cy="6" r="3"/><circle cx="167" cy="6" r="3"/></g></svg></h1>
     <p class="title-en" id="title-en">This stop is…</p>
     <p class="hook" id="hook-1">버스 2대, 첫 운행 예정 이동 139건.</p>
     <p class="hook hook-strong" id="hook-2">아직 정해진 길은 없어요. 우리 마을의 첫 노선을 직접 연결해 보세요.</p>

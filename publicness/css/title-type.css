@@ -1,0 +1,11 @@
+/* First-screen title only. Text remains accessible and is the image-error fallback. */
+.series-title .title-ink{position:relative;display:inline-block;max-width:100%;vertical-align:middle}
+.series-title .title-ink>img{display:none;width:100%;height:auto;image-rendering:auto}
+.series-title .title-ink.is-ready>img{display:block}
+.series-title .title-ink.is-ready>.title-text{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;clip-path:inset(50%)!important;white-space:nowrap!important;border:0!important}
+
+body #screen-title #title-sub{display:block}
+#screen-title .title-copy{min-width:0}
+#screen-title #title-h1{color:#1A5FC9}
+#title-h1 .bus-word{display:block;width:480px;max-width:100%}
+#title-h1 .title-route{display:block;margin-top:12px;margin-bottom:6px;color:#1A5FC9}

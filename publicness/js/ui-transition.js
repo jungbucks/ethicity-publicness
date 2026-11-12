@@ -167,7 +167,7 @@
  }
  PB.UI.result=function(App,panel){
   var result=original(App,panel),s=App.s,h=s.history[s.history.length-1],m=h.metrics,k=m.costs,res=s.current.result,last=s.phase>=s.config.phases.length||!!(s.end&&s.end.cause==='contract');
-  if(PB.StageNotes)PB.StageNotes.logPlan(s,h.phase,s.draft);/* 보고서가 노선을 색 이름으로 부르게 출발 계획을 남김(결과 화면에서 초안 = 출발한 계획) */
+  if(PB.StageNotes)PB.StageNotes.logPlan(s,h.phase,s.draft,res);/* 보고서가 노선을 색 이름으로 부르게 출발 계획을 남김(결과 화면에서 초안 = 출발한 계획). res = 운행 중 옮긴 버스가 달리기 시작한 시각을 함께 남김 */
   var eyebrow=q(panel,'.eyebrow'),title=q(panel,'h2'),scores=q(panel,'#scores'),family=q(panel,'#family-result'),summary=q(panel,'#resident-summary'),notice=q(panel,'#finance-status');
   var details=q(panel,'#result-details'),next=q(panel,'#btn-next-phase'),cards=q(panel,'#resident-day-results');
   var callouts=[].slice.call(panel.querySelectorAll(':scope > p.callout')).filter(function(n){return n!==family&&n!==notice;});
