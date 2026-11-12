@@ -32,7 +32,7 @@
       if (e.type === 'alight') alights[e.pid] = e;
     });
     result.passengers.forEach(function (p) {
-      if (p.fail === 'NO_LINK') return;
+      if (p.fail === 'NO_LINK' || p.fail === 'TOO_MANY_TRANSFERS') return;
       var b = boards[p.id] || [];
       add(p.o, p.t, b.length ? b[0] : W + 1);
       var al = alights[p.id];

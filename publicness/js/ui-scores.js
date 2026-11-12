@@ -75,13 +75,14 @@
     var ol = el('ul', { 'class': 'score-tips', id: 'score-tips' });
     list.forEach(function (t) {
       var text = t.code === 'full' ? PB.Names.route(t.num) + '에서 만차가 ' + t.fulls + '회 났고, 만차를 겪은 뒤 끝내 마치지 못한 이동이 ' + t.missed + '건이에요. 이 노선 구간의 증차를 검토해 보세요.' :
+        t.code === 'transfers' ? '갈아타기를 두 번 해야 해서 못 간 이동이 ' + t.missed + '건이에요(갈아타기는 한 번까지). 두 노선이 한 정류장에서 만나게 이어 보세요.' :
         t.code === 'noLink' ? '잇는 노선이 없어 떠나지 못한 이동이 ' + t.missed + '건이에요(가장 많은 구간 ' + App.nodeName(t.pair.o) + '→' + App.nodeName(t.pair.d) + ' ' + t.pair.n + '건). 노선 연결을 검토해 보세요.' :
         PB.Names.route(t.num) + '은 버스 ' + t.buses + '대가 대당 ' + t.perBus + '회 승차로 운행 노선 평균(' + t.avg + '회)의 절반에 못 미쳤고 만차는 없었어요. 버스 배치 조정을 검토해 보세요. 꼭 필요한 곳을 잇는 노선이라면 1대는 남겨 두세요.';
       ol.appendChild(el('li', { 'data-tip': t.code }, text));
     });
     return ol;
   }
-  var REASON = { noLink: '잇는 노선 없음', full: '만차를 겪고 못 마침', time: '운행 종료까지 못 마침', parentFailed: '선행 이동 미완료로 진행하지 못한 이동', lateParent: '선행 이동이 늦어 운행 시간 안에 시작하지 못한 이동', stayHome: '무임 폐지로 버스를 타지 않은 이동' };
+  var REASON = { noLink: '잇는 노선 없음', transfers: '갈아타기를 두 번 해야 해서 못 감(갈아타기는 한 번까지)', full: '만차를 겪고 못 마침', time: '운행 종료까지 못 마침', parentFailed: '선행 이동 미완료로 진행하지 못한 이동', lateParent: '선행 이동이 늦어 운행 시간 안에 시작하지 못한 이동', stayHome: '무임 폐지로 버스를 타지 않은 이동' };
   UI.scoreReasonKeys = function () { return Object.keys(REASON); };
   function method(App, sc, opts) {
     var d = el('details', { 'class': 'score-method', id: 'score-method' });

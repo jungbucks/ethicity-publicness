@@ -86,9 +86,9 @@
       if (u.done) return;
       if (!p && (home[u.key] || (u.parent && home[u.parent]))) u.reason = 'stayHome';
       else if (!p) { var parent = byKey[u.parent]; u.reason = u.kind === 'followUp' && parent && parent.status === 'arrived' ? 'lateParent' : u.kind === 'followUp' ? 'parentFailed' : 'time'; }
-      else u.reason = p.fail === 'NO_LINK' ? 'noLink' : p.deniedBoardings > 0 ? 'full' : 'time';
+      else u.reason = p.fail === 'NO_LINK' ? 'noLink' : p.fail === 'TOO_MANY_TRANSFERS' ? 'transfers' : p.deniedBoardings > 0 ? 'full' : 'time';
     });
-    var O = opts(config), all = tally(list), reasons = { noLink: 0, full: 0, time: 0, parentFailed: 0, lateParent: 0, stayHome: 0 }, kinds = {}, zones = {}, pairs = {};
+    var O = opts(config), all = tally(list), reasons = { noLink: 0, transfers: 0, full: 0, time: 0, parentFailed: 0, lateParent: 0, stayHome: 0 }, kinds = {}, zones = {}, pairs = {};
     list.forEach(function (u) {
       var k = kinds[u.kind] || (kinds[u.kind] = { N: 0, done: 0 }); k.N++; if (u.done) k.done++;
       var z = zones[u.o] || (zones[u.o] = { N: 0, done: 0 }); z.N++; if (u.done) z.done++;
@@ -150,6 +150,7 @@
     var fullRoutes = (routes || []).filter(function (r) { return r.fulls >= S.fullMin; }).sort(function (a, b) { return b.fulls - a.fulls; });
     if (fullRoutes.length && m.reasons.full) out.push({ code: 'full', num: fullRoutes[0].num, fulls: fullRoutes[0].fulls, missed: m.reasons.full });
     if (m.noLinkPairs.length) out.push({ code: 'noLink', pair: m.noLinkPairs[0], missed: m.reasons.noLink });
+    if (m.reasons.transfers) out.push({ code: 'transfers', missed: m.reasons.transfers }); // 2026-11-12 랜덤 검토 2번(예전 기록엔 없음 → 안 나옴)
     var running = (routes || []).filter(function (r) { return r.buses > 0; }), avg = running.length ? running.reduce(function (a, r) { return a + (r.perBus || 0); }, 0) / running.length : 0;
     var low = running.filter(function (r) { return r.buses >= 2 && r.fulls === 0 && r.perBus != null && r.perBus < avg * S.lowUseRatio; }).sort(function (a, b) { return a.perBus - b.perBus; });
     if (low.length) out.push({ code: 'lowUse', num: low[0].num, buses: low[0].buses, perBus: low[0].perBus, avg: Math.round(avg * 10) / 10 });

@@ -8,7 +8,7 @@
     petition: { id: 'petition', values: { reflect: '반영한다', 'not-now': '이번엔 못 한다' }, ids: { reflect: 'petition-reflect', 'not-now': 'petition-not-now' }, need: '청원에 답을 골라야 출발할 수 있어요.' },
     elder: { id: 'elder', values: { keep: '유지한다', abolish: '폐지한다' }, ids: { keep: 'elder-keep', abolish: 'elder-abolish' }, need: '무임승차 유지·폐지를 골라야 출발할 수 있어요.' }
   };
-  function field(s, kind) { return s[PB.Choices.KINDS[kind].field] || {}; }
+  function field(s, kind) { return PB.Choices.get(s, kind) || {}; } /* 2026-11-12: 사건 청원 답은 s.petitionReplies[단계] — Choices.get이 지금 단계 답을 고른다 */
   function options(App, s, kind, hooks, legend) {
     var L = LABELS[kind], cur = field(s, kind).choice, box = App.el('div', { 'class': 'fair-options', role: 'group', 'aria-label': legend });
     PB.Choices.KINDS[kind].values.forEach(function (v) {
@@ -41,8 +41,8 @@
     c.appendChild(App.el('h3', { id: id + '-h' }, title)); return c;
   }
   function petitionCard(App, s, hooks) {
-    var fp = s.fixedPetition; hooks = hooks || {};
-    if (!fp || s.phase !== PB.Choices.KINDS.petition.phase) return null;
+    var fp = PB.Choices.petitionFor(s, s.phase); hooks = hooks || {};
+    if (!fp) return null; /* 2026-11-12 랜덤 검토 4번: 고정 청원(2단계 → 3단계 답)과 사건 청원(생긴 다음 단계에 답)을 같은 카드로 */
     var zone = App.nodeName(fp.zone), c = shell(App, 'petition-card', zone + ' 주민 청원');
     c.appendChild(App.el('p', { id: 'petition-text', 'class': 'fair-fact' }, App.clock(fp.t) + ' ' + zone + ' 주민 청원: 그때까지 요청 ' + fp.total + '건 중 ' + fp.count + '건이 아직 도착하지 못했어요.'));
     c.appendChild(App.el('p', { 'class': 'fair-frame' }, zone + ' 주민의 청원을'));
@@ -125,22 +125,34 @@
   function histAt(s, phase) { return (s.history || []).filter(function (x) { return x.phase === phase; })[0] || null; }
   /* 출발한 계획의 모양(노선 정류장 순서·정차 + 그 노선 버스 수) — 두 단계의 노선이 같은지 비교용 */
   function planKey(h) { return ((h.plan && h.plan.buses) || []).map(function (b) { return b.route ? b.route.nodes.join('-') + '#' + b.route.stops.join('') : ''; }).filter(Boolean).sort().join('|'); }
+  /* 2026-11-12 랜덤 검토 4번: 청원 지표를 하루 끝 기준 하나로 — ‘그 동네에서 출발해 목적지까지 못 간 이동’(Choices.outcome = 보고서·금배지와 같은 값).
+   * 청원 시각에 아직 도착 전이던 이동(버스 안 포함)은 ‘참고’ 줄로만. ‘반영한다’를 골랐으면 판정 한 줄. 고정·사건 청원 모두 */
   function petitionFollowup(App, s, h) {
-    var fp = s.fixedPetition; if (h.phase !== 3 || !fp) return null;
-    var h2 = histAt(s, 2), z = fp.zone, a = h2 && h2.rideLog && h2.rideLog[z], b = h.rideLog && h.rideLog[z]; if (!a || !b) return null;
-    var name = App.nodeName(z), rep = s.petitionReply || {}, c = shell(App, 'petition-followup', name + ' 청원 그 뒤');
+    var fp = PB.Choices.list(s).filter(function (p) { return p.answer === h.phase; })[0]; if (!fp) return null;
+    var o = PB.Choices.outcome(s, fp); if (!o) return null;
+    var h2 = histAt(s, fp.phase), z = fp.zone, a = h2.rideLog[z] || { requests: 0, arrived: 0, rode: 0 }, b = h.rideLog[z] || { requests: 0, arrived: 0, rode: 0 };
+    var name = App.nodeName(z), rep = fp.reply || {}, c = shell(App, 'petition-followup', name + ' 청원 그 뒤');
     if (rep.choice) c.appendChild(App.el('p', { id: 'petition-answer', 'class': 'fair-fact' }, name + ' 주민의 청원을 ' + (rep.choice === 'reflect' ? '반영한다' : '이번엔 못 한다') + '고 답했어요.' + (rep.why ? ' 왜냐하면 ' + rep.why + '.' : '')));
     /* 2026-11-11 플레이테스트 8: ① ‘반영한다’고 했는데 2단계와 같은 노선·버스 수로 출발했고 운행 중에도 안 고쳤으면 사실 한 줄.
      * ② 청원이 말한 이동과 같은 기준(그 시각까지 그 구역에서 생긴 요청 중 그때까지 도착하지 못한 이동)으로 2단계와 3단계를 나란히 — 전에는 하루가 끝났을 때 기준만 보여서 청원 숫자(3건 중 3건)와 결과 숫자(0건 → 0건)가 어긋나 보였다.
      * ③ 하루가 끝났을 때 기준은 그 아래 줄로 남긴다(보고서·금배지가 쓰는 값) */
     var mids = (s.midChanges || []).some(function (m) { return m.phase === h.phase; });
-    if (rep.choice === 'reflect' && h2 && planKey(h2) === planKey(h) && !mids) c.appendChild(App.el('p', { id: 'petition-same', 'class': 'fair-fact' }, '노선은 바뀌지 않았어요(2단계와 같은 노선·버스 수로 출발했어요).'));
+    var P1 = fp.phase + '단계', P2 = h.phase + '단계';
+    if (rep.choice === 'reflect' && h2 && planKey(h2) === planKey(h) && !mids) c.appendChild(App.el('p', { id: 'petition-same', 'class': 'fair-fact' }, '노선은 바뀌지 않았어요(' + P1 + '와 같은 노선·버스 수로 출발했어요).'));
+    c.appendChild(App.el('p', { id: 'petition-fail', 'class': 'fair-fact' }, '하루가 끝났을 때 ' + name + '에서 출발해 목적지까지 못 간 이동: ' + P1 + ' ' + o.before.failed + '건(출발 ' + o.before.requests + '건 중) → ' + P2 + ' ' + o.after.failed + '건(출발 ' + o.after.requests + '건 중)'));
+    if (rep.choice === 'reflect') c.appendChild(App.el('p', { id: 'petition-verdict', 'class': 'fair-fact petition-verdict is-' + o.verdict }, verdictText(o)));
     var now = h.petitionCheck || (s.current && s.current.result && s.phase === h.phase ? PB.Session.petitionZoneAt(s.current.result.passengers, fp.t, fp.zone) : null);
-    if (now) c.appendChild(App.el('p', { id: 'petition-then', 'class': 'fair-fact' }, '청원이 말한 이동(' + App.clock(fp.t) + '까지 ' + name + '에서 출발한 요청 가운데 그때까지 도착하지 못한 이동): 2단계 ' + fp.total + '건 중 ' + fp.count + '건 → 3단계 ' + now.total + '건 중 ' + now.count + '건'));
-    c.appendChild(App.el('p', { id: 'petition-fail', 'class': 'fair-fact' }, '하루가 끝났을 때 ' + name + '에서 출발한 이동 중 목적지까지 못 간 이동: 2단계 ' + a.requests + '건 중 ' + (a.requests - a.arrived) + '건 → 3단계 ' + b.requests + '건 중 ' + (b.requests - b.arrived) + '건'));
-    c.appendChild(App.el('p', { id: 'petition-rode', 'class': 'fair-fact' }, name + ' 탑승 기록(다음 AI가 보는 자료): 2단계 ' + a.rode + '명 → 3단계 ' + b.rode + '명'));
+    if (now && fp.total != null) c.appendChild(App.el('p', { id: 'petition-then', 'class': 'note' }, '참고 · 청원 시각(' + App.clock(fp.t) + ')에 아직 도착 전이던 이동(버스 안에 있던 사람 포함): ' + P1 + ' ' + fp.total + '건 중 ' + fp.count + '건 → ' + P2 + ' ' + now.total + '건 중 ' + now.count + '건'));
+    c.appendChild(App.el('p', { id: 'petition-rode', 'class': 'fair-fact' }, name + ' 탑승 기록(다음 AI가 보는 자료): ' + P1 + ' ' + a.rode + '명 → ' + P2 + ' ' + b.rode + '명'));
     return c;
   }
+  // ‘반영한다’ 판정 한 줄(하루 끝 기준 못 간 이동)
+  function verdictText(o) {
+    var a = o.before.failed, b = o.after.failed;
+    return o.verdict === 'zero' ? '반영했어요 · 못 간 이동 0건 유지' : o.verdict === 'down' ? '반영했어요 · 못 간 이동 ' + a + '건 → ' + b + '건으로 줄었어요' :
+      o.verdict === 'up' ? '반영했지만 ' + a + '건 → ' + b + '건으로 늘었어요' : '반영했지만 못 간 이동이 ' + a + '건 그대로예요';
+  }
+  UI.petitionVerdict = verdictText;
   function elderResult(App, s, h) {
     var ch = PB.Session.elderChoice(s), k = (((h.scores || {}).mobility || {}).reasons || {}).stayHome || 0;
     if (h.phase < 4 || ch !== 'abolish' && ch !== 'keep') return null;
@@ -171,5 +183,5 @@
     return c;
   }
   function resultBlocks(App, s, h) { return [petitionFollowup(App, s, h), elderResult(App, s, h), seenGap(App, s, h)].filter(Boolean); }
-  UI.fairness = { resultBlocks: resultBlocks, seenStats: seenStats, profitMap: profitMap, profitToggle: profitToggle, profitLegend: legend, stopTable: stopTable,  petitionCard: petitionCard, elderCard: elderCard, seenLine: seenLine, required: required, kindOf: function (s) { return s.phase === 3 && s.fixedPetition ? 'petition' : s.phase === 4 ? 'elder' : null; } };
+  UI.fairness = { resultBlocks: resultBlocks, seenStats: seenStats, profitMap: profitMap, profitToggle: profitToggle, profitLegend: legend, stopTable: stopTable,  petitionCard: petitionCard, elderCard: elderCard, seenLine: seenLine, required: required, kindOf: function (s) { return PB.Choices.petitionFor(s, s.phase) ? 'petition' : s.phase === 4 ? 'elder' : null; } };
 })(typeof window !== 'undefined' ? window : globalThis);

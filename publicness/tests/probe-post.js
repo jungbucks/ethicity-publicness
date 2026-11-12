@@ -51,7 +51,7 @@
     ok(/AI 마을버스 운영단/.test($('#title-sub').textContent), '부제');
     ok(/This stop is/.test($('#title-en').textContent), '영문 표기');
     var lines = PB.Narrative.hookLines(PB.Session.create(PB.config, { mode: 'default' }));
-    ok($('#hook-1').textContent === lines[0] && $('#hook-2').textContent === lines[1], '훅 두 문장 = 엔진 계산');
+    ok(!$('#hook-1') && $('#hook-2').textContent === lines[1], '훅 = 엔진 계산(첫 줄 ‘버스 N대…’은 2026-11-12에 지움)');
     ok($('input[name=setting][value=default]').checked, '기본 세팅이 기본 선택');
     ok($('input[name=setting][value=random]'), '랜덤 세팅 선택지');
     ok(/새로고침/.test(bodyText()), '새로고침 안내');

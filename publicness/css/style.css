@@ -82,7 +82,7 @@ body[data-screen="title"] #topbar, body[data-screen="title"] #screen-game { disp
 .depart-checks li + li { margin-top: 2px; }
 .depot-bus .new-tag { align-self: center; }
 .radio, .check { display: flex; gap: 10px; align-items: flex-start; min-height: 44px; padding: 8px 0; cursor: pointer; }
-.radio input, .check input { width: 20px; height: 20px; margin-top: 4px; accent-color: var(--accent); }
+.radio input, .check input { flex: none; width: 20px; height: 20px; margin-top: 4px; accent-color: var(--accent); } /* flex: none — 설명이 긴 항목(랜덤)에서 원이 눌려 작아지고 글 시작이 어긋나던 것(2026-11-12) */
 .title-art { margin: 0; background: #fff; position: absolute; inset: 0; z-index: 0; overflow: hidden; }
 .title-art img { width: 100%; height: 100%; object-fit: contain; object-position: right center; display: block; }
 @media (max-width: 1000px) {
@@ -810,3 +810,7 @@ html:has(#goal-intro[open]), body:has(#goal-intro[open]) { overflow: hidden; }
 .map-strip > .in-strip { position: static; transform: none; left: auto; right: auto; top: auto; bottom: auto; margin: 0; max-width: none; width: auto; }
 .minimal-toast.in-strip { font-size: 12.5px; line-height: 1.45; padding: 6px 10px; border-radius: 10px; }
 .minimal-toast.is-outside { z-index: 45; }
+/* 그림을 못 불러온 인물 얼굴 = 이름 첫 글자 동그라미(js/img-fallback.js, 2026-11-12) — 칩·지도 핀·결과·엔딩 카드 공통. 부모 틀(원·크기)은 그대로 쓴다 */
+.img-fallback-initial { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; border-radius: 50%; background: #DCE4EE; color: #1F2E4D; font-weight: 700; font-size: clamp(11px, 45%, 28px); line-height: 1; }
+.resident-face .img-fallback-initial, .face .img-fallback-initial { position: absolute; inset: 0; font-size: 1.4em; }
+.person-chip-face .img-fallback-initial { position: static; font-size: 14px; }

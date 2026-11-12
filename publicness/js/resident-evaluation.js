@@ -20,6 +20,8 @@
     function legReason(p, label) {
       if (!p) return null;
       if (p.fail === 'NO_LINK') return { code: 'noLink', text: label + '(' + name(p.o) + ' → ' + name(p.d) + ')을 잇는 운행 노선이 없어요.' };
+      /* 2026-11-12 랜덤 검토 2번: 노선은 이어지지만 갈아타기가 두 번 넘게 필요(길 찾기는 한 번까지) */
+      if (p.fail === 'TOO_MANY_TRANSFERS') return { code: 'transfers', text: label + '(' + name(p.o) + ' → ' + name(p.d) + ')은 갈아타기를 두 번 해야 해서 못 가요(갈아타기는 한 번까지).' };
       if (p.fail === 'NO_TRIP_IN_WINDOW') return { code: 'noTrip', text: label + ' 준비가 된 뒤에는 운행 시간 안에 도착하는 버스편이 없어요.' };
       if (p.status === 'riding') return { code: 'riding', text: label + ' 중 운행이 끝나 버스 안에 남아요.' };
       if (p.status !== 'arrived' && p.deniedBoardings > 0) return { code: 'full', text: label + '에서 만차로 버스를 놓쳐 운행 시간 안에 도착하지 못해요.' };

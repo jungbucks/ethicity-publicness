@@ -44,7 +44,7 @@
     var p=r.satisfied?out:r.dayStatus==='outboundIncomplete'?out:r.dayStatus==='returnIncomplete'?(back||null):[out,back].filter(Boolean).sort(function(a,b){return b.waitTotal-a.waitTotal;})[0];
     var o=r.o||rd.o,d=r.d||rd.d,home=r.finalDestination||rd.returnTo||rd.o;
     if(!p)return {o:d,d:home,legs:null};
-    var legs=p.journey&&p.fail!=='NO_LINK'?p.journey.map(function(l){var x=info(l.routeId);return x?{color:x.color,nodes:PB.Hud.along(x.route,l.from,l.to)||[l.from,l.to]}:null;}).filter(Boolean):null;
+    var legs=p.journey&&!PB.Sim.noRoute(p)?p.journey.map(function(l){var x=info(l.routeId);return x?{color:x.color,nodes:PB.Hud.along(x.route,l.from,l.to)||[l.from,l.to]}:null;}).filter(Boolean):null;
     return {o:p.o,d:p.d,legs:legs&&legs.length?legs:null};
   }
   function residentCard(App,rd,r,t){
@@ -56,7 +56,7 @@
     words.appendChild(el('span',{'class':'resident-state '+(r.satisfied?'complete':'incomplete')},(r.satisfied?'✓ 만족':'○ 불만족')));// 이유 한 줄(2026-11-01): 어느 이동인지·어디서 얼마나 기다렸는지·만차·노선 없음·그 노선의 버스 수와 간격
     words.appendChild(el('span',{'class':'resident-reason'},PB.Narrative.residentLine(App.s.config,rd,r,App.s.current.result.passengers,routeInfoFor(App))));
     // 학기 누적 n/m과 ‘기준 달성 불가’(남은 단계를 모두 해내도 못 채움)
-    if(t){var cs=PB.Narrative.criterionState(t),tl=words.appendChild(el('span',{'class':'resident-tally'+(cs==='impossible'?' impossible':cs==='done'?' done':'')},'누적 '+t.completed+'/'+t.threshold+'회'+(cs==='impossible'?' · 기준 달성 불가':cs==='done'?' · 기준 달성':' · 남은 '+t.remaining+'단계')));tl.dataset.state=cs;}
+    if(t){var cs=PB.Narrative.criterionState(t),tl=words.appendChild(el('span',{'class':'resident-tally'+(cs==='impossible'?' impossible':cs==='done'?' done':'')},'누적 '+PB.Narrative.tallyText(t.completed,t.threshold)+(cs==='impossible'?' · 기준 달성 불가':cs==='done'?(t.completed>t.threshold?'':' · 기준 달성'):' · 남은 '+t.remaining+'단계')));tl.dataset.state=cs;}
     head.appendChild(words);
     // 펼침 표시(2026-11-01): 펼치면 ＋ → −, aria-expanded도 함께
     var mark=el('span',{'class':'resident-expand','aria-hidden':'true'});mark.appendChild(PB.Icons.create('plus'));head.appendChild(mark);head.setAttribute('aria-expanded','false');card.appendChild(head);
@@ -69,7 +69,7 @@
     card.addEventListener('toggle',function(){if(!card.open||mm.firstChild||!PB.Hud)return;var f=focusLeg(App,rd,r,res,info),map=PB.Hud.miniMap(mmState,mmRoutes,f);
       map.setAttribute('aria-label',rd.name+'의 구간 · '+App.nodeName(f.o)+'에서 '+App.nodeName(f.d)+'까지'+(f.legs?'':' · 잇는 노선 없음'));mm.appendChild(map);
       mm.appendChild(el('figcaption',{'class':'note'},App.nodeName(f.o)+' → '+App.nodeName(f.d)+(f.legs?'':' · 잇는 노선 없음')));});
-    if(t)body.appendChild(el('p',{'class':'note'},'엔딩 기준 · 누적 '+t.completed+'/'+t.threshold+'회'+(t.completed>=t.threshold?' · 기준 달성':' · 남은 '+t.remaining+'단계')));
+    if(t)body.appendChild(el('p',{'class':'note'},'엔딩 기준 · 누적 '+PB.Narrative.tallyText(t.completed,t.threshold)+(t.completed>t.threshold?'':t.completed>=t.threshold?' · 기준 달성':' · 남은 '+t.remaining+'단계')));
     var times=el('details',{'class':'resident-times'});times.appendChild(el('summary',null,'도착 시각 기록'));
     times.appendChild(el('p',{'class':'note'},'첫 도착 '+(r.arriveT!=null?App.clock(r.arriveT):'아직 못 감')+' · 최종 도착 '+(r.homeT!=null?App.clock(r.homeT):'아직 못 감')));body.appendChild(times);card.appendChild(body);
     // 눌러서 닫은 뒤에는 마우스가 카드를 떠날 때까지 올려 두기만으로 다시 펼치지 않는다(펼친 내용·작은 지도로 카드 높이가 바뀌어도 닫힌 채)
@@ -97,6 +97,7 @@
   function waitLine(App,m){
     var parts=['버스를 탄 사람의 최장 대기 '+App.duration(m.maxWait)];
     if(m.noLink)parts.push('잇는 노선이 없어 떠나지 못한 요청 '+m.noLink+'건');
+    if(m.transfers)parts.push('갈아타기를 두 번 해야 해서 못 간 요청 '+m.transfers+'건(갈아타기는 한 번까지)');
     if(m.notBoarded&&m.notBoarded.count)parts.push('운행 종료까지 버스를 못 탄 요청 '+m.notBoarded.count+'건(가장 오래 '+App.duration(m.notBoarded.longest)+')');
     return parts.join(' · ');
   }
@@ -144,13 +145,14 @@
     Object.keys(reasons).forEach(function(id){
       var g=reasons[id],li=el('li'),parts=[];
       if(g.noLink)parts.push('탈 수 있는 노선 없음 '+g.noLink+'건');
+      if(g.transfers)parts.push('갈아타기 두 번 필요 '+g.transfers+'건');
       if(g.full)parts.push('만차로 못 탄 적이 있는 이동 '+g.full+'건');
       if(g.time)parts.push('운행 종료까지 대기·이동 중 '+g.time+'건');
       var b=el('button',{type:'button','class':'btn reason-location','data-origin':id,onclick:function(){
         App.view.setSelected([id]);App.view.flash(id);
         document.querySelector('#reason-focus').textContent=App.nodeName(id)+' 출발 정류장을 지도에 표시했어요. '+parts.join(' · ');
         document.querySelector('#stage').dataset.reasonOrigin=id;
-      }},App.nodeName(id)+' · 목적지까지 못 간 이동 '+(g.noLink+g.full+g.time)+'건 — 지도에서 보기');
+      }},App.nodeName(id)+' · 목적지까지 못 간 이동 '+(g.noLink+(g.transfers||0)+g.full+g.time)+'건 — 지도에서 보기');
       li.appendChild(b);li.appendChild(el('p',{'class':'note'},parts.join(' · ')));outcomes.appendChild(li);
     });
     if(!outcomes.children.length)outcomes.appendChild(el('li',null,'모든 지역의 요청이 목적지에 도착했어요.'));
@@ -178,7 +180,7 @@
       row('이동 요청', function (x) { return x.N + '건 (' + requestParts(x.requests) + ')'; }),
       row('도착', function (x) { return x.arrived + '건 (' + M.fmtRate(x.arrivalRate) + ')'; }),
       row('탄 사람 최장 대기', function (x) { return App.duration(x.maxWait); }),
-      row('노선 없음 / 종료까지 못 탐', function (x) { return x.noLink + '건 / ' + x.notBoarded.count + '건'; }),
+      row('노선 없음 / 종료까지 못 탐', function (x) { return x.noLink + '건' + (x.transfers ? ' · 갈아타기 2번 ' + x.transfers + '건' : '') + ' / ' + x.notBoarded.count + '건'; }),
       row('이번 단계 회차 수지', function (x) { return App.won(x.costs.total); }),
       row('대학교·병원 도착률', function (x) { return M.fmtRate(x.essential.arriveRate); })
     ]));
@@ -221,7 +223,7 @@
     PB.Demand.residents(s.config,s.phase).forEach(function (rd) {
       var r = h.residents[rd.id];
       if (!r) return;
-      var state = r.status === 'arrived' ? App.nodeName(rd.d) + '에 도착' : r.status === 'riding' ? '아직 버스 안' : r.status === 'transfer' ? '갈아타는 중' : (r.fail === 'NO_LINK' ? '탈 수 있는 노선 없음' : '아직 타지 못함');
+      var state = r.status === 'arrived' ? App.nodeName(rd.d) + '에 도착' : r.status === 'riding' ? '아직 버스 안' : r.status === 'transfer' ? '갈아타는 중' : (r.fail === 'NO_LINK' ? '탈 수 있는 노선 없음' : r.fail === 'TOO_MANY_TRANSFERS' ? '갈아타기 두 번 필요' : '아직 타지 못함');
       /* P0-3: 판정 값(가장 긴 대기 = 한 번 이동에서 기다린 가장 긴 시간)과 하루 합은 이름을 나눠 보인다. 예전 저장본(longestWait 없음)은 이번 결과 승객 기록에서 같은 함수로 */
       var cur = App.s.current && App.s.current.result, lw = r.longestWait != null ? r.longestWait : r.dayStatus && cur && h.phase === s.phase ? PB.ResidentEvaluation.legWaits(cur.passengers, rd.id).longest : null, sv = s.config.service || {};
       var waitText = (lw != null ? ' · 가장 긴 대기 ' + App.duration(lw) + (sv.maxWait != null ? ' / 기준 ' + App.duration(sv.maxWait) : '') + ' · 하루 동안 기다린 시간 합 ' : ' · 하루 동안 기다린 시간 합 ') + App.duration(r.waitTotal);

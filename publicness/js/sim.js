@@ -79,6 +79,21 @@
     return false;
   }
 
+  /* 갈아타기 몇 번이면 이어지나(2026-11-12 교사 랜덤 검토 2번) — 운행 노선을 정차 지점으로 잇는 최소 환승 횟수(0 = 한 노선). 안 이어지면 null.
+   * 길 찾기 규칙(환승 1번까지)은 그대로이고, 실패 이유를 나누는 데만 쓴다: 1번까지면 structural, 2번 이상이면 TOO_MANY_TRANSFERS, 아예 안 이어지면 NO_LINK */
+  function transfersNeeded(g, plan, o, d) {
+    var rs = operatingRoutes(plan).map(function (r) { return stopSet(r.route); }), dist = rs.map(function () { return null; }), q = [];
+    rs.forEach(function (s, i) { if (s[o]) { dist[i] = 0; q.push(i); } });
+    for (var h = 0; h < q.length; h++) {
+      var i = q[h]; if (rs[i][d]) return dist[i];
+      rs.forEach(function (s, j) { if (dist[j] != null) return; for (var x in rs[i]) if (s[x]) { dist[j] = dist[i] + 1; q.push(j); return; } });
+    }
+    return null;
+  }
+  // 노선이 없어 떠나지 못한 이동(실패 이유 두 가지 — 버스를 기다린 것으로 세지 않는 것은 같다)
+  function noRoute(p) { return !!p && (p.fail === 'NO_LINK' || p.fail === 'TOO_MANY_TRANSFERS'); }
+  function linkFail(g, plan, o, d) { return structural(g, plan, o, d) ? 'NO_TRIP_IN_WINDOW' : transfersNeeded(g, plan, o, d) != null ? 'TOO_MANY_TRANSFERS' : 'NO_LINK'; }
+
   // 버스별 정차 방문에서 “같은 run 안에서 앞으로 정차할 노드 → 도착 시각” 표를 만든다
   function indexBus(tl) {
     var stops = [];
@@ -202,7 +217,7 @@
         if(p.t>t||(p.status!=='waiting'&&!(p.status==='transfer'&&p._ready<=t)))return;
         var origin=p._location||(p.journey&&p.journey[p.legIndex]?p.journey[p.legIndex].from:p.o),j=planner(origin,p.d,t,tMin);
         if(j){p.journey=j.legs;p.legIndex=0;p.fail=null;if(p._waitStart==null)p._waitStart=t;queue.push(p);}
-        else{p.journey=null;p.fail=structural(g,{buses:activePlans},origin,p.d)?'NO_TRIP_IN_WINDOW':'NO_LINK';}
+        else{p.journey=null;p.fail=linkFail(g,{buses:activePlans},origin,p.d);}
       });
     }
     function switchRoute(change,from,t) {
@@ -287,10 +302,10 @@
         if (j) { p.journey = j.legs; queue.push(p); }
         else {
           var lk = p.o + p.d;
-          if (!(lk in linkMemo)) linkMemo[lk] = structural(g, emergencyActive?{buses:activePlans}:plan, p.o, p.d);
-          p.fail = linkMemo[lk] ? 'NO_TRIP_IN_WINDOW' : 'NO_LINK';
+          if (!(lk in linkMemo)) linkMemo[lk] = linkFail(g, emergencyActive?{buses:activePlans}:plan, p.o, p.d);
+          p.fail = linkMemo[lk];
           // 잇는 노선 자체가 없으면 버스를 기다린 것이 아니다(‘경로 없음’). 시간 안에 탈 편이 없으면 종료까지 기다린 것으로 센다
-          if (p.fail === 'NO_LINK') p._waitStart = null;
+          if (noRoute(p)) p._waitStart = null;
         }
         log.push({ t: t, type: 'request', pid: p.id, node: p.o });
       });
@@ -420,11 +435,11 @@
   }
   function unfinishedReasons(result){
     var out={};result.passengers.forEach(function(p){if(p.status==='arrived')return;
-      var g=out[p.o]||(out[p.o]={noLink:0,full:0,time:0});
-      g[p.fail==='NO_LINK'?'noLink':p.deniedBoardings>0?'full':'time']++;
+      var g=out[p.o]||(out[p.o]={noLink:0,transfers:0,full:0,time:0});
+      g[p.fail==='NO_LINK'?'noLink':p.fail==='TOO_MANY_TRANSFERS'?'transfers':p.deniedBoardings>0?'full':'time']++;
     });return out;
   }
-  var api = { run: run, unfinishedReasons:unfinishedReasons, occupancyAt: occupancyAt, operatingRoutes: operatingRoutes, judgePetition: judgePetition, structural: structural, hash: hash };
+  var api = { run: run, unfinishedReasons:unfinishedReasons, occupancyAt: occupancyAt, operatingRoutes: operatingRoutes, judgePetition: judgePetition, structural: structural, transfersNeeded: transfersNeeded, noRoute: noRoute, hash: hash };
   root.PB = root.PB || {};
   root.PB.Sim = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

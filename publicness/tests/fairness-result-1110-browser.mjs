@@ -37,7 +37,7 @@ try{for(const [w,hh] of [[1280,800],[390,844]]){
  const exp=await page.evaluate(()=>{const s=PB.App.s,z=s.fixedPetition.zone,g=p=>s.history.filter(x=>x.phase===p)[0].rideLog[z];const a=g(2),b=g(3);return {name:PB.App.nodeName(z),a,b};});
  const fu=await txt(page,'#petition-followup');assert.ok(fu,'청원 확인 블록');
  const {name,a,b}=exp;
- assert.ok(fu.includes(`${name}에서 출발한 이동 중 목적지까지 못 간 이동: 2단계 ${a.requests}건 중 ${a.requests-a.arrived}건 → 3단계 ${b.requests}건 중 ${b.requests-b.arrived}건`),'못 간 이동 숫자: '+fu);
+ /* 2026-11-12 랜덤 검토 4번: 하루 끝 기준 한 줄(그 뒤·보고서·금배지 같은 값) */assert.ok(fu.includes(`${name}에서 출발해 목적지까지 못 간 이동: 2단계 ${a.requests-a.arrived}건(출발 ${a.requests}건 중) → 3단계 ${b.requests-b.arrived}건(출발 ${b.requests}건 중)`),'못 간 이동 숫자: '+fu);
  assert.ok(fu.includes(`${name} 탑승 기록(다음 AI가 보는 자료): 2단계 ${a.rode}명 → 3단계 ${b.rode}명`),'탑승 숫자: '+fu);
  assert.ok(fu.includes('이번엔 못 한다')&&fu.includes('버스가 모자라서'),'학생 답: '+fu);
  assert.ok(!BAD.test(fu),'금지어');assert.deepEqual(await over(page),{doc:false,bad:[]});await shot(page,3,w);

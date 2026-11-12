@@ -15,7 +15,7 @@
   wait:function(){var c=cfgNow();return c.service&&c.service.maxWait!=null?'한 번 이동에 '+PB.Demand.duration(c,c.service.maxWait)+' 넘게 기다리면 그날은 세지 않아요.':'';},
   river:function(){var R=cfgNow().river;return R?'강을 건너는 구간은 다리로 돌아가서, 지도에서 보는 것보다 '+R.factor+'배 오래 걸려요.':'';},
   phaseCost:function(){var s=PB.App&&PB.App.s,F=cfgNow().finance,n=s&&PB.App.phaseChanges?PB.App.phaseChanges(s).buses:0;return n>0?'예상 수지가 달라졌어요: 새 버스 '+n+'대 보유비 −'+won(F.holding*n)+' · 기본 지원 +'+won(F.basePerBus*n)+'.':'';},
-  fix:'한 가지만 골라 바꾸면 버스가 다시 달려요.',express:'직행은 직행 버스로 최대 세 곳을 이어요.',regional:'광역은 광역 버스로 마을과 대도시를 이어요.'};
+  fix:'한 가지만 골라 바꾸면 버스가 다시 달려요.',transfer:'갈아타기는 한 번까지예요. 두 번 갈아타야 하는 이동은 못 가요.',/* 2026-11-12 랜덤 검토 2번: 노선이 둘 이상 생기면 한 번 */express:'직행은 직행 버스로 최대 세 곳을 이어요.',regional:'광역은 광역 버스로 마을과 대도시를 이어요.'};
  function crossesRiver(s,r){var g=PB.Session.graph(s);return !!g.river&&r.nodes.some(function(id,i){return i>0&&g.river(r.nodes[i-1],id);});}
  function tipText(k){var v=tips[k];return typeof v==='function'?v():v;}
  function $(s){return document.querySelector(s);}function el(t,cls,text){var n=document.createElement(t);if(cls)n.className=cls;if(text!=null)n.textContent=text;return n;}
@@ -93,7 +93,7 @@
   var lease=$('#btn-lease');if(lease&&root.MINIMAL_UI&&!full){lease.setAttribute('aria-label',lease.textContent+' · '+($('#lease-note')?.textContent||''));var label=lease.getAttribute('aria-label');PB.Icons.label(lease,'plus','버스 빌리기 · '+s.config.finance.lease.fee.toLocaleString('ko-KR')+'원');lease.setAttribute('aria-label',label);}
   document.querySelectorAll('.depot-bus,#btn-lease').forEach(function(b){b.title=($('#lease-note')?.textContent||'')+' · '+($('.depot-head .depot-cost')?.textContent||'');});
   var message=$('#map-plan-message');if(message&&lastMessage!==message.textContent){if(lastMessage&&root.MINIMAL_UI&&!full)toast(message.textContent);lastMessage=message.textContent;}
-  var draft=JSON.stringify(s.draft.routes);if(draft!==lastDraft){lastDraft=draft;if(s.stage==='plan'&&s.draft.routes.some(function(r){return r.nodes.length>1;})){tip('bus');tip('cut');}}
+  var draft=JSON.stringify(s.draft.routes);if(draft!==lastDraft){lastDraft=draft;if(s.stage==='plan'&&s.draft.routes.some(function(r){return r.nodes.length>1;})){tip('bus');tip('cut');if(s.draft.routes.filter(function(r){return r.nodes.length>1;}).length>1)tip('transfer');}}
   signals();if(!full&&s.stage==='plan'){var r=PB.UI.routeEdit.active();if(r&&r.num===5)tip('express');else if(r&&r.num===6)tip('regional');else if(r&&crossesRiver(s,r))tip('river');else if(seen.bus&&(PB.UI.Econ.plan(s).k.service||[]).some(function(c){return c.stops>0;}))tip('service');}
  }
  function init(){

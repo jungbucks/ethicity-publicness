@@ -218,6 +218,7 @@
     sec.appendChild(el('h3', { id: 'stage-brief-h' }, '이번 단계 안내'));
     rows.push(['단계', c.phase + '단계 · ' + c.name + ' · 전체 ' + cfg.phases.length + '단계']);
     if (c.phase === 1) rows.push(['할 일', '정류장을 이어 첫 노선을 만들어 보세요. 지도에서 출발할 정류장을 누르고, 이어서 갈 정류장을 누르면 노선이 생겨요.']);
+    if (c.phase === 1) rows.push(['갈아타기', '갈아타기는 한 번까지예요. 두 노선이 함께 서는 정류장에서 한 번만 갈아탈 수 있고, 두 번 갈아타야 하는 이동은 선이 이어져 있어도 못 가요.']); /* 2026-11-12 랜덤 검토 2번 */
     var changed = [];
     c.places.forEach(function (n) { changed.push(PB.Narrative.josa(n.name, '이가') + ' 생겼어요' + (A.NEW_PLACE[n.id] ? '(' + A.NEW_PLACE[n.id] + ')' : '') + '.'); });
     if (c.buses) changed.push('버스 ' + A.signed(c.buses) + '대(보유비 1대 단계당 ' + PB.Narrative.won(cfg.finance.holding) + '), 새 버스는 대기 중이에요. 지도 아래 대기 버스를 노선으로 끌어 놓거나, 새 노선을 완성하면 1대가 바로 운행해요.');
@@ -250,6 +251,7 @@
     if (cfg.service && cfg.service.maxWait != null) rows.push(['대기 기준', '한 번 이동에 버스를 ' + A.duration(cfg.service.maxWait) + ' 넘게 기다리면 그날은 세지 않아요.']);
     rows.push(['학기 말 기준', PB.Narrative.satisfactionText(cfg)]);
     rows.push(['이동 요청', '이동 요청 1건 = 한 사람의 한 번 이동이에요. 지도의 정류장 숫자는 그 정류장에서 출발하거나 도착하는 요청이라, 모두 더하면 이동 요청의 두 배가 돼요. 실제 운행에는 돌발 수요가 더해질 수 있어요.']);
+    rows.push(['갈아타기', '갈아타기는 한 번까지예요. 두 노선이 함께 서는 정류장에서 한 번만 갈아탈 수 있고, 두 번 갈아타야 하는 이동은 선이 이어져 있어도 못 가요.']); /* 2026-11-12 랜덤 검토 2번 */
     rows.push(['서는 곳과 지나가는 곳', '정류장 원 안에 노선 색 점이 있으면 그 노선이 서는 곳이에요. 점 없이 선만 흐리게 지나가면 서지 않아요. 선이 교차해도 같은 정류장에 서지 않으면 갈아탈 수 없어요.']);
     rows.push(['키보드', '운행 중 Space를 누르면 일시정지·재개돼요. 입력칸이나 버튼에 초점이 있으면 그 칸·버튼이 먼저 받아요.']);
     var dl = el('dl', { 'class': 'kv help-rules' }); rows.forEach(function (r) { dl.appendChild(el('dt', null, r[0])); dl.appendChild(el('dd', null, r[1])); }); box.appendChild(dl);

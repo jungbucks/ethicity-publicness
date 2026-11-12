@@ -6,7 +6,7 @@ try{
  for(const mode of ['2d','3d']){
   const page=await browser.newPage({viewport:{width:1366,height:900}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
   const url=`http://127.0.0.1:${server.address().port}/publicness/${mode==='2d'?'?no3d=1':''}`;
-  await page.goto(url);assert.ok((await page.locator('#hook-1').innerText()).includes('버스 2대'));assert.ok((await page.locator('#hook-2').innerText()).includes('직접'));
+  await page.goto(url);assert.equal(await page.locator('#hook-1').count(),0,'시작 화면에 ‘버스 2대, 첫 운행 예정 이동’ 줄 없음(2026-11-12 사용자 지시)');assert.ok((await page.locator('#hook-2').innerText()).includes('직접'));
   await page.locator('#btn-start').click();await page.locator('#btn-goal-start').click();if(await page.locator('#learning-dialog:modal').count())await page.locator('#btn-learning-continue').click();await beginPlan(page);
   assert.equal(await page.locator('.route-tab').count(),2);assert.equal(await page.locator('.bus-assignment').count(),2);assert.ok(await page.evaluate(()=>PB.App.s.draft.buses.every(b=>b.routeNum==null)),'새 버스는 쉬기');
   assert.ok(await page.evaluate(()=>PB.App.s.draft.routes.every(r=>!r.nodes.length)));assert.equal(await page.locator('#plan-errors').innerText(),'');

@@ -76,3 +76,10 @@ body.rail[data-screen="plan"] #plan-ai-popover .ai-pop-body { padding: 8px 12px;
 .badge.is-earned { border: 2px solid #B8892B; background: #FFF8E6; color: #3A2E10; }
 .badge.is-earned .badge-star { color: #B8892B; }
 @media print { .report .badge.is-not { border-style: dashed; } .report .badge.is-earned { border: 2px solid #000; background: none; } }
+/* 같은 단계에 청원 답과 무임 정책을 함께 고를 때 두 번째 묶음(2026-11-12) */
+.fair-sub { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+.fair-sub h3 { margin: 0 0 6px; font-size: 16px; }
+.petition-verdict.is-up, .petition-verdict.is-same { color: var(--sem-caution-ink); }
+/* 금배지 아래 받는 조건 한 줄(2026-11-12 랜덤 검토 4번) */
+.badge:has(.badge-rule) { flex-wrap: wrap; }
+.badge-rule { flex: 1 0 100%; font-size: 12px; line-height: 1.45; color: #5A6478; word-break: keep-all; }

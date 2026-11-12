@@ -31,7 +31,7 @@ try{
  for(const ph of [1,2]){assert.ok(row(ph,'내 계획'),ph+'단계 내 계획');assert.equal(row(ph,'운행 중 바꾼 것'),undefined);assert.equal(row(ph,'내 계획 (출발할 때)'),undefined);}
  // 3단계: 정류장 더하기
  {const plan=row(3,'내 계획 (출발할 때)'),ch=row(3,'운행 중 바꾼 것');assert.ok(plan&&ch,'3단계 두 줄');
-  assert.match(plan.lines[0],/^빨강 노선: 외곽 마을 → 대학교 → 밀집 주거지 → 병원·공공서비스 · 버스 \d대$/);assert.ok(!plan.lines.join('|').includes('→ 기차역 →'),'출발 계획에 고친 정류장 없음');
+  assert.match(plan.lines[0],/^빨강 노선: 외곽 마을 → 대학교 → 밀집 주거지 → 병원·공공서비스 · 버스 \d대 · 한 바퀴 .+ · 간격 약 .+$/);assert.ok(!plan.lines.join('|').includes('→ 기차역 →'),'출발 계획에 고친 정류장 없음');
   assert.deepEqual(ch.lines[0],['11:45 노선 고침 · 빨강 노선에 기차역 더함','고치기 전: 외곽 마을 → 대학교 → 밀집 주거지 → 병원·공공서비스','고친 뒤: 외곽 마을 → 대학교 → 밀집 주거지 → 기차역 → 병원·공공서비스','그 뒤 이 노선 버스는 바뀐 정류장을 따랐어요(이번 운행만).']);
   assert.equal(ch.lines[1],'아래 결과는 이렇게 바꾼 운행으로 센 숫자예요.');}
  // 4단계: 버스 옮기기

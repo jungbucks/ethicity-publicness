@@ -63,7 +63,9 @@ test('crossing lines without shared stop are not linked (AC6)', () => {
 
 test('two transfers never chosen (AC11)', () => {
   const r = req('A', 'F', 0);
-  assert.equal(P(run(plan(['A-B', 0], ['B-C', 0], ['C-F', 0]), [r]), r.id).fail, 'NO_LINK');
+  // 길 찾기는 환승 1번까지(그대로). 노선은 이어져 있으므로 이유는 NO_LINK가 아니라 TOO_MANY_TRANSFERS(2026-11-12 랜덤 검토 2번)
+  assert.equal(P(run(plan(['A-B', 0], ['B-C', 0], ['C-F', 0]), [r]), r.id).fail, 'TOO_MANY_TRANSFERS');
+  assert.equal(P(run(plan(['A-B', 0], ['C-F', 0]), [r]), r.id).fail, 'NO_LINK', '정말 안 이어지면 NO_LINK');
 });
 
 test('capacity 12 and same-minute seat reuse (AC13)', () => {

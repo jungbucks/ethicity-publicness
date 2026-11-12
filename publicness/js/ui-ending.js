@@ -114,6 +114,7 @@
     var pu = el('ul', { id: 'failure-problems' });
     pu.appendChild(el('li', null, '운행한 버스 단계별 합계 ' + rv.running + '대 · 쉬게 한 버스 ' + rv.resting + '대 · 운행 버스 한 대당 평균 승차 ' + (Math.round(rv.perBus * 10) / 10) + '회'));
     if (rv.noLink) pu.appendChild(el('li', null, '잇는 노선이 없어 떠나지 못한 요청 ' + rv.noLink + '건'));
+    if (rv.transfers) pu.appendChild(el('li', null, '갈아타기를 두 번 해야 해서 못 간 요청 ' + rv.transfers + '건(갈아타기는 한 번까지)'));
     if (rv.notBoarded) pu.appendChild(el('li', null, '운행 종료까지 버스를 못 탄 요청 ' + rv.notBoarded + '건'));
     sec.appendChild(pu);
     sec.appendChild(el('h4', null, '사건과 선택'));

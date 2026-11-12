@@ -28,7 +28,7 @@
   }
 
   function boardedWait(list) { return list.filter(function (p) { return p.firstBoardT != null; }).reduce(function (m, p) { return Math.max(m, p.waitTotal); }, 0); }
-  function notBoarded(list, W) { var l = list.filter(function (p) { return p.firstBoardT == null && p.fail !== 'NO_LINK'; }); return { count: l.length, longest: l.reduce(function (m, p) { return Math.max(m, W - p.t); }, 0) }; }
+  function notBoarded(list, W) { var l = list.filter(function (p) { return p.firstBoardT == null && !Sim.noRoute(p); }); return { count: l.length, longest: l.reduce(function (m, p) { return Math.max(m, W - p.t); }, 0) }; }
   function requestBreakdown(ps) {
     var b = { planned: 0, followUps: 0, extra: 0 };
     ps.forEach(function (p) { if (p.kind === 'extra') b.extra++; else if (p.leg === 'return') b.followUps++; else b.planned++; });
@@ -43,7 +43,7 @@
       var z = {
         N: mine.length,
         arrived: count(mine, 'arrived'), waiting: count(mine, 'waiting'), transfer: count(mine, 'transfer'), riding: count(mine, 'riding'),
-        maxWait: boardedWait(mine), noLink: mine.filter(function (p) { return p.fail === 'NO_LINK'; }).length, notBoarded: notBoarded(mine, W).count,
+        maxWait: boardedWait(mine), noLink: mine.filter(function (p) { return p.fail === 'NO_LINK'; }).length, transfers: mine.filter(function (p) { return p.fail === 'TOO_MANY_TRANSFERS'; }).length, notBoarded: notBoarded(mine, W).count,
         waitOver: mine.filter(function (p) { return p.waitTotal > config.discontent.waitOver; }).length,
         tripOver: mine.filter(function (p) { return (p.arriveT != null ? p.arriveT : W) - p.t > config.discontent.tripOver; }).length
       };
@@ -66,7 +66,7 @@
       boardings: ps.reduce(function (s, p) { return s + p.boardings; }, 0),
       arrived: done.length, waiting: count(ps, 'waiting'), transfer: count(ps, 'transfer'), riding: count(ps, 'riding'),
       arrivalRate: ratio(done.length, ps.length),
-      maxWait: boardedWait(ps), noLink: ps.filter(function (p) { return p.fail === 'NO_LINK'; }).length, notBoarded: notBoarded(ps, W), requests: requestBreakdown(ps),
+      maxWait: boardedWait(ps), noLink: ps.filter(function (p) { return p.fail === 'NO_LINK'; }).length, transfers: ps.filter(function (p) { return p.fail === 'TOO_MANY_TRANSFERS'; }).length, notBoarded: notBoarded(ps, W), requests: requestBreakdown(ps),
       travel: {
         doneAvg: avg(done.map(function (p) { return p.arriveT - p.t; })),
         openAvg: avg(open.map(function (p) { return W - p.t; }))

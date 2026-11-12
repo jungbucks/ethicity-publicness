@@ -12,7 +12,8 @@ function setup(){const s=S.create(cfg);s.phase=3;s.owned=4;s.draft.buses=[1,2,3,
 // 결과 화면이 하는 일(ui-transition): 정산 뒤 출발 계획을 남긴다
 function finish(s){S.finishRun(s);N.logPlan(s,s.phase,s.draft,s.current.result);return s;}
 const stage=(s,phase=3)=>R.build(s,fmt(s)).stages.find(x=>x.phase===phase);
-const DEPART=['빨강 노선: 기차역 → 시장 → 대학교 · 버스 2대','초록 노선: 외곽 마을 → 병원 · 버스 1대','대기 버스 1대'];
+/* 2026-11-12 랜덤 검토 7번: 노선 줄 끝에 한 바퀴·간격(노선 칩과 같은 Schedule.routeCycle, 여기 duration은 엔진 단위 그대로) */
+const DEPART=['빨강 노선: 기차역 → 시장 → 대학교 · 버스 2대 · 한 바퀴 16 · 간격 약 8','초록 노선: 외곽 마을 → 병원 · 버스 1대 · 한 바퀴 32 · 간격 약 32','대기 버스 1대'];
 const FOLLOWED='그 뒤 이 노선 버스는 바뀐 정류장을 따랐어요(이번 운행만).',NOTE='아래 결과는 이렇게 바꾼 운행으로 센 숫자예요.';
 
 test('정류장 더하기(검토 재현: A→B→C로 출발, 11:45에 E를 A와 B 사이에): 출발 계획은 그대로, 고친 내용은 따로',()=>{

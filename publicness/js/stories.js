@@ -52,6 +52,7 @@
     // 운행 중 말풍선 — 그 시각까지 실제로 일어난 일만
     bubbles: {
       noLink: { text: '여기서 {stop}까지 가는 버스 노선이 없어요.', draft: true },
+      transfers: { text: '여기서 {stop}까지는 갈아타기를 두 번 해야 해서 못 가요(갈아타기는 한 번까지).', draft: true },
       wait: [
         { minWait: 15, text: '지금까지 {wait}초 기다렸어요.', draft: true },
         { minWait: 30, text: '벌써 {wait}초째 기다리고 있어요.', draft: true }

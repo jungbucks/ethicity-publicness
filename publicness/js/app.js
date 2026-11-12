@@ -404,7 +404,7 @@
       var st = routeStyle(r.num), buses = s.draft.buses.filter(function (b) { return b.routeNum === r.num; });
       var ok = PB.Graph.validateRoute(g, r).length === 0;
       var li = el('li', null, PB.Names.route(r.num) + ': ' + App.describeRoute(r) +
-        (ok ? ' · 한 바퀴 ' + App.duration(PB.Graph.cycleMinutes(g, r)) : ' · 아직 완성되지 않음') +
+        (ok ? ' · 한 바퀴 ' + App.duration(S.routeCycle(s, r.num)) + (buses.length ? ' · 간격 약 ' + App.duration(S.routeHeadway(s, r.num)) : '') : ' · 아직 완성되지 않음') +
         ' · ' + (buses.length ? '버스 ' + buses.length + '대' : '배정된 버스 없음'));
       ul.appendChild(li);
     });
@@ -568,7 +568,7 @@
       Array.prototype.forEach.call(document.querySelectorAll('input[name=setting]'), function (r) { r.disabled = true; });
     } else if (App.seedParam.note) note.textContent = App.seedParam.note;
     var lines = PB.Narrative.hookLines(S.create(cfg, { mode: 'default' }));
-    $('#hook-1').textContent = lines[0];
+    /* 2026-11-12 사용자 지시: 시작 화면의 ‘버스 2대, 첫 운행 예정 이동 N건.’ 줄(#hook-1)은 지웠다 — hookLines[0]은 다른 곳에서 쓰지 않는다 */
     $('#hook-2').textContent = lines[1];
 
     var controls={onCamera:function(){if(App.net)App.net.redraw();},onNode:onNode,canEdit:function(){return App.s&&App.s.stage==='plan';},onLink:function(a,b){if(App.onLink)App.onLink(a,b);},onRoute:function(n,i){if(App.onRouteClick)App.onRouteClick(n,i);},onRouteDouble:function(n,i){if(App.onRouteDouble)App.onRouteDouble(n,i);},

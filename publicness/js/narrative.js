@@ -69,7 +69,9 @@
     }
     result.passengers.forEach(function (p) {
       if (p.fail === 'NO_LINK') push(p.t, p, p.o, 'noLink', fill(B.noLink.text, { stop: nodeName(config, p.d) }), 1);
-      if (p.fail === 'NO_LINK') return; // 노선이 없어 떠나지 못한 사람은 ‘기다린’ 것이 아니다(노선 없음 말풍선만)
+      /* 2026-11-12 랜덤 검토 2번: 노선은 이어져 있지만 갈아타기가 두 번 넘게 필요한 이동 — ‘노선 없음’과 따로 */
+      if (p.fail === 'TOO_MANY_TRANSFERS') push(p.t, p, p.o, 'transfers', fill(B.transfers.text, { stop: nodeName(config, p.d) }), 1);
+      if (p.fail === 'NO_LINK' || p.fail === 'TOO_MANY_TRANSFERS') return; // 노선이 없어 떠나지 못한 사람은 ‘기다린’ 것이 아니다(노선 없음 말풍선만)
       B.wait.forEach(function (w, k) {
         var t = p.t + w.minWait;
         if (t > config.bus.window) return;
@@ -92,7 +94,7 @@
     list.forEach(function (b) {
       var p = b.pid != null ? byId[b.pid] : null;
       // 주민이 아닌 사람의 ‘노선 없음’은 같은 출발·목적지에서 한 번만
-      var k = b.kind === 'noLink' && !b.residentId ? 'noLink' + p.o + p.d : (b.pid || 'n' + b.node + b.t) + b.kind;
+      var k = (b.kind === 'noLink' || b.kind === 'transfers') && !b.residentId ? b.kind + p.o + p.d : (b.pid || 'n' + b.node + b.t) + b.kind;
       if (seen[k] || picked.length >= MAX_BUBBLES) return;
       seen[k] = true;
       picked.push(b);
@@ -238,6 +240,7 @@
     if(!complete){
       if(first&&r.returnT!=null&&r.returnT>=window)reason='첫 목적지 도착 후 체류를 마치니 운행 시간이 끝나, 다음 이동을 시작하지 못했어요. 첫 목적지에 더 일찍 도착할 수 있는지 살펴보세요.';
       else if(p&&p.fail==='NO_LINK')reason='이 구간을 연결하는 운행 노선이 없었어요. 두 정류장을 잇는 노선과 버스 배정을 살펴보세요.';
+      else if(p&&p.fail==='TOO_MANY_TRANSFERS')reason='노선은 이어져 있지만 갈아타기를 두 번 해야 해서 못 갔어요(갈아타기는 한 번까지). 한 번만 갈아타도 되게 노선을 이어 보세요.';
       else if(p&&p.deniedBoardings>0)reason='만차로 버스를 놓친 적이 있어요. 이것만이 원인이라고 단정할 수는 없지만, 차량 배정과 대기 시간을 살펴보세요.';
       else if(p&&p.status==='riding')reason='운행이 끝날 때도 버스 안에 있었어요. 이동 경로와 배차를 살펴보세요.';
       else if(p&&p.fail==='NO_TRIP_IN_WINDOW')reason='이동할 준비가 된 뒤에는 운행 시간 안에 도착할 수 있는 버스편이 없었어요.';
@@ -249,10 +252,10 @@
   // 운영 종료(파산·계약 종료) 화면의 재정 돌아보기 — 기록된 운행 수치만 쓴다(새 사건·추정 없음)
   // 사건 영향 = 돌발 수요 승객이 낸 운임(청원은 재정에 직접 영향 없음), 나머지 비용·운임은 노선과 버스 배치(선택)에서 나온다
   function financeReview(config,history){
-    var F=config.finance,sum={holding:0,lease:0,op:0,fuel:0,fare:0,subsidy:0},noLink=0,notBoarded=0,resting=0,running=0,boardings=0,eventFare=0,eventPhases=[],eventUnknown=false;
+    var F=config.finance,sum={holding:0,lease:0,op:0,fuel:0,fare:0,subsidy:0},noLink=0,transfers=0,notBoarded=0,resting=0,running=0,boardings=0,eventFare=0,eventPhases=[],eventUnknown=false;
     history.forEach(function(h){
       var k=Metrics.costParts(h.metrics.costs),m=h.metrics;Object.keys(sum).forEach(function(x){sum[x]+=k[x];});
-      noLink+=m.noLink||0;notBoarded+=m.notBoarded?m.notBoarded.count:0;boardings+=m.boardings||0;
+      noLink+=m.noLink||0;transfers+=m.transfers||0;notBoarded+=m.notBoarded?m.notBoarded.count:0;boardings+=m.boardings||0;
       var buses=h.plan&&h.plan.buses||[];buses.forEach(function(b){if(b.route)running++;else resting++;});
       if(h.event&&h.event.type==='demand'){if(h.eventFare==null)eventUnknown=true;else{eventFare+=h.eventFare;eventPhases.push(h.phase);}}
     });
@@ -261,6 +264,7 @@
     var crowd=0;history.forEach(function(h){var n={};(h.plan&&h.plan.buses||[]).forEach(function(b){if(!b.route)return;var id=b.route.nodes.join('-');n[id]=(n[id]||0)+1;crowd=Math.max(crowd,n[id]);});});
     var perBus=running?boardings/running:0,need=F.holding/F.fare,tips=[];
     if(resting)tips.push({code:'resting',text:'쉬는 버스도 대당 '+won(F.holding)+'씩 보유비가 나가요'+(F.basePerBus?'(기본 지원 '+won(F.basePerBus)+'을 받아도 '+won(F.holding-F.basePerBus)+'이 남아요)':'')+'. 이번 운영에서 쉬게 한 버스가 단계별로 합쳐 '+resting+'대였어요.'+(notBoarded?' 운행 종료까지 버스를 못 탄 요청('+notBoarded+'건)이 남은 노선에 넣으면 운임으로 일부를 메울 수 있어요.':' 이동 요청이 있는 구간에 넣어 운임을 받을 수 있는지 살펴보세요.')});
+    if(transfers)tips.push({code:'transfers',text:'갈아타기를 두 번 해야 해서 못 간 요청이 '+transfers+'건이에요(갈아타기는 한 번까지). 두 노선이 한 정류장에서 만나게 이어 보세요.'});
     if(noLink)tips.push({code:'noLink',text:'잇는 노선이 없어 떠나지 못한 요청이 '+noLink+'건이에요. 한 건을 이으면 운임 '+won(F.fare)+'이 생겨요. 정류장 연결부터 살펴보세요.'});
     if(running&&perBus<need)tips.push({code:'perBus',text:'운행한 버스 한 대가 단계마다 평균 '+(Math.round(perBus*10)/10)+'회 태웠어요. 보유비를 운임만으로 메우려면 대당 '+need+'회가 필요해요.'+(crowd>=3?' 한 노선에 버스를 최대 '+crowd+'대까지 넣은 단계가 있었어요. 버스를 여러 노선에 나눠 요청이 있는 정류장을 더 지나게 하면 대당 승차가 늘 수 있어요.':' 노선별 이용표에서 승차가 적은 노선의 버스를 요청이 남은 노선으로 옮길 수 있는지 살펴보세요.')});
     // 중복 구간: 서로 다른 노선 둘 이상이 같은 두 정류장 사이를 달린 단계(계획 기록에서 확인되는 것만)
@@ -273,7 +277,7 @@
     if(shared.length&&costs[0][0]!=='holding'){var segs=shared.map(function(x){return x.seg;}).filter(function(k,i,a){return a.indexOf(k)===i;});
       tips.push({code:'overlap',text:costs[0][1]+'가 '+won(costs[0][2])+'로 가장 컸어요. '+segs.slice(0,3).map(function(k){return k.split('–').map(function(id){return nodeName(config,id);}).join('–');}).join(', ')+' 구간을 노선 여러 개가 함께 달렸어요(단계별 합계 '+shared.length+'회). 겹친 구간의 승객이 그만큼 많았는지 노선별 이용표와 비교해 보세요.'});}
     return {
-      totals:sum,costs:costs,crowd:crowd,noLink:noLink,notBoarded:notBoarded,resting:resting,running:running,perBus:perBus,
+      totals:sum,costs:costs,crowd:crowd,noLink:noLink,transfers:transfers,notBoarded:notBoarded,resting:resting,running:running,perBus:perBus,
       event:{fare:eventFare,phases:eventPhases,unknown:eventUnknown},
       tips:tips.slice(0,3),
       caution:'이용이 적은 외곽 노선을 없애는 것만이 답은 아니에요. 공공서비스 수행분은 외곽·병원 같은 곳에 실제로 버스를 보낼 때 받는 돈이고, 외곽 주민의 하루도 학기 결과에 들어가요.'
@@ -282,6 +286,12 @@
   /* ── 2026-11-01 단계 전 설명을 결과 화면으로: 순수 함수(화면 문장·판정만, 계산 규칙은 그대로) ── */
   // 학기 말 기준 상태: 이미 달성 / 남은 단계를 모두 해내도 못 채움(‘기준 달성 불가’) / 아직 가능
   // t = residentTally의 한 줄 {completed, threshold, remaining}(remaining = 아직 기록되지 않은 단계 수)
+  /* 누적 횟수 표시(2026-11-12 랜덤 검토 10번): 목표를 넘으면 ‘7/6회’ 대신 ‘6/6회 달성(+1)’. short = 칩처럼 좁은 곳(‘6/6(+1)’) */
+  function tallyText(done, need, short) {
+    if (need == null) return String(done);
+    if (done > need) return need + '/' + need + (short ? '(+' + (done - need) + ')' : '회 달성(+' + (done - need) + ')');
+    return done + '/' + need + (short ? '' : '회');
+  }
   function criterionState(t) {
     if (!t) return null;
     if (t.completed >= t.threshold) return 'done';
@@ -327,21 +337,25 @@
     var worst = pool[0] || null, tied = pool[1] && pool[1].left / pool[1].N === worst.left / worst.N ? pool[1] : null;
     /* 살펴볼 곳 = 주제 지역 가운데 못 간 이동이 있는 곳만 */
     var open = ids.filter(function (id) { return stat([id]).left > 0; }), f = stat(open), openNames = open.map(function (id) { return nodeName(config, id); }).join('·');
-    var themeIsWorst = !!worst && open.length === 1 && (open[0] === worst.id || (!!tied && open[0] === tied.id)), ethics = !t.N || t.rate < FOCUS_RATE, line = '';
-    if (worst) {
-      var one = function (z, kind) { return josaNote(nodeName(config, z.id), z.N + '건 중 ' + z.left + '건 목적지까지 못 감', kind); };
-      line = tied ? '남은 비율이 가장 큰 곳은 ' + one(worst, '과와') + ' ' + one(tied, '이에요') + '.' : '남은 비율이 가장 큰 곳은 ' + josa(nodeName(config, worst.id), '이에요') + '. 출발한 이동 ' + worst.N + '건 중 ' + worst.left + '건은 목적지까지 못 갔어요.';
+    var ethics = !t.N || t.rate < FOCUS_RATE, line = '', pick = null;
+    /* 2026-11-12 랜덤 검토 11번: 다음 운행 목표는 한 곳만, 이유 한 줄. 이번 단계 주제 지역에 못 간 이동이 있으면 그곳(못 간 비율이 큰 곳, 같으면 건수) —
+     * 단계가 챙기기로 한 곳이라서. 없으면 못 간 비율이 가장 큰 출발지(같으면 건수·정류장 순). 예전 ‘남은 비율이 가장 큰 곳은 … 살펴볼 곳은 …’(두 곳) 대신 */
+    if (open.length) {
+      pick = open.map(function (id) { var z = stat([id]); z.id = id; return z; }).sort(function (a, b) { return b.left / b.N - a.left / a.N || b.left - a.left; })[0];
+      line = '다음 운행에서 살펴볼 곳은 ' + josa(nodeName(config, pick.id), '이에요') + '. 이번 단계가 챙기기로 한 곳인데 출발한 이동 ' + pick.N + '건 중 ' + pick.left + '건이 목적지까지 못 갔어요.';
+    } else if (worst) {
+      pick = worst;
+      line = '다음 운행에서 살펴볼 곳은 ' + josa(nodeName(config, pick.id), '이에요') + '. 출발한 이동 가운데 목적지까지 못 간 비율이 가장 커요(' + pick.N + '건 중 ' + pick.left + '건).';
     }
     if (!t.N) line += (line ? ' ' : '') + '이번에는 ' + names + '에서 출발한 이동이 없었어요.';
     else if (!worst) line = names + '에서 출발한 이동 ' + t.N + '건이 모두 도착했어요.';
-    else if (open.length && !themeIsWorst) line += ' 이번 단계에서 살펴볼 곳은 ' + josa(openNames, '이에요') + '(출발 ' + f.N + '건 중 ' + f.left + '건 목적지까지 못 감).';
     /* 모두 도착했지만 AI가 못 본 주제 지역: 왜 짚는지 까닭을 적는다 */
     ids.forEach(function (id) {
       var u = unseen[id], z = stat([id]);
       if (!u || u.seen !== 0 || !(u.real > 0) || !z.N || z.left > 0) return;
       line += (line ? ' ' : '') + josa(nodeName(config, id), '은는') + (worst ? ' 출발 ' + z.N + '건이 모두 도착했지만,' : '') + ' AI가 본 이동 0건 · 실제 ' + u.real + '건이라 AI 제안에서 빠지기 쉬운 곳이에요.';
     });
-    return { bridge: line, ethics: ethics, theme: t, worst: worst, focus: open };
+    return { bridge: line, ethics: ethics, theme: t, worst: worst, focus: pick ? [pick.id] : [], pick: pick ? pick.id : null };
   }
   function bridgeLine(config, phase, passengers, mobility, opts) { return thinkFocus(config, phase, passengers, mobility, opts).bridge; }
   // 인물 결과 한 줄: 어느 이동인지, 어디서 얼마나 기다렸는지, 만차·노선 없음, 그 노선의 버스 수·간격
@@ -359,6 +373,7 @@
     }
     function legText(p, label) {
       if (p.fail === 'NO_LINK') return label + ', 잇는 노선이 없었어요';
+      if (p.fail === 'TOO_MANY_TRANSFERS') return label + ', '+'갈아타기를 두 번 해야 해서 못 갔어요(갈아타기는 한 번까지)';
       if (p.fail === 'NO_TRIP_IN_WINDOW') return label + ', 운행 시간 안에 탈 버스편이 없었어요';
       var at = (p.boardings || 0) <= 1 ? name(p.o) + '에서 ' : '갈아타는 곳까지 합쳐 ';
       var txt = label + ', ' + at + dur(p.waitTotal) + ' 대기';
@@ -382,7 +397,7 @@
     if (worst) return head + legText(worst, worst === back ? backLabel : outLabel) + (Evaluation.overWait(config, worst.waitTotal) ? ', 기준 ' + dur(sv.maxWait) + ' 넘김' : '');
     return head + ((rec.reasons || [])[0] ? rec.reasons[0].text : '이동을 마치지 못했어요.');
   }
-  var api = { criterionState: criterionState, mergeRepeats: mergeRepeats, bridgeLine: bridgeLine, thinkFocus: thinkFocus, residentLine: residentLine, THEME: THEME, won:won, financeReview:financeReview, josa:josa, josaNote:josaNote, residentResult:residentResult,satisfactionTargets:satisfactionTargets,satisfactionText:satisfactionText,residentTally:residentTally,endingReactions:endingReactions,endingConclusion:endingConclusion, fill: fill, bubbles: bubbles, residentStory: residentStory, zoneSubtitleText: zoneSubtitleText, hookLines: hookLines, nodeName: nodeName };
+  var api = { tallyText: tallyText, criterionState: criterionState, mergeRepeats: mergeRepeats, bridgeLine: bridgeLine, thinkFocus: thinkFocus, residentLine: residentLine, THEME: THEME, won:won, financeReview:financeReview, josa:josa, josaNote:josaNote, residentResult:residentResult,satisfactionTargets:satisfactionTargets,satisfactionText:satisfactionText,residentTally:residentTally,endingReactions:endingReactions,endingConclusion:endingConclusion, fill: fill, bubbles: bubbles, residentStory: residentStory, zoneSubtitleText: zoneSubtitleText, hookLines: hookLines, nodeName: nodeName };
   root.PB = root.PB || {};
   root.PB.Narrative = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

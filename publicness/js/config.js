@@ -22,7 +22,10 @@
       residents: [{ id: 'jinho', name: '진호', role: '인플루언서', o: 'I', d: 'M', fromPhase: 7, depart: 47, returnAt: 91, stay: 20 }],
       nodes: [{id:'L',name:'호수공원',x:-4.6,y:-2.3,fromPhase:6},{id:'M',name:'솔잎몰',x:2.7,y:.2,fromPhase:7},{id:'N',name:'대도시',x:8.7,y:0,fromPhase:8}],
       demandRows: [{a:'B',b:'M',n:18,fromPhase:7},{a:'I',b:'M',n:16,fromPhase:7},{a:'E',b:'M',n:10,fromPhase:7},{a:'A',b:'M',n:8,fromPhase:7},{a:'J',b:'M',n:8,fromPhase:7},{a:'B',b:'N',n:18,fromPhase:8},{a:'I',b:'N',n:12,fromPhase:8},{a:'F',b:'N',n:6,fromPhase:8}],
-      families: {fromPhase:6,destination:'L',origins:['B','F','I'],members:4,depart:45,returnAt:85,stay:20}
+      families: {fromPhase:6,destination:'L',origins:['B','F','I'],members:4,depart:45,returnAt:85,stay:20},
+      // 랜덤(도전) 모드 전용 재정(2026-11-12 교사 랜덤 검토 5번 — 기본 지원금 하나만 조정하는 자리). 지금 값 = 기본 모드와 같음(동작 변화 없음).
+      // 후보 값·시드별 표는 tools/random-finance-1112.cjs. 교사가 값을 고르면 여기만 바꾼다(기본 모드 finance는 건드리지 않음)
+      finance: { basePerBus: 10000 }
     },
     // Fixed design pixels, independent of viewport. All engine time values are seconds.
     map: { pixelsPerUnit: 110, pixelsPerSecond: 110 },

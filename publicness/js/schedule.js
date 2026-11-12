@@ -11,6 +11,10 @@
   function vehicle(config,id){return config.challengeApplied&&id===9?{speed:1,capacity:24}:config.challengeApplied&&id===7?{speed:1.5,capacity:18}:{speed:1,capacity:config.bus.capacity};}
   function travel(g,config,id,a,b){return Math.max(1,Math.round(g.time(a,b)/vehicle(config,id).speed));}
   function cycleMinutes(g,config,id,route){return Graph.cycleMinutes(Object.assign({},g,{time:function(a,b){return travel(g,config,id,a,b);}}),route);}
+  /* 노선 번호로 정해지는 차량(2026-11-12 교사 랜덤 검토 7번): 도전 모드 5번 직행 = 7호차(1.5배), 6번 광역 = 9호차, 나머지 = 일반 버스(모두 같은 속도).
+   * 한 바퀴·배차 간격은 이 함수 하나로 — 노선 칩·글 목록·예상 수지·출발 확인·결과·보고서가 같은 값을 쓴다(전에는 글 목록이 속도를 빼고 셌다) */
+  function routeVehicleId(config,num){return config.challengeApplied&&num===5?7:config.challengeApplied&&num===6?9:1;}
+  function routeCycle(g,config,num,route){return route&&route.nodes&&route.nodes.length>=2&&!Graph.validateRoute(g,route).length?cycleMinutes(g,config,routeVehicleId(config,num),route):null;}
   function spacePlan(g, config, plan) {
     if (!config.bus.autoSpacing) return plan;
     var groups = {};
@@ -146,7 +150,7 @@
     return { node: node, parked: false };
   }
 
-  var api = { resume: resume, driven:driven, travel:travel,cycleMinutes:cycleMinutes,vehicle:vehicle,timeline: timeline, positionAt: positionAt, spacePlan: spacePlan };
+  var api = { resume: resume, driven:driven, travel:travel,cycleMinutes:cycleMinutes,routeCycle:routeCycle,routeVehicleId:routeVehicleId,vehicle:vehicle,timeline: timeline, positionAt: positionAt, spacePlan: spacePlan };
   root.PB = root.PB || {};
   root.PB.Schedule = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

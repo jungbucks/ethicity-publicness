@@ -48,12 +48,15 @@
       li.appendChild(el('span', { 'class': 'badge-star', 'aria-hidden': 'true' }, b.earned ? '★' : '☆'));
       li.appendChild(el('span', { 'class': 'badge-label' }, b.label));
       li.appendChild(el('b', { 'class': 'badge-state' }, b.earned ? '받음' : '아직'));
+      if (b.rule) li.appendChild(el('span', { 'class': 'badge-rule' }, b.rule)); /* 2026-11-12: 받는 조건 한 줄 */
       bl.appendChild(li);
     });
     bs.appendChild(bl); art.appendChild(bs);
     var cs = el('section', { id: 'report-choices', 'class': 'report-stage' });
     cs.appendChild(el('h3', null, '내가 고른 것'));
-    cs.appendChild(row('2단계 청원', r.choices.petition || '(해당 없음)'));
+    /* 2026-11-12 랜덤 검토 4번: 청원마다 한 줄(고정 청원 + 사건 청원) */
+    if (r.choices.petitions && r.choices.petitions.length) r.choices.petitions.forEach(function (p) { cs.appendChild(row(p.phase + '단계 청원', p.text)); });
+    else cs.appendChild(row('2단계 청원', r.choices.petition || '(해당 없음)'));
     cs.appendChild(row('4단계 무임승차', r.choices.elder || '(해당 없음)'));
     art.appendChild(cs);
     if (r.scope) art.appendChild(el('p', { id: 'report-scope', 'class': 'report-scope' }, r.scope)); /* 2026-11-10 검토 2번: 두 건수의 범위(실제로 생긴 요청 / 평가 대상) */

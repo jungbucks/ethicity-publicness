@@ -55,60 +55,54 @@ test('반복 합치기: 연속으로 같은 문장만 ×N, 떨어져 있으면 �
   assert.deepEqual(N.mergeRepeats([], x => x), []);
 });
 
-test('결과와 질문을 잇는 한 줄(11-06 P1-4): 첫 줄 = 남은 비율이 가장 큰 출발지(비율이 같으면 둘 다), 주제 지역은 그다음, 90% 미만이면 고정 질문', () => {
+/* 2026-11-12 교사 랜덤 검토 11번: 다음 운행 목표는 한 곳만 + 이유 한 줄(예전 ‘남은 비율이 가장 큰 곳은 … 살펴볼 곳은 …’ 두 곳 문장을 대체).
+ * 고르는 순서: 이번 단계 주제 지역 중 못 간 이동이 있는 곳(못 간 비율 → 건수) → 없으면 못 간 비율이 가장 큰 출발지(같으면 건수) */
+const ONE = (name, N, left) => '다음 운행에서 살펴볼 곳은 ' + name + '. 이번 단계가 챙기기로 한 곳인데 출발한 이동 ' + N + '건 중 ' + left + '건이 목적지까지 못 갔어요.';
+const WORST = (name, N, left) => '다음 운행에서 살펴볼 곳은 ' + name + '. 출발한 이동 가운데 목적지까지 못 간 비율이 가장 커요(' + N + '건 중 ' + left + '건).';
+test('결과와 질문을 잇는 한 줄(2026-11-12 한 곳만): 주제 지역에 못 간 이동이 있으면 그곳, 없으면 못 간 비율이 가장 큰 곳 · 90% 미만이면 고정 질문', () => {
   const ps = [{ o: 'F', d: 'A', status: 'arrived' }, { o: 'B', d: 'F', status: 'waiting' }, { o: 'F', d: 'D', status: 'riding' }, { o: 'A', d: 'B', status: 'waiting' }];
-  // 최악이 주제 지역이 아니면 둘을 구분해서 적고 단계 고정 질문을 보인다
+  // 최악(기차역)이 주제 지역이 아니어도, 주제 지역(외곽 마을)에 못 간 이동이 있으면 그곳 한 곳만
   const big = { zones: { A: { N: 33, done: 0 }, E: { N: 14, done: 0 }, F: { N: 12, done: 6 }, B: { N: 1, done: 0 } } };
-  const line = N.bridgeLine(cfg, 1, [], big);
-  assert.ok(line.startsWith('남은 비율이 가장 큰 곳은 기차역(33건 중 33건 목적지까지 못 감)과 '), line); assert.ok(line.includes('외곽 마을이에요(출발 12건 중 6건 목적지까지 못 감)'), line); assert.ok(line.indexOf('기차역') < line.indexOf('외곽 마을'), '기차역 줄이 먼저'); assert.ok(!line.includes('밀집 주거지'), '5건 미만은 비율로 앞서지 않음');
-  assert.deepEqual([N.bridgeLine(cfg, 1, ps), N.thinkFocus(cfg, 1, ps).ethics], ['남은 비율이 가장 큰 곳은 기차역(1건 중 1건 목적지까지 못 감)과 밀집 주거지(1건 중 1건 목적지까지 못 감)예요. 이번 단계에서 살펴볼 곳은 외곽 마을이에요(출발 2건 중 1건 목적지까지 못 감).', true]);
-  // 주제 지역이 곧 최다면 한 곳만
+  assert.equal(N.bridgeLine(cfg, 1, [], big), ONE('외곽 마을이에요', 12, 6));
+  assert.deepEqual([N.bridgeLine(cfg, 1, ps), N.thinkFocus(cfg, 1, ps).ethics], [ONE('외곽 마을이에요', 2, 1), true]);
   const only = [{ o: 'F', d: 'A', status: 'waiting' }, { o: 'F', d: 'D', status: 'arrived' }];
-  assert.equal(N.bridgeLine(cfg, 1, only), '남은 비율이 가장 큰 곳은 외곽 마을이에요. 출발한 이동 2건 중 1건은 목적지까지 못 갔어요.');
+  assert.equal(N.bridgeLine(cfg, 1, only), ONE('외곽 마을이에요', 2, 1));
   // 모두 도착하면 거기서 끝
   assert.deepEqual([N.bridgeLine(cfg, 1, ps.slice(0, 1)), N.thinkFocus(cfg, 1, ps.slice(0, 1)).ethics], ['외곽 마을에서 출발한 이동 1건이 모두 도착했어요.', false]);
-  // 외곽 마을 100%, 밀집 주거지 0/1 → 밀집 주거지가 첫 줄
+  // 주제 지역이 모두 도착 → 못 간 비율이 가장 큰 곳
   const ok = [{ o: 'F', d: 'A', status: 'arrived' }, { o: 'B', d: 'F', status: 'waiting' }, { o: 'A', d: 'B', status: 'arrived' }];
-  assert.equal(N.bridgeLine(cfg, 1, ok), '남은 비율이 가장 큰 곳은 밀집 주거지예요. 출발한 이동 1건 중 1건은 목적지까지 못 갔어요.'); /* 2026-11-11: 모두 도착한 주제 지역은 살펴볼 곳으로 안 짚고, 질문은 소제목 한 번만 */
-  // 두 점수 평가(mobility)를 넘기면 그 worst·zones 값을 그대로 쓴다 — 결과 ‘자세히’의 가장 많이 남은 곳과 같은 값
+  assert.equal(N.bridgeLine(cfg, 1, ok), WORST('밀집 주거지예요', 1, 1));
+  // 두 점수 평가(mobility)를 넘기면 그 zones 값을 그대로 쓴다
   const mob = { worst: { id: 'A', N: 33, done: 10, missed: 23 }, zones: { A: { N: 33, done: 10 }, F: { N: 12, done: 12 } } };
-  assert.equal(N.bridgeLine(cfg, 1, ok, mob), '남은 비율이 가장 큰 곳은 기차역이에요. 출발한 이동 33건 중 23건은 목적지까지 못 갔어요.');
-  // 9건 중 1건 남음(89%)은 아직 짚고, 10건 중 1건(90%)은 인정
+  assert.equal(N.bridgeLine(cfg, 1, ok, mob), WORST('기차역이에요', 33, 23));
   const many = (n, left) => Array.from({ length: n }, (_, i) => ({ o: 'F', d: 'A', status: i < left ? 'waiting' : 'arrived' }));
   assert.equal(N.thinkFocus(cfg, 1, many(9, 1)).ethics, true); assert.equal(N.thinkFocus(cfg, 1, many(10, 1)).ethics, false);
-  assert.equal(N.bridgeLine(cfg, 2, ps), '남은 비율이 가장 큰 곳은 기차역(1건 중 1건 목적지까지 못 감)과 밀집 주거지(1건 중 1건 목적지까지 못 감)예요. 이번에는 대학교·병원·공공서비스에서 출발한 이동이 없었어요.');
-  // 아직 없는 정류장(복지관은 5단계부터)은 빼고, 남는 게 없으면 빈 문장
+  // 비율이 같은 두 곳(기차역·밀집 주거지 1/1)이어도 한 곳만(같으면 건수, 그다음 정류장 순)
+  const two = N.bridgeLine(cfg, 2, ps); assert.equal(two, WORST('기차역이에요', 1, 1) + ' 이번에는 대학교·병원·공공서비스에서 출발한 이동이 없었어요.');
+  assert.ok(!two.includes('밀집 주거지'), '둘째 곳은 말하지 않음');
   assert.equal(N.bridgeLine(cfg, 5, []), '이번에는 어린이·노인복지관에서 출발한 이동이 없었어요.');
   assert.equal(N.bridgeLine(cfg, 9, ps), '');
 });
 
-test('2026-11-11 플레이테스트 1·10: 못 간 이동 0건인 곳은 살펴볼 곳으로 안 짚고, 질문은 문장에 안 넣고, 괄호 뒤 조사는 괄호 앞 낱말을 따른다', () => {
-  // 1단계 시드 42 무난한 노선: 시장 0/14, 외곽 마을 12/12 → 외곽 마을을 살펴볼 곳이라 하지 않는다
+test('2026-11-11 플레이테스트 1·10 + 11-12 한 곳: 못 간 이동 0건인 곳은 짚지 않고, 문장에는 한 곳만', () => {
   const m1 = { zones: { A: { N: 33, done: 19 }, G: { N: 20, done: 10 }, B: { N: 32, done: 32 }, E: { N: 14, done: 0 }, F: { N: 12, done: 12 }, C: { N: 19, done: 16 }, D: { N: 12, done: 3 } } };
   const l1 = N.bridgeLine(cfg, 1, [], m1);
-  assert.equal(l1, '남은 비율이 가장 큰 곳은 구도심 시장이에요. 출발한 이동 14건 중 14건은 목적지까지 못 갔어요.');
-  // AI가 못 본 곳이면 까닭을 적어 한 줄(살펴볼 곳이라 부르지 않음)
+  assert.equal(l1, WORST('구도심 시장이에요', 14, 14));
+  // AI가 못 본 주제 지역(모두 도착)은 까닭 한 줄(살펴볼 곳이라 부르지 않음 — 11-11 지시 그대로)
   const l1b = N.bridgeLine(cfg, 1, [], m1, { unseen: { F: { seen: 0, real: 12 } } });
   assert.equal(l1b, l1 + ' 외곽 마을은 출발 12건이 모두 도착했지만, AI가 본 이동 0건 · 실제 12건이라 AI 제안에서 빠지기 쉬운 곳이에요.');
-  assert.ok(!l1b.includes('살펴볼 곳') && !l1b.includes('살필까요'));
-  // 못 간 이동이 남은 곳은 AI가 못 봤어도 살펴볼 곳 한 줄만(까닭 줄 없음)
+  assert.ok(!l1b.includes('살필까요'));
   const half = { zones: { E: { N: 14, done: 0 }, F: { N: 12, done: 6 } } };
-  assert.equal(N.bridgeLine(cfg, 1, [], half, { unseen: { F: { seen: 0, real: 12 } } }), '남은 비율이 가장 큰 곳은 구도심 시장이에요. 출발한 이동 14건 중 14건은 목적지까지 못 갔어요. 이번 단계에서 살펴볼 곳은 외곽 마을이에요(출발 12건 중 6건 목적지까지 못 감).');
-  // 모두 도착 + AI가 못 봄
+  assert.equal(N.bridgeLine(cfg, 1, [], half, { unseen: { F: { seen: 0, real: 12 } } }), ONE('외곽 마을이에요', 12, 6));
   assert.equal(N.bridgeLine(cfg, 1, [], { zones: { F: { N: 12, done: 12 } } }, { unseen: { F: { seen: 0, real: 12 } } }), '외곽 마을에서 출발한 이동 12건이 모두 도착했어요. 외곽 마을은 AI가 본 이동 0건 · 실제 12건이라 AI 제안에서 빠지기 쉬운 곳이에요.');
-  // 주제 지역이 두 곳(4단계 운동장·터미널)이면 못 간 이동이 있는 곳만 — 그곳이 최악이면 한 줄
   const m4 = { zones: { H: { N: 12, done: 3 }, J: { N: 17, done: 17 }, A: { N: 52, done: 47 } } };
-  assert.equal(N.bridgeLine(cfg, 4, [], m4), '남은 비율이 가장 큰 곳은 종합운동장이에요. 출발한 이동 12건 중 9건은 목적지까지 못 갔어요.');
-  assert.deepEqual(N.thinkFocus(cfg, 4, [], m4).focus, ['H']);
+  assert.equal(N.bridgeLine(cfg, 4, [], m4), ONE('종합운동장이에요', 12, 9)); assert.deepEqual(N.thinkFocus(cfg, 4, [], m4).focus, ['H']);
   const m4b = { zones: { H: { N: 12, done: 3 }, J: { N: 17, done: 17 }, A: { N: 52, done: 2 } } };
-  assert.equal(N.bridgeLine(cfg, 4, [], m4b), '남은 비율이 가장 큰 곳은 기차역이에요. 출발한 이동 52건 중 50건은 목적지까지 못 갔어요. 이번 단계에서 살펴볼 곳은 종합운동장이에요(출발 12건 중 9건 목적지까지 못 감).');
-  // 5단계 복지관 6/6: 문장에서 빠진다
+  const l4 = N.bridgeLine(cfg, 4, [], m4b); assert.equal(l4, ONE('종합운동장이에요', 12, 9)); assert.ok(!l4.includes('기차역'), '최악(기차역)은 같은 문장에 안 나옴');
   const m5 = { zones: { H: { N: 12, done: 4 }, K: { N: 6, done: 6 } } };
-  assert.equal(N.bridgeLine(cfg, 5, [], m5), '남은 비율이 가장 큰 곳은 종합운동장이에요. 출발한 이동 12건 중 8건은 목적지까지 못 갔어요.');
-  // 괄호 뒤 조사: 받침 없는 ‘산업·일자리’ 뒤는 ‘와’, 받침 있는 ‘종합운동장’ 뒤는 ‘이에요’
+  assert.equal(N.bridgeLine(cfg, 5, [], m5), WORST('종합운동장이에요', 12, 8));
   const tie = { zones: { G: { N: 20, done: 10 }, H: { N: 6, done: 3 }, F: { N: 12, done: 12 } } };
-  assert.equal(N.bridgeLine(cfg, 2, [], tie), '남은 비율이 가장 큰 곳은 산업·일자리(20건 중 10건 목적지까지 못 감)와 종합운동장(6건 중 3건 목적지까지 못 감)이에요. 이번에는 대학교·병원·공공서비스에서 출발한 이동이 없었어요.');
-  assert.equal(N.josaNote('밀집 주거지', '1건', '과와'), '밀집 주거지(1건)와'); assert.equal(N.josaNote('기차역', '1건', '이에요'), '기차역(1건)이에요');
+  assert.equal(N.bridgeLine(cfg, 2, [], tie), WORST('산업·일자리예요', 20, 10) + ' 이번에는 대학교·병원·공공서비스에서 출발한 이동이 없었어요.');
 });
 
 test('인물 한 줄: 어느 이동·어디서 얼마나·노선 버스 수와 간격', () => {

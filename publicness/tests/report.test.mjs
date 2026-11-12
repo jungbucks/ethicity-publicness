@@ -86,7 +86,7 @@ test('choices 줄: 이유 비면 (쓰지 않음), 없으면 null', () => {
   const w=FX.finishedSession({petition:'not-now',elder:'keep',whyBoth:true});
   assert.match(R.build(w,real()).choices.petition,/이번엔 못 한다 · 이유: 이유 petition · /);
   assert.equal(R.build(w,real()).choices.elder,'4단계 어르신 무임승차 유지 · 이유: 이유 elder');
-  assert.deepEqual(R.build(FX.finishedSession({}),real()).choices,{petition:null,elder:null});
+  assert.deepEqual(R.build(FX.finishedSession({}),real()).choices,{petition:null,elder:null,petitions:[]}); /* 2026-11-12: petitions = 청원마다 한 줄(고정+사건) */
   const old=FX.finishedSession({elder:'keep'});delete old.fixedPetition;assert.equal(R.build(old,real()).choices.petition,null);
   old.history.forEach(h=>delete h.rideLog);assert.doesNotThrow(()=>{R.build(old,real());R.badges(old);});
 });

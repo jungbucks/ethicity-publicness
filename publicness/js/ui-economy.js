@@ -21,8 +21,7 @@
   E.headway = function (s, num, n) {
     var r = S.routeByNum(s, num);
     if (!r || !n || G.validateRoute(S.graph(s), r).length) return null;
-    var first = s.draft.buses.filter(function (b) { return b.routeNum === num; })[0], id = first ? first.id : 1;
-    return Q.cycleMinutes(S.graph(s), s.config, id, r) / n;
+    return S.routeHeadway(s, num, n); // 2026-11-12: 노선 번호로 차량 속도(Schedule.routeCycle) — 노선 칩·글 목록과 같은 값
   };
   E.routeKm = function (s, num) { var r = S.routeByNum(s, num); return r && r.nodes.length >= 2 && !G.validateRoute(S.graph(s), r).length ? G.routeKm(S.graph(s), r) : null; };
   function km(x) { return (Math.round(x * 10) / 10) + 'km'; }
@@ -135,7 +134,8 @@
     // 노선이 없으면 숫자 대신 안내(2026-11-01: 노선이 없는데 ‘예상 −20,000’이 크게 떠 있었다)
     if (!s.draft.routes.some(function (r) { return r.nodes.length >= 2; })) { head.appendChild(el('b', null, '이번 단계 예상 수지')); head.appendChild(el('span', { 'class': 'econ-empty' }, ' · 노선을 만들면 예상 수지가 나와요')); box.appendChild(head); return box; }
     head.appendChild(el('b', null, '이번 단계 예상 수지 ' + signed(c.total)));
-    head.appendChild(document.createTextNode(' · 수행분 ' + met + '/' + c.service.length + ' · 누적 잔액 ' + won(bal) + ' → 약 ' + won(bal + c.total)));
+    /* 2026-11-12 랜덤 검토 12번: ‘수행분 1/2’ → ‘공공서비스 정류장 하루 6번 정차: 1/2곳’ */
+    head.appendChild(document.createTextNode(' · 공공서비스 정류장 하루 ' + s.config.finance.service.minStops + '번 정차: ' + met + '/' + c.service.length + '곳 · 누적 잔액 ' + won(bal) + ' → 약 ' + won(bal + c.total)));
     head.appendChild(el('small', null, ' 기본 수요 기준 예상(돌발 수요 제외)'));
     box.appendChild(head);
     if (state.editing != null) { var line = E.routeLine(s, state.editing); if (line) box.appendChild(el('p', { id: 'route-econ', 'class': 'econ-route' }, line)); }

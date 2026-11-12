@@ -175,3 +175,6 @@ body[data-screen=run] .person-chip-time, body[data-screen=run] .person-chip-trip
 .note-view[aria-pressed="true"] { border: 2px solid var(--sem-action); background: var(--accent-soft); color: var(--accent-ink); }
 .note-saved { min-height: 1.4em; margin: 0; }
 @media (max-width: 600px) { .note-blank { width: 8em; } .note-blank.note-reason { width: 100%; } }
+/* 갈아타기 두 번 이상이어야 이어지는 길(2026-11-12 랜덤 검토 2번) — 엔진은 못 가는 길이라 끊긴 선으로 */
+#person-path .pp-line.too-many { stroke-dasharray: 10 8; }
+.person-chip-flag.transfer { white-space: nowrap; }

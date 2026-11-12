@@ -50,6 +50,9 @@
         config.satisfactionTargets=challenge.targets;config.familyTrips=challenge.families;config.residents=config.residents.concat(clone(challenge.residents||[]));
         config.nodes=config.nodes.concat(challenge.nodes);config.demandRows=config.demandRows.concat(challenge.demandRows);
         config.residents.forEach(function(r){if(r.itineraries){r.itineraries[6]={o:'J',d:'H',depart:60,returnAt:100,stay:20,returnTo:'B'};r.itineraries[7]=clone(r.itineraries[5]);}});
+        /* 랜덤(도전) 모드 전용 재정(2026-11-12 교사 랜덤 검토 5번): config.challenge.finance의 값만 덮어쓴다(기본 모드 finance는 그대로).
+         * 저장본은 랜덤 세팅의 config를 통째로 담으므로, 이 값을 바꿔도 예전 랜덤 저장본은 그때 값으로 이어진다 */
+        if(challenge.finance)Object.keys(challenge.finance).forEach(function(k){config.finance[k]=clone(challenge.finance[k]);});
       }
       // 배치(2026-10-27): 역할 자리 세로로 펼치고 나머지 생활권은 분산 표본 + 완화 — js/layout.js. 같은 시드 = 같은 배치
       var placed=Layout.place(config.nodes,Rng.create(seed ^ 0x51ed270b));
@@ -451,13 +454,27 @@
    * 노선이 있어도 버스가 없으면 그 정류장에는 아무도 못 오므로 ‘운행하는 노선’만 센다. 새 정류장을 앞에 */
   /* 노선별 배차 간격(2026-11-11 플레이테스트 7): 한 바퀴 시간 ÷ 그 노선 버스 수(자동 간격 출발과 같은 기준 — ui-economy headway와 같은 식).
    * over = 주요 인물 대기 기준(config.service.maxWait, 4시간 3분)을 넘는 간격. 노선 탭·출발 확인창이 같은 값을 쓴다 */
+  /* 한 바퀴·배차 간격 한 곳(2026-11-12 랜덤 검토 7번 — Schedule.routeCycle: 노선 번호로 차량 속도). n을 안 주면 그 노선에 배정된 버스 수 */
+  function routeCycle(s, num) { return Schedule.routeCycle(graph(s), s.config, num, routeByNum(s, num)); }
+  function routeHeadway(s, num, n) { if (n == null) n = s.draft.buses.filter(function (b) { return b.routeNum === num; }).length; var c = routeCycle(s, num); return c != null && n ? c / n : null; }
   function routeGaps(s) {
     var g = graph(s), max = s.config.service ? s.config.service.maxWait : null;
     return routesInOrder(s).map(function (r) {
       var bs = s.draft.buses.filter(function (b) { return b.routeNum === r.num; }), ok = r.nodes.length >= 2 && !Graph.validateRoute(g, r).length;
-      var h = ok && bs.length ? Schedule.cycleMinutes(g, s.config, bs[0].id, r) / bs.length : null;
+      var h = ok && bs.length ? routeHeadway(s, r.num, bs.length) : null;
       return { num: r.num, buses: bs.length, valid: ok, headway: h, over: h != null && max != null && h > max };
     });
+  }
+  /* 주요 인물 경로의 갈아타기(2026-11-12 랜덤 검토 2번): 운행하는 노선(버스 있는 것)만으로 첫 이동·다음 이동을 잇는 데 필요한 최소 환승 횟수.
+   * 길 찾기는 한 번까지만 길로 친다(Sim) — 2번 이상이면 계획 화면 칩·출발 확인창이 ‘이대로면 못 가요’를 미리 알린다. 출발·도착 정류장에 노선이 없는 인물은 residents가 따로 알린다 */
+  function residentTransfers(s) {
+    var g = graph(s), buses = s.draft.buses, plan = { buses: s.draft.routes.filter(function (r) { return r.nodes.length >= 2 && !Graph.validateRoute(g, r).length && buses.some(function (b) { return b.routeNum === r.num; }); }).map(function (r) { return { route: r }; }) };
+    var out = [];
+    Demand.residents(s.config, s.phase).forEach(function (rd) {
+      var legs = [[rd.o, rd.d], [rd.d, rd.returnTo || rd.o]].map(function (x) { return { o: x[0], d: x[1], n: Sim.transfersNeeded(g, plan, x[0], x[1]) }; }).filter(function (l) { return l.n != null && l.n >= 2; });
+      if (legs.length) out.push({ id: rd.id, name: rd.name, legs: legs, n: Math.max.apply(null, legs.map(function (l) { return l.n; })) });
+    });
+    return out;
   }
   function departChecks(s) {
     var g = graph(s), buses = s.draft.buses, F = s.config.finance, phase = s.phase, gaps = routeGaps(s);
@@ -471,7 +488,8 @@
       resting: owned.length, restingCost: owned.length * F.holding, restingLeased: leased.length, restingLeaseCost: leased.length * F.lease.fee,
       overGap: gaps.filter(function (x) { return x.over; }), idleRoutes: gaps.filter(function (x) { return x.valid && !x.buses; }).map(function (x) { return x.num; }),
       unserved: unserved.filter(isNew).concat(unserved.filter(function (id) { return !isNew(id); })), newStops: fresh,
-      residents: Demand.residents(s.config, phase).filter(function (rd) { return !serves(rd.o) || !serves(rd.d); }).map(function (rd) { return { id: rd.id, name: rd.name, o: rd.o, d: rd.d }; })
+      residents: Demand.residents(s.config, phase).filter(function (rd) { return !serves(rd.o) || !serves(rd.d); }).map(function (rd) { return { id: rd.id, name: rd.name, o: rd.o, d: rd.d }; }),
+      transfers: residentTransfers(s)
     };
   }
   // 긴급 조정 시점(엔진 시간, 10:06·15:03) — 운행 화면(ui-run)도 이 값을 쓴다
@@ -625,6 +643,10 @@
     entry.eventFare = s.config.finance.fare * c.result.passengers.filter(function (p) { return p.kind === 'extra' && p.firstBoardT != null; }).length;
     entry.rideLog = RideLog.fromRun(c.result.passengers);
     if (s.fixedPetition && s.phase === s.fixedPetition.phase + 1) entry.petitionCheck = petitionZoneAt(c.result.passengers, s.fixedPetition.t, s.fixedPetition.zone);
+    else if (s.mode !== 'default') { /* 2026-11-12 랜덤 검토 4번: 사건 청원도 다음 단계에 같은 시각·구역의 참고 숫자를 남긴다(그 뒤 화면 ‘참고’ 줄) */
+      var prevH = s.history.filter(function (x) { return x.phase === s.phase - 1; })[0], pp = prevH && prevH.petition && !prevH.petition.fixed ? prevH.petition : null;
+      if (pp) entry.petitionCheck = petitionZoneAt(c.result.passengers, pp.t, pp.zone);
+    }
     s.history.push(entry);
     if (s.config.petition && s.phase === s.config.petition.phase && c.result.petition) { var fp = c.result.petition; s.fixedPetition = { phase: s.phase, zone: fp.zone, t: fp.t, count: fp.count, total: fp.total, noRecord: !!fp.noRecord }; }
     settle(s, entry);
@@ -788,7 +810,7 @@
   var api = {
     checkSave: checkSave, safeRestore: safeRestore,
     elderChoice: elderChoice, petitionAt: petitionAt, petitionZoneAt: petitionZoneAt, rideRequests: rideRequests, aiView: aiView,
-    departChecks:departChecks,routeGaps:routeGaps,dayInputs:dayInputs,midStatus:midStatus,midRoute:midRoute,midApply:midApply,runningRoutes:runningRoutes,routeBuses:routeBuses,emergencyDecision:emergencyDecision,EMERGENCY_AT:EMERGENCY_AT,busRouteAt:busRouteAt,emergencyPreview:emergencyPreview,emergencyImpact:emergencyImpact,routeNumOf:routeNumOf,
+    departChecks:departChecks,residentTransfers:residentTransfers,routeGaps:routeGaps,routeCycle:routeCycle,routeHeadway:routeHeadway,dayInputs:dayInputs,midStatus:midStatus,midRoute:midRoute,midApply:midApply,runningRoutes:runningRoutes,routeBuses:routeBuses,emergencyDecision:emergencyDecision,EMERGENCY_AT:EMERGENCY_AT,busRouteAt:busRouteAt,emergencyPreview:emergencyPreview,emergencyImpact:emergencyImpact,routeNumOf:routeNumOf,
     serialize: serialize, restore: restore, migrateTransition: migrateTransition, CHOICES: CHOICES, choiceKey: choiceKey, scoresOverall: scoresOverall, rescore: rescore, financeRule: financeRule, financeStatus: financeStatus, balance: balance, DEFICIT_LIMIT: DEFICIT_LIMIT, NEGATIVE_LIMIT: NEGATIVE_LIMIT, residentVerdict: residentVerdict, tripLimit: tripLimit, expectedRun: expectedRun,
     parseSeedParam: parseSeedParam, create: create, graph: graph, visibleNodeIds: visibleNodeIds, routeByNum: routeByNum,
     toPlan: toPlan, validate: validate, routeLimit: routeLimit, routesInOrder: routesInOrder, stopLimit:stopLimit, routeFits:routeFits, routeRule:routeRule, canAssign:canAssign, addRoute: addRoute, updateRoute: updateRoute, deleteRoute: deleteRoute,

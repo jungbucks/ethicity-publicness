@@ -191,7 +191,8 @@ try {
     if (p === 3) {
       // ── 8번: 청원 그 뒤 — 청원이 말한 이동과 같은 기준 ──
       const f = await page.evaluate(() => { const s = PB.App.s, T = (q) => { const n = document.querySelector(q); return n ? n.textContent : null; }; return { fp: s.fixedPetition, chk: s.history[2].petitionCheck, then: T('#petition-then'), fail: T('#petition-fail'), same: T('#petition-same'), answer: T('#petition-answer'), ev2: s.history[1].petition, name: PB.App.nodeName(s.fixedPetition.zone), clock: PB.App.clock(s.fixedPetition.t) }; });
-      assert.equal(f.then, `청원이 말한 이동(${f.clock}까지 ${f.name}에서 출발한 요청 가운데 그때까지 도착하지 못한 이동): 2단계 ${f.fp.total}건 중 ${f.fp.count}건 → 3단계 ${f.chk.total}건 중 ${f.chk.count}건`);
+      /* 2026-11-12 랜덤 검토 4번: 청원 시각 숫자는 ‘참고’ 줄로(지표는 하루 끝 기준 하나) */
+      assert.equal(f.then, `참고 · 청원 시각(${f.clock})에 아직 도착 전이던 이동(버스 안에 있던 사람 포함): 2단계 ${f.fp.total}건 중 ${f.fp.count}건 → 3단계 ${f.chk.total}건 중 ${f.chk.count}건`);
       assert.deepEqual([f.ev2.total, f.ev2.count], [f.fp.total, f.fp.count], '청원 문장의 숫자와 같은 2단계 값'); assert.match(f.fail, /^하루가 끝났을 때 /); assert.equal(f.same, null, '노선을 바꿨으면 ‘바뀌지 않았어요’ 줄 없음');
       await page.locator('#petition-followup').scrollIntoViewIfNeeded(); await page.locator('#petition-followup').screenshot({ path: shot('result3-petition') });
       report.sentences.petition = [f.answer, f.then, f.fail]; log('8번 청원 그 뒤: ' + f.then);
