@@ -118,6 +118,7 @@ test('representative strategies: no-service is never rated, money above the rese
   assert.ok(loop.balance > bal.balance, '잔액은 순환이 더 많다(예비비를 넘은 쪽은 100점에서 멈춘다)');
   assert.equal(center.outer.split('/')[0], '0', '중심가 집중은 외곽 0건 완료가 따로 드러난다');
   [none, center, loop, bal].forEach((r) => assert.equal(r.N, none.N, '같은 시나리오면 평가 수요가 같다'));
-  const g = play({ mode: 'fixed', seed: 42 }, 'block-first'), d = play({ mode: 'fixed', seed: 42 }, 'balanced');
+  /* 2026-11-13 랜덤 재정 5,000원: 도전 모드에선 계획에 따라 계약이 일찍 끝나 단계 수(=분모)가 달라질 수 있다 → 같은 단계를 다 도는 기본 모드에서 본다 */
+  const g = play({ mode: 'default' }, 'block-first'), d = play({ mode: 'default' }, 'balanced');
   assert.equal(g.N, d.N); assert.ok(d.done > g.done && d.mobility >= g.mobility, '첫 이동을 막아도 분모가 줄지 않아 유리해지지 않는다');
 });
