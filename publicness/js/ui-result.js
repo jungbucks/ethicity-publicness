@@ -108,7 +108,8 @@
     if(!row)return null;
     if(f.rule==='balance-streak'){
       if(row.deficit)lines.push('이번 단계 회차 수지 '+App.won(row.total)+' — 적자예요.'+(row.balance>=0?' 모아 둔 잔액('+App.won(row.balance)+')으로 메웠어요.':''));
-      if(f.end&&f.end.cause==='contract'&&f.end.phase===h.phase){lines.push('누적 잔액이 '+f.limit+'회 연속 0원 미만('+App.won(row.balance)+')이라 운영 계약이 종료돼요. 이번 단계 결과와 정산을 확인한 뒤 종료 화면으로 넘어가요.');warn=true;}
+      if(f.end&&f.end.cause==='contract'&&f.end.phase===h.phase){lines.push((S.contractRule(f.end)==='deficit-count'?'이전 규칙(회차 적자 누적 3회)으로 운영 계약이 종료돼요.':'누적 잔액이 '+f.limit+'회 연속 0원 미만('+App.won(row.balance)+')이라 운영 계약이 종료돼요.')+' 이번 단계 결과와 정산을 확인한 뒤 종료 화면으로 넘어가요.');warn=true;}/* 예전 규칙 저장본은 제목·총평과 같은 판단(Session.contractRule)으로 그때 이유 */
+      else if(row.balance<0&&h.phase>=s.config.phases.length){lines.push('누적 잔액 '+App.won(row.balance)+' — 마지막 단계를 0원 미만으로 마쳐서 파산으로 끝나요. 이번 단계 결과와 정산을 확인한 뒤 종료 화면으로 넘어가요.');warn=true;}/* 2026-11-14 검토 3번: 마지막 단계엔 ‘다음 단계’가 없다 — 결말(Session.finalCause)과 같은 말 */
       else if(row.balance<0){lines.push('누적 잔액 '+App.won(row.balance)+' — 다음 단계를 마칠 때도 0원 미만이면 운영 계약이 종료돼요.');warn=true;}
     }else if(f.low)lines.push('보유 잔액 '+App.won(f.balance)+'. 기본 모드는 재정을 학기 말에 평가해요. 마지막 단계가 끝난 뒤 잔액이 0원 미만이면 파산으로 끝나요.');
     if(!lines.length)return null;

@@ -1,0 +1,11 @@
+/*
+ * 본문 글꼴 Pretendard를 게임 폴더에 싣는다(2026-11-14) — Pretendard가 깔리지 않은 PC(학교 Windows = 맑은 고딕)에서도 같은 글꼴·같은 글자 폭으로 그려지게.
+ * 파일: assets/fonts/Pretendard-*.subset.woff2 = npm pretendard@1.3.9 공식 서브셋 그대로(KS X 1001 한글 2,350자 + 라틴), SIL OFL 1.1 — assets/fonts/OFL-Pretendard.txt
+ * 'Pretendard' 이름으로 @font-face를 두면 PC에 깔린 Pretendard 대신 이 파일을 쓴다. 2,350자 밖 글자는 --font 목록의 다음 글꼴(맑은 고딕 등)로 넘어간다.
+ * 굵기: CSS가 쓰는 400·500·600·700·800 → 파일 넷(500은 가장 가까운 Regular로 — Medium 파일은 싣지 않음).
+ * 본문 굵기(400)는 index.html이 미리 받는다(http(s)일 때만 — file://에서는 미리 받기가 CORS 오류를 낸다. @font-face 자체는 file://에서도 읽힌다).
+ */
+@font-face { font-family: 'Pretendard'; src: url('../assets/fonts/Pretendard-Regular.subset.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Pretendard'; src: url('../assets/fonts/Pretendard-SemiBold.subset.woff2') format('woff2'); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Pretendard'; src: url('../assets/fonts/Pretendard-Bold.subset.woff2') format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Pretendard'; src: url('../assets/fonts/Pretendard-ExtraBold.subset.woff2') format('woff2'); font-weight: 800; font-style: normal; font-display: swap; }

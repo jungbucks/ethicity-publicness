@@ -4,7 +4,7 @@
  *   ethicity.result.publicness 결말 도달 시 쓰기(팀 공통) — {"game":"publicness","completed":true,"ending":null,"card":"…"}
  *   ethicity.publicness.sound  효과음 끔/켬('0'/'1'). 없으면 켜짐
  *   ethicity.publicness.speed  운행 재생 배속(1·2). 없으면 1, 예전 값 4는 2로 바꿔 둔다
- *   ethicity.publicness.save   진행 자동 저장 {version, savedAt, session} — 시나리오 버전이 다르면 버린다. 뼈대가 깨진 저장본은 이어하기로 주지 않는다(saveState 'broken')
+ *   ethicity.publicness.save   진행 자동 저장 {version, savedAt, session} — 받아 주는 버전(지금 버전 + config.SAVE_COMPAT)이 아니면 버린다. 뼈대가 깨진 저장본은 이어하기로 주지 않는다(saveState 'broken')
  *   ethicity.publicness.save.broken 깨진 저장본 원문 한 벌 — 새 게임이 덮어쓰기 전에 keepBroken이 옮겨 둔다(화면에서는 읽지 않음)
  *   ethicity.publicness.busHint 첫 버스 끌어 놓기 안내를 봤는지('1') — ui-map-plan.js가 직접 읽고 쓴다
  * 저장소가 막혔거나 손상됐으면 게임은 멈추지 않는다. 진행 저장(writeSave)의 성공 여부는 돌려주고, 화면이 알린다(App.save → #save-status).
@@ -68,13 +68,14 @@
     return plain(d) && Array.isArray(d.history) && plain(d.draft) && Array.isArray(d.draft.routes) && Array.isArray(d.draft.buses) &&
       typeof d.phase === 'number' && d.phase % 1 === 0 && d.phase >= 1 && typeof d.stage === 'string';
   }
+  /* version = 받아 주는 버전 하나, 또는 여러 개(배열 — 지금 버전 + config.SAVE_COMPAT, 2026-11-14: 버전을 올려도 구조가 같은 예전 저장본은 이어하기) */
   function saveState(version, s, valid) {
     var none = { state: 'none', save: null }, broken = { state: 'broken', save: null }, raw, o;
     try { var st = store(s); raw = st && st.getItem(SAVE_KEY); } catch (e) { return none; }
     if (!raw) return none;
     try { o = JSON.parse(raw); } catch (e) { return broken; }
     if (!plain(o)) return broken;
-    if (o.version !== version) return none;
+    if (Array.isArray(version) ? version.indexOf(o.version) < 0 : o.version !== version) return none;
     try { if (!skeleton(o.session) || (valid && !valid(o))) return broken; } catch (e) { return broken; }
     return { state: 'ok', save: o };
   }

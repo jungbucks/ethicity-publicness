@@ -6,7 +6,15 @@
 (function (root) {
   'use strict';
   var KEY = 'ethicity.publicness.stageRuns', MAX = 40;
-  function scenarioKey(s, version) { return [s.mode, s.seed, version || ''].join('|'); }
+  /* 비교 키 = 모드|세팅 번호|시나리오 버전(+ 랜덤·지정 세팅은 그 판의 기본 지원금 'b8000'). 2026-11-14 검토 4번:
+   * 랜덤·지정 세팅은 저장본이 그때 설정을 통째로 들고 이어 가서, 같은 버전 이름 아래에도 지원금이 다른 판이 있다(pb-3.1.0 안에서 10,000 → 5,000원).
+   * 같은 세팅·같은 계획인데 ‘+8,202원 → −1,798원 · 계획은 지난번과 같아요’처럼 재정 값이 다른 기록과 비교되지 않게 키에 붙인다.
+   * (버전만 있던 예전 키 '…|pb-3.1.0'의 랜덤 기록은 어느 지원금인지 알 수 없어 더는 비교에 안 나온다.) 기본 모드는 설정을 저장하지 않고 늘 지금 값이라 버전까지만 */
+  function scenarioKey(s, version) {
+    var k = [s.mode, s.seed, version || ''], F = s.mode !== 'default' && s.config && s.config.finance;
+    if (F && F.basePerBus != null) k.push('b' + F.basePerBus);
+    return k.join('|');
+  }
   function newId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
   // 결과 화면의 한 단계 요약. h = 그 단계 기록(history), draft = 출발한 계획(결과 화면에서는 아직 그대로)
   function summary(h, draft) {

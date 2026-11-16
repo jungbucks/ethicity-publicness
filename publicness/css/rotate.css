@@ -1,0 +1,32 @@
+/* 휴대폰 세로 화면 안내 창(js/rotate-ask.js, 2026-11-16) — 다른 확인 창(.dialog)과 같은 틀, 가운데 정렬만 다름 */
+.rotate-ask { width: min(20rem, calc(100vw - 32px)); padding: 24px 20px 20px; text-align: center; }
+.rotate-ask::backdrop { background: rgba(26, 29, 36, 0.6); }
+.rotate-ask h2 { margin: 12px 0 6px; font-size: var(--fs-title); line-height: 1.35; }
+.rotate-ask p { margin: 0; }
+.rotate-ask .rotate-ask-note { margin-top: 8px; font-size: 14px; line-height: 1.55; color: #5A6478; }
+.rotate-ask .row-actions { justify-content: center; margin-top: 16px; }
+.rotate-ask-pic { display: block; width: 96px; height: 72px; margin: 0 auto; }
+.rotate-ask-pic rect { fill: none; stroke-width: 3; }
+.rotate-ask-pic .ra-from { stroke: #B6BCC8; stroke-dasharray: 5 4; }
+.rotate-ask-pic .ra-to { stroke: var(--accent); fill: var(--accent-soft); }
+.rotate-ask-pic .ra-arrow { fill: none; stroke: var(--accent); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+
+/* 휴대폰 가로(높이 ≤ 500) 시작 화면(2026-11-16): 세로 안내 창이 가로로 돌리라고 하는데, 돌리면 그림만 보이고 제목·시작 버튼이 화면 아래로 밀려 있었다
+ * (폭 ≤ 1000 규칙 = 그림 위·안내 아래). 가로에서는 왼쪽 = 제목·세팅·시작(넘치면 그 칸만 스크롤, 시작 버튼은 늘 보임), 오른쪽 = 그림(인물 쪽 기준으로 채움) */
+@media (orientation: landscape) and (max-height: 500px) {
+  #screen-title { grid-template-columns: minmax(300px, 46%) minmax(0, 1fr); min-height: 0; height: 100svh; align-content: stretch; }
+  #screen-title .title-art { position: relative; inset: auto; order: 1; width: auto; height: 100svh; aspect-ratio: auto; min-height: 0; }
+  #screen-title .title-art img { object-fit: cover; object-position: 82% center; }
+  #screen-title .title-copy { order: 0; align-self: stretch; justify-self: stretch; width: auto; max-width: none; height: 100svh; margin: 0; overflow-y: auto; overscroll-behavior: contain;
+    padding: 12px 16px 10px max(16px, env(safe-area-inset-left)); background: #fff; border-radius: 0; box-shadow: none; }
+  #screen-title #title-sub { margin: 0 0 4px; font-size: 13px; }
+  #screen-title #title-h1 .bus-word { width: 230px; }
+  #screen-title #title-h1 .title-route { margin-top: 4px; margin-bottom: 2px; max-height: 18px; }
+  #screen-title .setting { margin: 6px 0 10px; padding: 4px 12px 6px; }
+  #screen-title .setting legend { font-size: 14px; }
+  #screen-title .setting .radio { padding: 4px 0; }
+  #screen-title .setting .mode-desc { font-size: 12px; line-height: 1.4; }
+  #screen-title .btn-lg { min-height: 46px; padding: 8px 18px; }
+  #screen-title #btn-start, #screen-title #btn-continue:not([hidden]) { position: sticky; bottom: 0; z-index: 1; box-shadow: 0 6px 0 #fff, 0 -6px 0 #fff; } /* 위아래만 흰 띠 — 옆 ‘설명 보기’ 테두리를 덮지 않게 */
+  #screen-title .app-version { margin-top: 6px; }
+}

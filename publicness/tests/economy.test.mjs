@@ -99,13 +99,15 @@ test('lease survives save/restore during planning without duplication; challenge
 });
 
 test('challenge: accumulated surplus can carry loss-making service; no-service and center-only cannot win on money', () => {
-  // 2026-11-13 랜덤 재정 5,000원(교사 결정): 도전 모드의 기준 계획 = tools/random-finance-1112.cjs '무난'(주요 인물 갈아타기 1번 안·대기 버스 모두 운행·임차 없음).
-  //   예전 econ-review 'balanced'는 도전 모드에서 이제 계약이 끝난다(덜 효율적인 계획 — 의도된 빡빡함). 기본 모드는 그대로 아래 반복에서 본다.
+  // 랜덤 재정 8,000원(2026-11-14 검토 2번, 5,000원에서 올림 — 교사 최종 확인 대기): 도전 모드의 기준 계획 = tools/random-finance-1112.cjs '무난'(주요 인물 갈아타기 1번 안·대기 버스 모두 운행·임차 없음).
+  //   5,000원에서는 이 대본만 계약을 지키고 AI '소외 지역' 제안·예전 균형 계획은 43%·77%가 계약 종료였다(README 「랜덤(도전) 재정」 표). 기본 모드는 그대로 아래 반복에서 본다.
   const T = require('../tools/random-finance-1112.cjs'), base = cfg.challenge.finance.basePerBus;
-  const mod = T.play(7, base, 'moderate'), late = T.play(7, base, 'heavyLate'), heavy = T.play(7, base, 'heavy');
-  assert.ok(mod.rows.some((r) => r.profit < 0), '적자 단계가 있는데도'); assert.ok(!mod.end || mod.end.cause !== 'contract', '모아 둔 흑자로 계약 유지');
-  assert.equal(late.end && late.end.cause, 'contract', '후반에 버스를 빌려 늘리면 계약 종료');
-  assert.equal(heavy.end && heavy.end.cause, 'contract', '매 단계 빌리면 계약 종료');
+  const mod = T.play(7, base, 'moderate'), late = T.play(7, base, 'heavyLate'), mid = T.play(7, base, 'heavyMid'), heavy = T.play(7, base, 'heavy');
+  assert.equal(mod.end.cause, 'complete', '무난한 계획은 계약 유지'); assert.equal(mod.rows.length, 8);
+  assert.ok(late.rows.filter((r) => r.profit < 0).length >= 2, '6~8단계에 2대씩 빌리면 적자 단계가 이어지는데도'); assert.equal(late.end.cause, 'complete', '모아 둔 흑자로 계약 유지');
+  assert.equal(mid.end && mid.end.cause, 'contract', '4단계부터 계속 빌려 늘리면 계약 종료'); assert.ok(mid.end.phase >= 6, '후반에 끝남');
+  assert.equal(heavy.end && heavy.end.cause, 'contract', '매 단계 빌리면 계약 종료'); assert.equal(heavy.end.phase, 2);
+  // (AI ‘소외 지역’ 제안·예전 균형 계획이 5,000원 → 8,000원에서 어떻게 달라지는지는 review-1114.test)
   const none = play({ mode: 'fixed', seed: 42 }, 'none');
   assert.ok(none.balance < 0 && none.end !== 'complete', '도전 모드: 무운행은 재정적으로도 실패');
   for (const opt of [{ mode: 'default' }]) {

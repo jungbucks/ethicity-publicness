@@ -10,6 +10,9 @@ try{
   for(const h of s.history)for(const r of Object.values(h.residents))if(r){r.dayStatus='complete';r.satisfied=true;r.homeT=110;}
   PB.App.go('ending');
  });
+ // 엔딩은 요약을 먼저 보여 주고(자동 재생 없음), 인물 반응 컷은 ‘인물 반응 다시 보기’로 연다(2026-11-14: 예전 기대 = 엔딩에 들어오면 컷이 바로 재생)
+ await page.locator('#ending-title').waitFor();assert.ok(!await page.locator('#goal-intro').evaluate(d=>d.open),'엔딩에 들어와도 컷이 저절로 열리지 않는다');
+ await page.locator('#btn-ending-replay').click();
  assert.equal(await page.locator('#goal-intro').getAttribute('data-scene'),'ending');
  for(const [index,name] of ['하늘','나래','준','솔','유나','다은'].entries()){
   assert.equal(await page.locator('#goal-intro-h').textContent(),name+' · 만족');await page.locator('#story-image').evaluate(img=>img.decode());

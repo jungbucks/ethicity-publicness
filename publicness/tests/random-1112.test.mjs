@@ -122,7 +122,7 @@ test('4번: 예전 저장본(사건 청원 답 필드 없음)도 그대로 이�
 
 // ── 5번: 랜덤 모드 전용 재정 손잡이(값은 그대로) ──
 test('5번: 랜덤 모드 기본 지원금은 config.challenge.finance에서만 — 기본 모드 재정 출력은 HEAD(6192c92)와 바이트까지 같다', () => {
-  assert.equal(cfg.challenge.finance.basePerBus, 5000, '랜덤 값 = 5,000원(2026-11-13 교사 결정)'); assert.equal(cfg.finance.basePerBus, 10000, '기본 모드는 10,000원 그대로');
+  assert.equal(cfg.challenge.finance.basePerBus, 8000, '랜덤 값 = 8,000원(2026-11-14 검토 2번, 교사 최종 확인 대기 — 전 5,000원)'); assert.equal(cfg.finance.basePerBus, 10000, '기본 모드는 10,000원 그대로');
   const keep = cfg.challenge.finance; cfg.challenge.finance = { basePerBus: 3000 };
   try {
     const r = S.create(cfg, { mode: 'random', seed: SEED }), d = S.create(cfg, { mode: 'default' });

@@ -127,7 +127,7 @@ try {
     const page = await fresh('no3d=1', { width: 360, height: 740 });
     await play(page, 2);
     const on = await page.evaluate(async () => { const c = document.querySelector('#opt-route-numbers'); c.checked = true; c.dispatchEvent(new Event('change')); await new Promise(r => setTimeout(r, 500)); return { caps: [...document.querySelectorAll('#net-layer .net-cap text:not(.cap-count)')].map(t => t.textContent), tab: document.querySelector('#route-1').textContent, handle: document.querySelector('#route-bus-1 .route-num').textContent }; });
-    assert.ok(on.caps.includes('1') && /1번/.test(on.tab) && on.handle === '1', '번호 표시 켬: ' + JSON.stringify(on));
+    assert.ok(on.caps.length === 0 && /1번/.test(on.tab) && on.handle === '1', '번호 표시 켬(손잡이·칩에만 — 노선 끝 점은 2026-11-16에 없앰): ' + JSON.stringify(on));
     const off = await page.evaluate(async () => { const c = document.querySelector('#opt-route-numbers'); c.checked = false; c.dispatchEvent(new Event('change')); await new Promise(r => setTimeout(r, 500)); return { caps: [...document.querySelectorAll('#net-layer .net-cap text:not(.cap-count)')].length, tab: document.querySelector('#route-1').textContent }; });
     assert.equal(off.caps, 0); assert.doesNotMatch(off.tab, /\d+번/);
     // 선 모양: 노선마다 다름(실선·이중선·점선·동글 점선)

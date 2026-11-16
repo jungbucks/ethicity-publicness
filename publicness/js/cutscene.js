@@ -38,7 +38,7 @@
     $('goal-intro').dataset.reduced=String(PB.App.reducedMotion());
     $('goal-intro-h').textContent=cut.name;$('story-count').textContent=(a.index+1)+' / '+a.cuts.length;
     $('story-full').textContent=cut.full||cut.text;a.text=cut.text;a.typed=0;$('story-typed').textContent='';
-    img.alt=cut.name==='솔잎마을의 AI'?'솔잎마을 전경':cut.name+'의 하루';img.dataset.fallback=cut.fallback||'';img.src='assets/art/'+cut.image;
+    img.alt=cut.name==='솔잎마을의 AI'?'솔잎마을 전경':cut.name+'의 하루';img.dataset.backup=cut.fallback||'';img.classList.remove('is-missing');img.src='assets/art/'+cut.image;
     img.classList.remove('story-fade');void img.offsetWidth;img.classList.add('story-fade');
     $('story-next').textContent=a.index===a.cuts.length-1?(a.kind==='ending'?'운행 기록 살펴보기':a.kind==='intro'?'솔잎마을의 첫 노선 만들기':a.kind==='baseball'?'터미널과 운동장 연결하기':a.kind==='mall'?'솔잎몰 연결하기':'신도시 연결하기'):'다음';
     $('btn-goal-start').textContent=a.kind==='ending'?'결과로 건너뛰기':a.kind==='intro'?'건너뛰고 시작':'건너뛰기';
@@ -75,7 +75,13 @@
       if(active&&active.onStage){if(IGNORE.indexOf(e.key)<0){e.preventDefault();if(!e.repeat)next();}return;}
       if(e.key==='ArrowRight'){e.preventDefault();if(!e.repeat)next();}
     });
-    $('story-image').addEventListener('error',function(){if(this.dataset.fallback){var fallback=this.dataset.fallback;this.dataset.fallback='';this.alt='솔잎마을 전경 · 새 인물 일러스트 준비 중';this.src='assets/art/'+fallback;}else this.alt='일러스트를 불러오지 못했어요. 대사를 읽고 계속할 수 있습니다.';});
+    /* 컷 그림을 못 불러왔을 때(2026-11-14 검토 1번): 예비 그림(cut.fallback → img.dataset.backup)으로 한 번만 바꿔 끼우고, 그것도 안 되면 그림 자리만 비운다(.is-missing — 깨진 그림 아이콘 대신 어두운 바탕, 대사는 그대로 읽고 넘어감).
+       이 그림은 img-fallback.js가 건드리지 않는다(index.html data-own-fallback). 전에는 두 파일이 같은 dataset.fallback을 써서 '1'을 파일 이름으로 읽어 끝없이 다시 요청했다. .is-missing은 다음 컷을 그릴 때(draw) 지운다 */
+    $('story-image').addEventListener('error',function(){
+      var backup=this.dataset.backup;
+      if(backup){this.dataset.backup='';this.alt='솔잎마을 전경 · 새 인물 일러스트 준비 중';this.src='assets/art/'+backup;}
+      else{this.alt='일러스트를 불러오지 못했어요. 대사를 읽고 계속할 수 있습니다.';this.classList.add('is-missing');}
+    });
   }
   // 다음 단계 컷 그림을 결과 화면에서 미리 받아 둔다(컷이 열릴 때 그림이 늦게 떠 어두운 화면만 보이지 않게)
   function preload(kind){(scenes[kind]||[]).forEach(function(c){var img=new Image();img.src='assets/art/'+c.image;});}

@@ -660,10 +660,18 @@
    * 회차 수지 = 그 단계 수입(지원금 기본+수행분 + 운임) − 비용(보유·임차·운영·연료) = metrics.costs.total
    * 보유 잔액 = 확정된 회차 수지의 합. 적자 = 회차 수지 < 0(정확히 0원은 적자 아님) — 경고·분석용 정보. 판정은 반올림 전 값으로 한다.
    * 기본: 중간에 멈추지 않고 마지막 단계 뒤 잔액 < 0이면 파산 엔딩.
-   * 랜덤(도전, 2026-10-27 개편): 지급 능력 기준 — 단계 정산 뒤 누적 잔액이 0원 미만인 채로 2번 연속이면 운영 계약 종료(1번째는 경고).
+   * 랜덤(도전, 2026-10-27 개편): 지급 능력 기준 — 단계 정산 뒤 누적 잔액이 0원 미만인 채로 2번 연속이면 운영 계약 종료(1번째는 경고). 마지막 단계 뒤 잔액 < 0이면 기본 모드처럼 파산(2026-11-14, finalCause).
    *   모아 둔 흑자로 적자 노선(외곽·병원)을 유지하는 운영은 계속할 수 있다. 예전 ‘적자 3회’ 규칙은 흑자가 쌓여 있어도 끝나 이 전략을 막았다. */
   var DEFICIT_LIMIT = 3, NEGATIVE_LIMIT = 2;
   function financeRule(s) { return s.mode === 'default' ? 'final-balance' : 'balance-streak'; }
+  /* 마지막 단계까지 마친 뒤의 결말 — 모드와 상관없이 이 한 곳(2026-11-14 검토 3번): 학기 말 누적 잔액이 0원 미만이면 'bankrupt'(파산), 0원 이상이면 'complete'(정확히 0원은 파산 아님).
+   * 전에는 기본 모드만 봐서, 랜덤(도전) 모드는 마지막 단계에 잔액이 처음 마이너스가 돼도 '무사 완주'(총평·금배지)였다. 계약 종료(2회 연속 마이너스)는 settle이 먼저 정하고 이 판정보다 앞선다 */
+  function finalCause(bal) { return bal < 0 ? 'bankrupt' : 'complete'; }
+  /* 계약 종료가 어느 규칙으로 났나(2026-11-13 검토) — 제목·총평·재정 돌아보기·결과 알림이 모두 이 한 곳으로 고른다(따로 판단하면 서로 어긋남).
+   * 지금 규칙 'balance-streak' = 끝날 때 누적 잔액 < 0. 잔액이 남은 채 끝났으면 예전 ‘적자 3회’ 규칙 저장본 'deficit-count'. 계약 종료가 아니면 null */
+  function contractRule(end) { return !end || end.cause !== 'contract' ? null : end.balance >= 0 ? 'deficit-count' : 'balance-streak'; }
+  /* 지금 규칙으로 끝났을 때 누적 잔액이 마이너스였던 연속 단계(NEGATIVE_LIMIT 2 → [끝난 단계 − 1, 끝난 단계]). 단계를 모르면 [] */
+  function contractPhases(end) { var out = []; if (!end || typeof end.phase !== 'number') return out; for (var p = Math.max(1, end.phase - NEGATIVE_LIMIT + 1); p <= end.phase; p++) out.push(p); return out; }
   function balance(s) { return s.history.reduce(function (a, h) { return a + h.metrics.costs.total; }, 0); }
   function ledgerRow(k, phase, before) {
     var c = Metrics.costParts(k); // 예전 저장본(move)·새 항목(임차료·연료비) 모두
@@ -724,7 +732,7 @@
     if (s.end && s.end.cause === 'contract') { s.stage = 'ending'; return true; }
     if (s.phase >= s.config.phases.length) {
       var bal = balance(s);
-      s.end = { cause: financeRule(s) === 'final-balance' && bal < 0 ? 'bankrupt' : 'complete', phase: s.phase, balance: bal };
+      s.end = { cause: finalCause(bal), phase: s.phase, balance: bal };
       s.stage = 'ending'; return true;
     }
     s.phase++;
@@ -782,7 +790,9 @@
     if (s.negStreak == null) s.negStreak = (s.ledger || []).reduce(function (k, r) { return r.balance < 0 ? k + 1 : 0; }, 0);
     s.history.forEach(function (h) { rescore(s, h); });
     migrateTransition(s);
-    if (s.stage === 'ending' && !s.end) { var bal = balance(s); s.end = { cause: financeRule(s) === 'final-balance' && bal < 0 ? 'bankrupt' : 'complete', phase: s.phase, balance: bal }; }
+    if (s.stage === 'ending' && !s.end) { var bal = balance(s); s.end = { cause: finalCause(bal), phase: s.phase, balance: bal }; }
+    /* 이 수정 전에 끝난 랜덤(도전) 저장본: 잔액이 마이너스인데 'complete'로 적힌 결말은 지금 판정(finalCause)으로 읽는다 — 제목·총평·보고서·금배지가 같은 말을 하게 */
+    if (s.end && s.end.cause === 'complete' && finalCause(balance(s)) === 'bankrupt') s.end.cause = 'bankrupt';
     return s;
   }
 
@@ -811,7 +821,7 @@
     checkSave: checkSave, safeRestore: safeRestore,
     elderChoice: elderChoice, petitionAt: petitionAt, petitionZoneAt: petitionZoneAt, rideRequests: rideRequests, aiView: aiView,
     departChecks:departChecks,residentTransfers:residentTransfers,routeGaps:routeGaps,routeCycle:routeCycle,routeHeadway:routeHeadway,dayInputs:dayInputs,midStatus:midStatus,midRoute:midRoute,midApply:midApply,runningRoutes:runningRoutes,routeBuses:routeBuses,emergencyDecision:emergencyDecision,EMERGENCY_AT:EMERGENCY_AT,busRouteAt:busRouteAt,emergencyPreview:emergencyPreview,emergencyImpact:emergencyImpact,routeNumOf:routeNumOf,
-    serialize: serialize, restore: restore, migrateTransition: migrateTransition, CHOICES: CHOICES, choiceKey: choiceKey, scoresOverall: scoresOverall, rescore: rescore, financeRule: financeRule, financeStatus: financeStatus, balance: balance, DEFICIT_LIMIT: DEFICIT_LIMIT, NEGATIVE_LIMIT: NEGATIVE_LIMIT, residentVerdict: residentVerdict, tripLimit: tripLimit, expectedRun: expectedRun,
+    serialize: serialize, restore: restore, migrateTransition: migrateTransition, CHOICES: CHOICES, choiceKey: choiceKey, scoresOverall: scoresOverall, rescore: rescore, financeRule: financeRule, finalCause: finalCause, contractRule: contractRule, contractPhases: contractPhases, financeStatus: financeStatus, balance: balance, DEFICIT_LIMIT: DEFICIT_LIMIT, NEGATIVE_LIMIT: NEGATIVE_LIMIT, residentVerdict: residentVerdict, tripLimit: tripLimit, expectedRun: expectedRun,
     parseSeedParam: parseSeedParam, create: create, graph: graph, visibleNodeIds: visibleNodeIds, routeByNum: routeByNum,
     toPlan: toPlan, validate: validate, routeLimit: routeLimit, routesInOrder: routesInOrder, stopLimit:stopLimit, routeFits:routeFits, routeRule:routeRule, canAssign:canAssign, addRoute: addRoute, updateRoute: updateRoute, deleteRoute: deleteRoute,
     assign: assign, lease: lease, unlease: unlease, leaseLimit: leaseLimit, leasedBuses: leasedBuses, LEASE_BASE: LEASE_BASE, restingFor: restingFor, autoPlace: autoPlace, busCost: busCost, typicalBusCost: typicalBusCost, setOffset: setOffset, beginPlan: beginPlan, introduceFourth: introduceFourth,

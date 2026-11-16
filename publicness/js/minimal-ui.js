@@ -11,7 +11,7 @@
   service:function(){var c=cfgNow(),F=c.finance.service,s=PB.App&&PB.App.s,list=F.stops.filter(function(x){return !s||x.fromPhase<=s.phase;}).map(function(x){return x.label;});return list.join('·')+'에 버스가 '+F.minStops+'번 이상 서면 곳마다 '+won(F.amount)+'을 받아요.';},
   lease:'빌린 버스는 이번 단계만 써요.',
   subsidy:function(){var F=cfgNow().finance;return '기본 지원은 버스 1대에 '+won(F.basePerBus)+', 보유비는 1대에 '+won(F.holding)+'이에요.';},
-  finance:function(){var s=PB.App&&PB.App.s;return s&&PB.Session.financeRule(s)==='balance-streak'?'누적 잔액이 '+PB.Session.NEGATIVE_LIMIT+'번 연속 0원 미만이면 운영 계약이 끝나요.':'마지막 단계가 끝난 뒤 누적 잔액이 0원 미만이면 파산이에요.';},
+  finance:function(){var s=PB.App&&PB.App.s;return s&&PB.Session.financeRule(s)==='balance-streak'?'누적 잔액이 '+PB.Session.NEGATIVE_LIMIT+'번 연속 0원 미만이면 운영 계약이 끝나요. 마지막 단계가 끝난 뒤 0원 미만이어도 파산이에요.':'마지막 단계가 끝난 뒤 누적 잔액이 0원 미만이면 파산이에요.';},
   wait:function(){var c=cfgNow();return c.service&&c.service.maxWait!=null?'한 번 이동에 '+PB.Demand.duration(c,c.service.maxWait)+' 넘게 기다리면 그날은 세지 않아요.':'';},
   river:function(){var R=cfgNow().river;return R?'강을 건너는 구간은 다리로 돌아가서, 지도에서 보는 것보다 '+R.factor+'배 오래 걸려요.':'';},
   phaseCost:function(){var s=PB.App&&PB.App.s,F=cfgNow().finance,n=s&&PB.App.phaseChanges?PB.App.phaseChanges(s).buses:0;return n>0?'예상 수지가 달라졌어요: 새 버스 '+n+'대 보유비 −'+won(F.holding*n)+' · 기본 지원 +'+won(F.basePerBus*n)+'.':'';},

@@ -212,10 +212,12 @@ body.rail[data-screen="plan"] #panel { display: none; }
 body.rail.minimal-ui:not(.minimal-text):not(.minimal-emergency).run-drawer[data-screen=run] #panel:not(:has(#emergency-dialog)) { position: static; width: auto; max-height: none; box-shadow: none; }
 body.rail #emergency-dialog { position: static; width: auto; max-width: none; margin: 0; padding: 0; border: 0; }
 body.rail[data-screen="plan"] #plan-ai-popover { grid-area: slot; position: static; width: auto; max-height: none; min-height: 0; box-shadow: none; z-index: auto; }
-/* 인물 칩: 줄바꿈(가로 스크롤 없음). 오른쪽 칸은 2열 압축형 — 얼굴·이름·누적 / 시각·구간 */
+/* 인물 칩: 줄바꿈(가로 스크롤 없음). 오른쪽 칸은 2열 압축형 — 얼굴·이름·누적 / 시각·구간
+   2026-11-14: 칸 사이 5px → 3px·오른쪽 여백 8px → 6px — 맑은 고딕(Pretendard 없는 PC)에서 ‘주거지→대학교’가 3px 차이로 두 줄이 되어 칩마다 한 줄씩 높아지고,
+   그만큼 4단계 정책 카드 자리가 줄던 것(1280×800). 글자 크기는 그대로 */
 .people-hud-row { flex-wrap: wrap; overflow-x: visible; }
 body.rail .people-hud-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 0; }
-body.rail .person-chip { display: grid; grid-template-columns: 26px auto minmax(0, 1fr) auto; grid-template-areas: "face name name count" "face time trip trip"; align-items: center; column-gap: 5px; row-gap: 0; min-width: 0; width: 100%; min-height: 44px; padding: 3px 8px 3px 3px; border-radius: 12px; font-size: 12px; line-height: 1.3; text-align: left; white-space: normal; }
+body.rail .person-chip { display: grid; grid-template-columns: 26px auto minmax(0, 1fr) auto; grid-template-areas: "face name name count" "face time trip trip"; align-items: center; column-gap: 3px; row-gap: 0; min-width: 0; width: 100%; min-height: 44px; padding: 3px 6px 3px 3px; border-radius: 12px; font-size: 12px; line-height: 1.3; text-align: left; white-space: normal; }
 body.rail .person-chip-face { grid-area: face; width: 26px; height: 26px; }
 body.rail .person-chip > b { grid-area: name; font-size: 13px; }
 body.rail .person-chip-count { grid-area: count; justify-self: end; }

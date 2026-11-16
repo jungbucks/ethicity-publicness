@@ -351,6 +351,8 @@ body.story-open { overflow: hidden; }
 .story-dialog { padding: 0; border: 0; margin: 0; width: 100vw; max-width: none; height: 100dvh; max-height: none; background: #101923; color: #fff; overflow: auto; }
 .story-dialog::backdrop { background: #000; }
 .story-image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+/* 컷 그림도 예비 그림도 못 불러온 컷(js/cutscene.js): 깨진 그림 아이콘 대신 어두운 바탕만 — 자리는 그대로 둬서(세로 화면 16:9 칸) 대사 위치가 안 바뀐다 */
+.story-image.is-missing { visibility: hidden; }
 .story-tools { position: absolute; top: max(16px, env(safe-area-inset-top)); left: 24px; right: 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .story-tools #story-count { background: #17212de6; padding: 4px 12px; border-radius: 6px; }
 .story-tools .btn { color: #fff; background: #17212de6; border-color: #a4adb8; }

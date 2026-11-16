@@ -68,6 +68,6 @@ test('keepBroken: 새로 시작하기 전에 깨진 원본을 따로 남긴다',
 test('화면 연결: 이어하기는 검사한 저장본만, 되살리기는 safeRestore로', () => {
   const app=read('js/app.js');
   assert.match(app,/S\.safeRestore\(saved\.session, cfg\)/);assert.doesNotMatch(app,/S\.restore\(/);
-  assert.match(app,/PB\.Storage\.saveState\(cfg\.SCENARIO_VERSION, null, validSave\)/);
+  assert.match(app,/PB\.Storage\.saveState\(SAVE_VERSIONS, null, validSave\)/);assert.match(app,/var SAVE_VERSIONS = \[cfg\.SCENARIO_VERSION\]\.concat\(cfg\.SAVE_COMPAT \|\| \[\]\)/,'지금 버전 + 받아 주는 예전 버전');
   assert.doesNotMatch(app,/PB\.Storage\.readSave\(cfg\.SCENARIO_VERSION\)/,'검사 없이 읽지 않는다');
 });

@@ -218,6 +218,13 @@
     });
   }
   function won(n){var r=Math.round(n);return (n<0?'−':'')+(r===0&&n<0?'1':Math.abs(r).toLocaleString('ko-KR'))+'원'+(r===0&&n<0?' 미만':'');}
+  /* 계약 종료 이유 한 문장(2026-11-13 검토: 총평이 지금 규칙과 달리 ‘적자 누적 세 번’이라 했다). 어느 규칙인지는 Session.contractRule 한 곳 —
+     제목(App.contractTitle)·재정 돌아보기(#failure-cause)·결과 알림(#finance-status)과 같은 판단. 예전 규칙 저장본은 그때 문장 그대로 */
+  function contractCause(end){
+    if(Session.contractRule(end)==='deficit-count')return '단계 적자가 누적 세 번 쌓여 운영 계약이 종료됐어요.';
+    var ph=Session.contractPhases(end);
+    return (ph.length>1?ph.join('·')+'단계를 마칠 때 ':'')+'누적 잔액이 '+Session.NEGATIVE_LIMIT+'회 연속 0원 미만이어서 운영 계약이 종료됐어요.';
+  }
   function endingConclusion(reactions,history,end){
     var allSatisfied=reactions.length>0&&reactions.every(function(r){return r.satisfied;});
     var profit=history.reduce(function(total,h){return total+h.metrics.costs.total;},0);
@@ -225,7 +232,7 @@
     var verdict=allSatisfied?'다양한 사람들을 만족시켰어요.':'도시 노선을 나름 잘 설계했어요. 하지만 이게 최선이었을까요?';
     var happy=reactions.filter(function(r){return r.satisfied;}).length,who=reactions.length?'주요 인물 '+reactions.length+'명 중 '+happy+'명이 만족했지만, ':'';
     if(end&&end.cause==='bankrupt')verdict=who+'학기 말 잔액이 '+won(profit)+'이라 파산했어요. 주민의 이동은 지키면서 운영 비용을 다시 설계해 봐요.';
-    else if(end&&end.cause==='contract')verdict='단계 적자가 누적 세 번 쌓여 운영 계약이 종료됐어요. 그동안 주민이 해낸 이동은 기록에 남아 있어요. 어디서 돈이 나갔는지부터 다시 봐요.';
+    else if(end&&end.cause==='contract')verdict=contractCause(end)+' 그동안 주민이 해낸 이동은 기록에 남아 있어요. 어디서 돈이 나갔는지부터 다시 봐요.';
     return {name:'솔잎마을의 한 학기',image:'intro-village.webp',allSatisfied:allSatisfied,profit:profit,verdict:verdict,text:verdict+'\n'+(end&&end.cause&&end.cause!=='complete'?'보유 잔액 ':'누적 잔액 ')+won(profit)+'\n지원금·운임에서 운영 비용을 뺀 '+history.length+'단계 합계'};
   }
   // 결과 카드: 판정(Session.residentVerdict — 출발 경고와 같은 기준)과 구간별 상태
@@ -397,7 +404,7 @@
     if (worst) return head + legText(worst, worst === back ? backLabel : outLabel) + (Evaluation.overWait(config, worst.waitTotal) ? ', 기준 ' + dur(sv.maxWait) + ' 넘김' : '');
     return head + ((rec.reasons || [])[0] ? rec.reasons[0].text : '이동을 마치지 못했어요.');
   }
-  var api = { tallyText: tallyText, criterionState: criterionState, mergeRepeats: mergeRepeats, bridgeLine: bridgeLine, thinkFocus: thinkFocus, residentLine: residentLine, THEME: THEME, won:won, financeReview:financeReview, josa:josa, josaNote:josaNote, residentResult:residentResult,satisfactionTargets:satisfactionTargets,satisfactionText:satisfactionText,residentTally:residentTally,endingReactions:endingReactions,endingConclusion:endingConclusion, fill: fill, bubbles: bubbles, residentStory: residentStory, zoneSubtitleText: zoneSubtitleText, hookLines: hookLines, nodeName: nodeName };
+  var api = { tallyText: tallyText, criterionState: criterionState, mergeRepeats: mergeRepeats, bridgeLine: bridgeLine, thinkFocus: thinkFocus, residentLine: residentLine, THEME: THEME, won:won, financeReview:financeReview, josa:josa, josaNote:josaNote, residentResult:residentResult,satisfactionTargets:satisfactionTargets,satisfactionText:satisfactionText,residentTally:residentTally,endingReactions:endingReactions,endingConclusion:endingConclusion,contractCause:contractCause, fill: fill, bubbles: bubbles, residentStory: residentStory, zoneSubtitleText: zoneSubtitleText, hookLines: hookLines, nodeName: nodeName };
   root.PB = root.PB || {};
   root.PB.Narrative = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

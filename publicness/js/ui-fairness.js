@@ -33,7 +33,10 @@
     /* 2026-11-11 플레이테스트 3: ‘…골라야 출발할 수 있어요’ 줄은 카드 맨 아래 한 줄(저장 상태와 같은 줄) 안에 둔다 — 따로 떨어진 줄이 넓은 화면 격자에 새 줄을 만들어
      * 노선 탭을 지도 밑으로 밀던 것. 이 줄은 늘 한 줄 높이를 차지하므로(css .fair-foot) 고르기 전후로 카드 높이가 바뀌지 않는다 */
     var foot = App.el('div', { 'class': 'fair-foot' }), req = required(App, s);
-    if (req) foot.appendChild(req); foot.appendChild(status); wrap.appendChild(foot);
+    /* 2026-11-14: 고른 뒤에는 안내 줄과 같은 글을 보이지 않게 남겨 그 높이를 지킨다(css .fair-foot.is-kept) — 글꼴이 넓은 PC(맑은 고딕)·좁은 칸에서 안내가 두 줄이면
+     * 고르는 순간 카드가 한 줄만큼 줄어 방금 누른 선택 버튼·이유 칸이 아래로 밀렸다. 저장 상태는 그 자리에 겹쳐 보인다 */
+    if (req) foot.appendChild(req); else { foot.className += ' is-kept'; foot.appendChild(App.el('p', { 'class': 'note fair-required fair-foot-keep', 'aria-hidden': 'true' }, LABELS[kind].need)); } /* 안내 줄(required)과 같은 p — 카드 p 줄 간격·여백까지 같게 */
+    foot.appendChild(status); wrap.appendChild(foot);
     return wrap;
   }
   function shell(App, id, title) {

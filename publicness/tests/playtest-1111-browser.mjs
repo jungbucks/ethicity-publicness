@@ -1,7 +1,8 @@
 // 2026-11-11 교사 플레이테스트 지적 13건 완료 확인 — 기본 모드 · 시드 42 · 1280×800 · ‘무난한 노선’(tests/playtest-1111-plan.cjs)으로 1~5단계 끝까지
 //  결과 화면마다: 1번(못 간 이동 0건인 곳을 살펴볼 곳으로 안 짚음 · 같은 질문 한 번) · 2번(추천 노선의 정류장 ⊂ 그 단계에 보이는 정류장 · 화살표 앞 숫자가 기준과 무관하게 같음 · 표시 이름) · 10·11번
-//  3·4단계 계획 화면: 답 고르기 전·후 × 1280×800 · 1148×977에서 노선 탭 위쪽 ≥ 지도 캔버스 아래쪽(3번), ‘왜냐하면’ 한 줄·마침표 없음(12번)
-//  그 밖에: 4번 유나·다은 칩 · 5번 파랑 · 6번 운행 시작 문장과 11:00 한 번 멈춤 · 7번 노선 탭 간격·출발 확인 요약 · 8번 청원 그 뒤 · 9번 AI 패널 표·닫기 · 13번 엔딩 · 버전 표시
+//  3·4단계 계획 화면: 답 고르기 전·후 × 1280×800 · 1148×977 × (페이지 글꼴 · Pretendard 없음)에서 노선 탭 위쪽 ≥ 지도 캔버스 아래쪽(3번), 카드 안 스크롤·가로 넘침 없음, ‘왜냐하면’ 한 줄·마침표 없음(12번)
+//  운행: 1단계 운행에서 2×를 실제로 눌러 고르고, 3·4단계 운행이 그 2×로 시작해 11:00에 한 번 서는지 본다(6번)
+//  그 밖에: 4번 유나·다은 칩 · 5번 파랑 · 6번 운행 시작 문장과 11:00 한 번 멈춤 · 7번 노선 탭 간격·출발 확인 요약 · 8번 청원 그 뒤 · 9번 AI 패널 표·닫기 · 13번 엔딩 · 버전 표시 · 첫 화면 글자 = 게임이 실은 웹 글꼴 Pretendard(2026-11-14)
 // 실행: PLAYWRIGHT_MODULE=… node publicness/tests/playtest-1111-browser.mjs   (브라우저는 한 번에 하나: D:/Works/.browser-test.lock) · 스크린샷 = SHOT_DIR(기본 publicness/tests)/_shot-pt1111-*.png
 import { createRequire } from 'node:module'; import assert from 'node:assert/strict'; import { startServer } from './serve.mjs';
 const require = createRequire(import.meta.url), { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright'), server = await startServer(0);
@@ -10,11 +11,40 @@ const browser = await chromium.launch({ channel: 'msedge', headless: true, args:
 const base = `http://127.0.0.1:${server.address().port}/publicness/`, SHOT = process.env.SHOT_DIR || 'publicness/tests', shot = (n) => `${SHOT}/_shot-pt1111-${n}.png`;
 const SIZES = [[1280, 800], [1148, 977]], log = (m) => console.log('  ok ' + m), report = { finance: [], sentences: {} };
 const batchim = (w) => { const c = w.charCodeAt(w.length - 1); return c >= 0xac00 && c <= 0xd7a3 && (c - 0xac00) % 28 !== 0; };
+/* 2026-11-14: 웹 글꼴을 싣기 전에는 본문이 'PC에 깔린 Pretendard, 없으면 맑은 고딕'이라 Pretendard가 없는 PC(학교 Windows, 샌드박스 실행)에서 글자가 넓어
+ * 4단계 정책 카드가 칸보다 63px 길었다(카드 안 스크롤, 맨 아래 고정이라 질문 제목·사실 줄이 가려짐). 그래서 3·4단계 카드 검사는 페이지 글꼴 한 번 + Pretendard를 뺀 글꼴 한 번.
+ * 같은 날 Pretendard 웹 글꼴을 게임에 실었다(css/pretendard.css) — 이제 'fallback'은 웹 글꼴을 못 읽었을 때(맑은 고딕)를 흉내 낸다. 웹 글꼴로 그려지는지는 begin의 webFont */
+const FALLBACK_FONT = ':root{--font:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif !important}', FONTS = ['page', 'fallback'], FONT_TAG = { page: '', fallback: ' · Pretendard 없음(맑은 고딕)' };
+// 화면 글자가 게임이 실은 웹 글꼴 Pretendard로 그려졌나(PC에 깔린 Pretendard·맑은 고딕이 아니라) — 그려진 글자의 실제 글꼴을 브라우저(CDP getPlatformFontsForNode)에 묻는다.
+// document.fonts.check('16px Pretendard')는 쓰지 않는다 — 웹 글꼴이 없어도 true(정의된 face가 없으면 '쓸 수 있음'으로 셈)
+async function webFont(page, sels) {
+  await page.evaluate(() => document.fonts.ready);
+  const cdp = await page.context().newCDPSession(page);
+  try {
+    await cdp.send('DOM.enable'); await cdp.send('CSS.enable');
+    const { root } = await cdp.send('DOM.getDocument', { depth: 0 }), out = [];
+    for (const sel of sels) {
+      const { nodeId } = await cdp.send('DOM.querySelector', { nodeId: root.nodeId, selector: sel });
+      const { fonts } = nodeId ? await cdp.send('CSS.getPlatformFontsForNode', { nodeId }) : { fonts: [] };
+      const main = fonts.slice().sort((a, b) => b.glyphCount - a.glyphCount)[0];
+      const weight = await page.evaluate((s) => { const e = document.querySelector(s); return e ? getComputedStyle(e).fontWeight : null; }, sel);
+      out.push({ sel, weight, font: main ? (main.postScriptName || main.familyName) + (main.isCustomFont ? ' (웹 글꼴)' : ' (PC 글꼴)') : null, web: !!main && /^Pretendard( |$)/.test(main.familyName) && main.isCustomFont });
+    }
+    const faces = await page.evaluate(() => [...document.fonts].filter((f) => f.family.replace(/["']/g, '') === 'Pretendard' && f.status === 'loaded').map((f) => f.weight));
+    return { ok: out.every((x) => x.web) && faces.includes('400'), faces, out };
+  } finally { await cdp.detach(); }
+}
+const useFont = (page, font) => page.evaluate(([on, css]) => { let st = document.getElementById('pt1111-font'); if (on && !st) { st = document.createElement('style'); st.id = 'pt1111-font'; st.textContent = css; document.head.appendChild(st); } if (!on && st) st.remove(); }, [font === 'fallback', FALLBACK_FONT]);
 async function begin(page) {
   await page.goto(base + '?no3d=1'); await page.evaluate(() => localStorage.clear()); await page.reload();
   assert.equal(await page.locator('#title-version').innerText(), '버전 ' + await page.evaluate(() => PB.config.SCENARIO_VERSION), '첫 화면에 버전');
   assert.ok(await page.locator('#title-version').isVisible(), '간단 화면에서도 버전이 보임');
-  if (begin.shot) { await page.screenshot({ path: shot('title') }); begin.shot = false; }
+  if (begin.shot) {
+    const f = await webFont(page, ['#title-version', '#btn-start']);
+    assert.ok(f.ok, '첫 화면 글자가 실은 웹 글꼴 Pretendard ' + JSON.stringify(f));
+    log('글꼴: ' + f.out.map((x) => `${x.sel} ${x.weight} ${x.font}`).join(' · ') + ' · 읽은 굵기 ' + f.faces.join(','));
+    await page.screenshot({ path: shot('title') }); begin.shot = false;
+  }
   await page.locator('#btn-start').click();
   while (await page.locator('#goal-intro').evaluate((d) => d.open)) { if (await page.locator('#goal-intro').getAttribute('data-stage') === 'true') await page.keyboard.press('Enter'); else await page.locator('#btn-goal-start').click(); }
 }
@@ -28,7 +58,8 @@ const frame = (page) => page.evaluate(() => {
   const depart = document.querySelector('#btn-depart').getBoundingClientRect(), undo = document.querySelector('#btn-undo').getBoundingClientRect();
   return { stageBottom: Math.round(st.bottom), tabTop: Math.round(Math.min(...tabs.map((r) => r.top))), tabBottom: Math.round(Math.max(...tabs.map((r) => r.bottom))), undoTop: Math.round(undo.top), inner: innerHeight, rail: document.body.classList.contains('rail'),
     banners: document.querySelectorAll('#map-strip > *').length, card: cr ? { top: Math.round(cr.top), bottom: Math.round(cr.bottom), h: Math.round(cr.height), scroll: card.scrollHeight > card.clientHeight + 1, right: Math.round(cr.right) } : null,
-    reqIn: !!req && !!req.closest('.fair-card'), reqText: req ? req.textContent : null, departTop: Math.round(depart.top), departDisabled: document.querySelector('#btn-depart').disabled, docScroll: document.documentElement.scrollHeight > innerHeight + 1 };
+    reqIn: !!req && !!req.closest('.fair-card'), reqText: req ? req.textContent : null, departTop: Math.round(depart.top), departDisabled: document.querySelector('#btn-depart').disabled, docScroll: document.documentElement.scrollHeight > innerHeight + 1,
+    hScroll: document.documentElement.scrollWidth > innerWidth + 1 || (!!card && card.scrollWidth > card.clientWidth + 1) };
 });
 function tabsClear(f, label) {
   assert.ok(f.rail, label + ': 넓은 화면 배치'); assert.ok(f.tabTop >= f.stageBottom, `${label}: 노선 탭 위쪽(${f.tabTop}) ≥ 지도 캔버스 아래쪽(${f.stageBottom})`);
@@ -115,7 +146,12 @@ try {
       }
       await waitBannersGone(page); await page.waitForTimeout(400);
       const before = {};
-      for (const [w, h] of SIZES) { await page.setViewportSize({ width: w, height: h }); await page.waitForTimeout(1300); before[w] = await frame(page); tabsClear(before[w], `${p}단계 고르기 전 ${w}×${h}`); assert.equal(before[w].card.scroll, false, `${p}단계 ${w}×${h}: 카드가 칸 안에 다 보임(카드 안 스크롤 없음)`); assert.equal(before[w].docScroll, false, `${p}단계 ${w}: 페이지 세로 스크롤 없음`); await page.screenshot({ path: shot(`plan${p}-before-${w}`) }); }
+      for (const font of FONTS) for (const [w, h] of SIZES) {
+        await useFont(page, font); await page.setViewportSize({ width: w, height: h }); await page.waitForTimeout(1300); const k = w + font, tag = `${p}단계 ${w}×${h}${FONT_TAG[font]}`;
+        before[k] = await frame(page); tabsClear(before[k], `고르기 전 ${tag}`); assert.equal(before[k].card.scroll, false, `${tag}: 카드가 칸 안에 다 보임(카드 안 스크롤 없음)`); assert.equal(before[k].docScroll, false, `${tag}: 페이지 세로 스크롤 없음`); assert.equal(before[k].hScroll, false, `${tag}: 가로 넘침 없음(페이지·카드)`);
+        await page.screenshot({ path: shot(`plan${p}-before-${w}${font === 'page' ? '' : '-' + font}`) });
+      }
+      await useFont(page, 'page');
       // ── 12번: ‘왜냐하면’ 한 줄, 마침표 없음 ──
       const why = await page.evaluate((kind) => { const l = document.querySelector('.fair-why'), lab = l.querySelector('.fair-why-label'), r = lab.getBoundingClientRect(), i = document.querySelector('#' + kind + '-why').getBoundingClientRect(), cs = getComputedStyle(lab); return { text: l.textContent, lines: Math.round(r.height / parseFloat(cs.lineHeight)), sameRow: Math.abs((r.top + r.bottom) / 2 - (i.top + i.bottom) / 2) < 12, inputW: Math.round(i.width) }; }, kind);
       assert.equal(why.text, '왜냐하면', p + '단계: 입력 칸 뒤 마침표 없음'); assert.equal(why.lines, 1, p + '단계: ‘왜냐하면’ 한 줄'); assert.ok(why.sameRow && why.inputW > 120, JSON.stringify(why));
@@ -123,9 +159,13 @@ try {
       await page.setViewportSize({ width: 1280, height: 800 }); await page.waitForTimeout(1300);
       await page.locator(pickId).click(); assert.equal(await page.locator(pickId).getAttribute('aria-pressed'), 'true', p + '단계: 답 고름');
       assert.equal(await page.locator('#choice-required').count(), 0); assert.equal(await page.locator('#btn-depart').isDisabled(), false);
-      for (const [w, h] of SIZES) { await page.setViewportSize({ width: w, height: h }); await page.waitForTimeout(1300); const f = await frame(page); tabsClear(f, `${p}단계 고른 뒤 ${w}×${h}`); assert.equal(f.card.h, before[w].card.h, `${p}단계 ${w}: 고르기 전후 카드 높이 같음`); assert.equal(f.card.bottom, before[w].card.bottom, '카드 아래쪽 제자리'); await page.screenshot({ path: shot(`plan${p}-after-${w}`) }); }
-      await page.setViewportSize({ width: 1280, height: 800 }); await page.waitForTimeout(1300);
-      report['card' + p] = { before: before[1280].card, before1148: before[1148].card };
+      for (const font of FONTS) for (const [w, h] of SIZES) {
+        await useFont(page, font); await page.setViewportSize({ width: w, height: h }); await page.waitForTimeout(1300); const k = w + font, tag = `${p}단계 ${w}×${h}${FONT_TAG[font]}`, f = await frame(page);
+        tabsClear(f, `고른 뒤 ${tag}`); assert.equal(f.card.h, before[k].card.h, `${tag}: 고르기 전후 카드 높이 같음`); assert.equal(f.card.bottom, before[k].card.bottom, `${tag}: 카드 아래쪽 제자리`); assert.equal(f.card.scroll, false, `${tag}: 고른 뒤에도 카드 안 스크롤 없음`); assert.equal(f.hScroll, false, `${tag}: 고른 뒤 가로 넘침 없음`);
+        await page.screenshot({ path: shot(`plan${p}-after-${w}${font === 'page' ? '' : '-' + font}`) });
+      }
+      await useFont(page, 'page'); await page.setViewportSize({ width: 1280, height: 800 }); await page.waitForTimeout(1300);
+      report['card' + p] = { before: before['1280page'].card, before1148: before['1148page'].card, beforeFallback: before['1280fallback'].card, before1148Fallback: before['1148fallback'].card };
       // AI 패널을 열어도 탭이 밀리지 않고, 카드와 패널이 같은 칸을 나눠 쓴다
       await page.locator('#plan-ai-toggle').click(); await page.locator('#goal-time').click(); await page.locator('#rec-card').waitFor({ timeout: 30000 }); await page.waitForTimeout(300);
       const fa = await frame(page); tabsClear(fa, `${p}단계 AI 패널 열림 1280×800`);
@@ -172,11 +212,18 @@ try {
       else if (p === 1) assert.deepEqual(lines, [['depart-unserved', '노선이 없는 정류장 1곳: 구도심 시장.']], JSON.stringify(lines));
       else assert.deepEqual(lines, [], p + '단계: 문제가 없으면 제목 한 줄만 ' + JSON.stringify(lines));
       assert.equal(await page.locator('#confirm-depart-h').innerText(), '이대로 출발할까요?');
-      await page.locator('#confirm-yes').click(); await page.waitForFunction(() => document.body.dataset.screen === 'run' && PB.UI.runState());
-      const st0 = await page.evaluate(() => ({ text: document.querySelector('#run-statusbar-text').textContent, panel: document.querySelector('#run-status').textContent, tf: PB.UI.runState().tf, fixAt: PB.UI.runState().fixAt, clock: PB.App.clock(PB.UI.runState().tf) }));
+      await page.locator('#confirm-yes').click();
+      /* 2026-11-14: 운행 첫 상태는 운행 화면이 뜬 바로 그 순간 페이지 안에서 읽는다 — 헤드리스는 운행 중 프레임이 느려(약 5fps, 3초 중 긴 작업 2.4초) 읽기·클릭 하나에 몇 초씩 걸리고,
+       * 2×로 시작하는 단계는 11:00까지 약 5초뿐이라 따로 읽으면 이미 11:00이 지나 있을 수 있다 */
+      const st0 = await (await page.waitForFunction(() => { const st = document.body.dataset.screen === 'run' && PB.UI.runState(); return st && { text: document.querySelector('#run-statusbar-text').textContent, tf: st.tf, fixAt: st.fixAt, speed: st.speed, fixOff: document.querySelector('#run-fix').disabled, clock: PB.App.clock(st.tf) }; }, null, { polling: 10 })).jsonValue();
       assert.equal(st0.text, p >= 3 ? '운행 시작 · 11:00부터 노선을 한 번 고칠 수 있어요.' : '운행 시작', `${p}단계 운행을 시작한 직후(${st0.clock}) 상태 줄: ${st0.text}`); assert.ok(!st0.text.includes('이제'), '11:00 전에는 ‘이제’라고 하지 않음');
+      /* 2×는 노선 고치기가 없는 1단계 운행에서 실제로 눌러 고른다 — 고른 배속은 다음 운행에도 이어진다(Storage.writeSpeed, 설계) */
+      if (p === 1) { await page.locator('#speed-2').click(); assert.equal(await page.evaluate(() => PB.UI.runState().speed), 2, '1단계 운행에서 2배속을 고름'); }
       if (p >= 3) {
-        assert.equal(await page.locator('#run-fix').isDisabled(), true); await page.locator('#speed-2').click();
+        /* 2026-11-14: 전에는 이 자리에서 #speed-2를 눌렀다. 4단계 운행은 3단계에서 고른 2×로 이미 시작해 11:00(약 5초 뒤)에 먼저 멈췄고, 늦게 닿은 클릭(이 PC 헤드리스에서 클릭 하나 1.6~6초)은
+         * ‘멈춘 동안 배속 누르기 = 재개’(설계)로 처리돼 그날은 다시 서지 않아 아래 대기가 40초 시간 초과였다(재현: 클릭 직전 재생 위치 30.7 → 직후 51.5, 11:00 = 40).
+         * 이제 3·4단계 모두 1단계에서 고른 2×로 시작하는 것을 확인하고, 운행 중에는 누르지 않은 채 11:00 멈춤을 기다린다 */
+        assert.equal(st0.speed, 2, `${p}단계 운행이 1단계에서 고른 2배속으로 시작`); assert.ok(st0.tf < st0.fixAt && st0.fixOff, `${p}단계 첫 상태는 11:00 전 · 노선 고치기 버튼 꺼짐 ${JSON.stringify(st0)}`);
         await page.waitForFunction(() => { const st = PB.UI.runState(); return st.hold && st.tf === st.fixAt; }, null, { timeout: 40000, polling: 30 });
         const st1 = await page.evaluate(() => ({ text: document.querySelector('#run-statusbar-text').textContent, paused: PB.UI.runState().paused, fixOk: !document.querySelector('#run-fix').disabled, why: document.querySelector('#run-fix-why').textContent }));
         assert.match(st1.text, /^11:00 이제 15:00까지 노선을 한 번 고칠 수 있어요\(‘노선 고치기 · 한 번’\)\. 재개하면 2배속/, st1.text); assert.ok(st1.paused && st1.fixOk, '2배속에서도 11:00에 한 번 멈추고 버튼이 켜짐'); assert.equal(st1.why, '지금 한 번 고칠 수 있어요');

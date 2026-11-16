@@ -99,27 +99,9 @@
         if(root.MINIMAL_UI&&!document.body.classList.contains('minimal-text')&&session&&session.config.finance.service.stops.some(function(c){return c.id===id&&c.fromPhase<=session.phase;}))reserve=Math.max(reserve,34);
         placed.push({ x: p.left - reserve, y: p.top - reserve, w: reserve * 2, h: reserve * 2, kind: 'stop', id: id });
       });
-      // 노선 끝 번호 원(정류장 바깥쪽으로 비켜). 시작 쪽 옆에 운행 버스 수
+      /* 노선 시작·끝 바깥의 색 점(끝 표시 원)은 없앴다(2026-11-16 사용자 지시 — 정류장 옆에 원이 하나 더 생겨 정류장처럼 보였다).
+       * 노선 번호(설정 ‘노선 번호 표시’)는 노선 손잡이·노선 칩에만 나온다. 아래 fixCaps·caps()는 빈 목록이라 아무 일도 하지 않는다 */
       var caps = [];
-      st.routes.forEach(function (r) {
-        if (r.preview) return;
-        var ns = r.route.nodes, loop = ns.length >= 4 && ns[0] === ns[ns.length - 1];
-        (loop ? [0] : [0, ns.length - 1]).forEach(function (idx) {
-          var a = st.nodes[ns[idx]], b = st.nodes[ns[idx === 0 ? 1 : idx - 1]]; if (!a || !b) return;
-          var p = lanePoint(a, b, r.num, 0), q = lanePoint(a, b, r.num, 1), dx = p.left - q.left, dy = p.top - q.top, l = Math.hypot(dx, dy) || 1;
-          var c = { x: p.left + dx / l * (T.stop + T.cap + 6), y: p.top + dy / l * (T.stop + T.cap + 6) };
-          caps.push({ num: r.num, start: idx === 0, x: c.x, y: c.y, px: p.left, py: p.top, color: r.color, buses: r.buses });
-        });
-      });
-      caps.forEach(function (c) {
-        var g = c.g = svgEl('g', { 'class': 'net-cap', 'data-route': c.num, 'data-end': c.start ? 'start' : 'end' }, gCap);
-        /* 노선 끝 표시 = 숫자 없는 색 점(2026-11-02: 번호 원이 대기 인원 숫자와 나란히 있어 헷갈렸다). 설정 ‘노선 번호 표시’를 켜면 번호가 다시 나온다 */
-        var nums = root.PB.Names && root.PB.Names.showNumbers(), capR = nums ? T.cap : Math.round(T.cap * 0.7);
-        svgEl('circle', { cx: c.x, cy: c.y, r: capR, fill: c.color }, g);
-        if (nums) { var t = svgEl('text', { x: c.x, y: c.y + 4, 'text-anchor': 'middle', fill: lum(c.color) > 0.35 ? '#1A1D24' : '#FFFFFF' }, g); t.textContent = String(c.num); }
-        /* 노선 시작 쪽 버스 수 글자는 없앴다(2026-11-05 사용자 승인 — ‘1대’가 지도마다 붙어 시끄러웠다). 자리도 그린 원 크기만큼만 잡는다 */
-        placed.push(c.q = { x: c.x - capR - 2, y: c.y - capR - 2, w: capR * 2 + 4, h: capR * 2 + 4, kind: 'cap', route: c.num, start: c.start });
-      });
       st.caps = caps;
       /* 이름표(+대기 pill) — 2026-11-01 플레이테스트 수정. 390px 지도에서 빈자리를 못 찾으면 78px+이름표 폭까지 멀리 가서(다른 정류장 옆)
        * 엉뚱한 정류장 이름처럼 보였고(병원 이름표가 대학교 옆 등), 노선을 바꿀 때마다 자리가 좌우로 튀었다. 그래서

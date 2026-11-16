@@ -1,3 +1,6 @@
+/* 보류(2026-11-14): 이 검사는 2026-10-21 ‘첫 계획 최소 변경안’ 화면(오른쪽 패널 편집)을 전제로 쓴 것이다. 그 뒤 지도 중심 개편(10-27)·노선 색 이름(11-02)으로 화면 구조가 바뀌어
+ * 지금은 15행 뒤 클릭 대기에서 시간 초과로 끝난다(게임 결함 아님). 68행 문자열 안 줄바꿈으로 문법 오류였던 것만 고쳐 두었다. 같은 내용은 playtest-1111·fairness-plan-1110·uiux-1105가 본다.
+ * 되살리려면 지금 화면(#people-hud·노선 칩·대기 버스 줄) 기준으로 다시 쓸 것 */
 import {beginPlan} from './browser-fixture.mjs';
 // 첫 계획 안내: 시작 안내 문구, 주요 인물 칩(지도 표시·누적), 출발 막힘 이유와 바로 고치기, 편집 팁 위치, 같은 AI 제안 알림.
 import {createRequire} from 'node:module';import assert from 'node:assert/strict';import {startServer} from './serve.mjs';
@@ -12,7 +15,7 @@ try{
   if(await page.locator('#learning-dialog:modal').count())await page.locator('#btn-learning-continue').click();await beginPlan(page);
   const msg=()=>page.locator('#plan-message').textContent();
   // 시작 안내와 인물 칩
-  assert.match(await msg(),/정류장 두 곳을 차례로 누르면 1번 노선/);
+  assert.match(await msg(),/정류장 두 곳을 차례로 누르면 빨강 노선/);
   assert.equal(await page.locator('#depart-blocker').count(),0,'no blocker before any route exists');
   assert.equal(await page.locator('.resident-chip').count(),3);
   assert.match(await page.locator('#resident-chip-narae').textContent(),/나래 · 09:03 외곽 마을 → 병원·공공서비스 · 누적 0\/4회/);
@@ -65,8 +68,7 @@ try{
  // 1단계 계획에 처음 들어오면 첫 노선 안내 모달
  assert.ok(await page.locator('#tutorial-dialog').evaluate(d=>d.open&&d.matches(':modal')));
  assert.match(await page.locator('#tutorial-title').textContent(),/정류장 두 곳을 이어 보세요/);assert.equal(await page.locator('.tutorial-steps li').count(),2);
- assert.equal((await page.$$eval('#tutorial-rule p',ps=>ps.map(p=>p.textContent))).join('\n'),'이번 단계는 버스 2대 · 노선 최대 2개로 운영해요.
-출발하면 05:00~23:00의 하루 운행이 시작돼요.');
+ assert.equal((await page.$$eval('#tutorial-rule p',ps=>ps.map(p=>p.textContent))).join('\n'),'이번 단계는 버스 2대 · 노선 최대 2개로 운영해요.\n출발하면 05:00~23:00의 하루 운행이 시작돼요.');
  await page.screenshot({path:'publicness/tests/_shot-tutorial.png'});
  await page.locator('#btn-tutorial-close').click();assert.equal(await page.locator('#tutorial-dialog').evaluate(d=>d.open),false);
  // 도움말에서 다시 보기

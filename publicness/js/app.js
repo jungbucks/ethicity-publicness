@@ -18,7 +18,7 @@
   };
   // 운행 재생 배속(1·2 — 고른 값, ‘다음 결정까지’는 저장하지 않음). 재생 속도만 바꾸며 이 브라우저에 기억한다
   // 계약 종료 제목: 지금 규칙(누적 잔액 2번 연속 마이너스)이면 잔액 부족. 예전 저장본(적자 3회 규칙, 잔액이 남은 채 종료)은 그때 이유 그대로
-  App.contractTitle = function (end) { return end && end.balance >= 0 ? '적자 누적으로 운영 계약 종료(이전 규칙)' : '잔액 부족으로 운영 계약 종료'; };
+  App.contractTitle = function (end) { return S.contractRule(end) === 'deficit-count' ? '적자 누적으로 운영 계약 종료(이전 규칙)' : '잔액 부족으로 운영 계약 종료'; };
   App.setSpeed = function (v) { if (PB.Storage.SPEEDS.indexOf(v) < 0) return; App.speed = v; PB.Storage.writeSpeed(v); };
   // 자동 저장 — 화면을 그릴 때마다(계획 편집·출발·결과·다음 단계). 운행 결과는 저장하지 않고 다시 계산한다
   // 저장 결과를 돌려준다(2026-11-10 검토 3번): true = 저장됨, false = 저장 안 됨(접근 차단·용량 초과), null = 저장할 것이 없음(첫 화면).
@@ -27,7 +27,8 @@
   App.SAVE_FAIL = '저장이 안 돼요. 이 창에서는 계속할 수 있지만 새로고침하면 기록이 사라질 수 있어요.';
   App.save = function () {
     if (!App.s || document.body.getAttribute('data-screen') === 'title') return null;
-    var ok = PB.Storage.writeSave({ version: cfg.SCENARIO_VERSION, savedAt: Date.now(), session: S.serialize(App.s) });
+    /* 버전 = 그 판의 시나리오 버전: 랜덤·지정 세팅은 저장본이 들고 있는 설정의 버전(예전 판을 이어 하면 예전 버전 그대로 — 그 판의 재정 값과 짝), 기본 모드는 지금 버전 */
+    var ok = PB.Storage.writeSave({ version: (App.s.config && App.s.config.SCENARIO_VERSION) || cfg.SCENARIO_VERSION, savedAt: Date.now(), session: S.serialize(App.s) });
     if (ok !== App.saveOk) { App.saveOk = ok; var n = $('#save-status'); if (n) { n.hidden = ok; n.textContent = ok ? '' : App.SAVE_FAIL; n.title = ok ? '' : App.SAVE_FAIL; } document.body.classList.toggle('save-failed', !ok); /* 상단 바 자리 확보(css) */ }
     return ok;
   };
@@ -487,7 +488,7 @@
   // 모드별 재정 규칙(안내·결과·종료 화면이 같은 문장을 쓴다)
   App.financeRuleText = function (s) {
     return S.financeRule(s) === 'balance-streak'
-      ? '단계가 끝날 때마다 회차 수지를 정산해 누적 잔액에 더해요. 한 단계 적자는 경고일 뿐, 모아 둔 잔액으로 적자 노선을 유지할 수 있어요. 누적 잔액이 0원 미만인 채로 ' + S.NEGATIVE_LIMIT + '회 연속 단계를 마치면 운영 계약이 종료돼요.'
+      ? '단계가 끝날 때마다 회차 수지를 정산해 누적 잔액에 더해요. 한 단계 적자는 경고일 뿐, 모아 둔 잔액으로 적자 노선을 유지할 수 있어요. 누적 잔액이 0원 미만인 채로 ' + S.NEGATIVE_LIMIT + '회 연속 단계를 마치면 운영 계약이 종료돼요. 마지막 단계가 끝난 뒤 누적 잔액이 0원 미만이어도 파산으로 끝나요.' /* 2026-11-14 검토 3번: 랜덤 모드도 학기 말 잔액을 본다(Session.finalCause) */
       : '중간에 돈이 모자라도 운행은 계속돼요. 마지막 단계가 끝난 뒤 누적 잔액이 0원 미만이면 파산으로 끝나요.';
   };
   // 다시 하기: 기본은 같은 시나리오, 랜덤은 같은 조건(같은 세팅 번호 → 같은 지도·수요·사건) 또는 새 랜덤 게임. 진행 상태는 모두 새로 만든다
@@ -624,7 +625,9 @@
     if (!PB.Storage.canSave() && $('#save-note')) { $('#save-note').textContent = '이 브라우저에서는 진행을 저장할 수 없어요. 이 창에서는 끝까지 할 수 있지만 새로고침하거나 창을 닫으면 기록이 사라져요.'; $('#save-note').classList.add('is-alert'); /* 간단 화면에서도 보이게 */ }
     // 이어하기는 검사를 통과한 저장본만(뼈대 + stage·phase 범위). 깨진 저장본은 이어하기를 켜지 않고 한 줄로 알린 뒤 새 게임을 받는다 — 원문은 새 게임 전에 따로 남긴다
     function validSave(o) { return !S.checkSave(o.session, cfg); }
-    function readState() { return PB.Storage.saveState(cfg.SCENARIO_VERSION, null, validSave); }
+    /* 받아 주는 저장본 버전 = 지금 버전 + cfg.SAVE_COMPAT(2026-11-14 검토 4번 — 버전을 올려도 하던 판을 잃지 않게. 랜덤 저장본은 그때 재정 값 그대로 이어진다) */
+    var SAVE_VERSIONS = [cfg.SCENARIO_VERSION].concat(cfg.SAVE_COMPAT || []);
+    function readState() { return PB.Storage.saveState(SAVE_VERSIONS, null, validSave); }
     var first = readState(), saved = first.save, cont = $('#btn-continue'), brokenSave = first.state === 'broken';
     function showBroken() {
       brokenSave = true; if (cont) cont.hidden = true;

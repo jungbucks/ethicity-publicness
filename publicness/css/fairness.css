@@ -15,6 +15,10 @@
 /* 카드 맨 아래 한 줄: ‘…골라야 출발할 수 있어요’(고르기 전) + 저장 상태. 늘 한 줄 높이를 차지해 고르기 전후로 카드 높이가 같다(2026-11-11 플레이테스트 3) */
 .fair-foot { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; min-height: 1.5em; line-height: 1.5; }
 .fair-card .fair-foot .fair-required, .fair-card .fair-foot .note-saved { margin: 0; min-height: 0; font-size: 0.9rem; }
+/* 2026-11-14: 고른 뒤 = 안내와 같은 글을 보이지 않게 두고 저장 상태를 그 위에 겹친다(ui-fairness whyLine) — 안내가 두 줄이던 글꼴에서도 고르기 전후 카드 높이가 같다 */
+.fair-foot.is-kept { display: grid; }
+.fair-foot.is-kept > * { grid-area: 1 / 1; }
+.fair-foot-keep { visibility: hidden; }
 /* 무임 정책 카드의 ‘게임의 가정’ 한 줄과 접는 규칙 설명(2026-11-10 검토 5번). 색 띠·강조 상자 없음 — 글과 접기만. 가정 한 줄 = 접기 줄(늘 보임) */
 .fair-rule { margin: 0 0 8px; }
 .fair-rule > summary { display: block; min-height: 44px; padding: 2px 0; color: var(--text); font-size: 0.9rem; font-weight: 400; line-height: 1.5; word-break: keep-all; overflow-wrap: anywhere; list-style: none; }
@@ -25,10 +29,17 @@
 /* 넓은 화면(오른쪽 고정 칸): 카드가 칸보다 길면 아래 버튼 밑으로 넘치지 않고 카드 안에서 스크롤 */
 /* 2026-11-11 플레이테스트 3: 카드 자리를 오른쪽 칸(slot)에 못 박는다. 전에는 자리를 정하지 않아, 알림 줄(strip)에 배너가 있는 동안 카드가 slot으로 가고
    ‘골라야 출발’ 줄은 격자 맨 아래 새 줄로 들어가 노선 탭이 지도 캔버스 밑으로 32px쯤 밀렸다. 칸 아래쪽에 붙여 두면 배너가 사라져도 카드의 버튼이 움직이지 않는다 */
-body.rail[data-screen="plan"] .fair-card { grid-area: slot; align-self: end; min-height: 0; max-height: 100%; overflow-y: auto; overscroll-behavior: contain; margin: 0; }
+/* 2026-11-14: 카드 아래쪽은 slot 끝이 아니라 오른쪽 아래 버튼 묶음(텍스트로 편집·AI 제안 / 출발 = 44+8+44 = 96px) 8px 위까지 내린다.
+   버튼 묶음은 아래 두 줄(52px + 8px + 68px = 128px)의 아래쪽만 쓰므로 그 위 32px(128 − 96)이 비어 있었다. 지도·노선 탭·버튼 자리는 그대로 */
+body.rail[data-screen="plan"] .fair-card { grid-area: slot; align-self: end; min-height: 0; max-height: calc(100% + 32px); overflow-y: auto; overscroll-behavior: contain; margin: 0 0 -32px; }
 body.rail[data-screen="plan"] #plan-toolbar > .fair-required { grid-area: slot; align-self: end; margin: 0; }
-/* 오른쪽 칸은 높이가 빠듯하다(1280×800 4단계 = 인물 칩 6개 + 정책 카드) — 카드 안 여백·줄 간격을 조금 줄여 맨 아래 줄(‘…골라야 출발할 수 있어요’)까지 스크롤 없이 보이게 */
-body.rail[data-screen="plan"] .fair-card { padding: 8px 12px; }
+/* 2026-11-14 제출 전 수정: 카드가 칸보다 길어 안에서 스크롤될 때(낮은 화면 1366×650 등)도 질문 제목은 늘 위에 보인다 — 스크롤 자리는 js/ui-map-plan.js pinFair.
+   아래에 더 있으면(.more-below) 아래 가장자리에 옅은 그림자 — 글자 크기·내용은 그대로, 잘라 내지 않는다 */
+body.rail[data-screen="plan"]:not(.ai-open) .fair-card h3 { position: sticky; top: -8px; z-index: 2; margin: -8px 0 0; padding: 8px 0 2px; background: #fff; }
+body.rail[data-screen="plan"]:not(.ai-open) .fair-card.more-below::after { content: ""; position: sticky; bottom: -8px; display: block; height: 16px; margin: -16px -8px 0; background: linear-gradient(rgba(255,255,255,0), rgba(31,46,77,.22)); pointer-events: none; z-index: 2; }
+/* 오른쪽 칸은 높이가 빠듯하다(1280×800 4단계 = 인물 칩 6개 + 정책 카드) — 카드 안 여백·줄 간격을 조금 줄여 맨 아래 줄(‘…골라야 출발할 수 있어요’)까지 스크롤 없이 보이게.
+   2026-11-14: 좌우 여백 12px → 8px — Pretendard가 없는 PC(학교 Windows = 맑은 고딕)에서 ‘무임승차 유지·폐지를 골라야 출발할 수 있어요.’가 6px 차이로 두 줄이 되던 것(1280×800) */
+body.rail[data-screen="plan"] .fair-card { padding: 8px; }
 body.rail[data-screen="plan"] .fair-card h3 { margin-bottom: 2px; font-size: 16px; }
 body.rail[data-screen="plan"] .fair-card p { margin-bottom: 3px; line-height: 1.45; }
 body.rail[data-screen="plan"] .fair-card .fair-fact { font-size: 15px; }
@@ -38,10 +49,11 @@ body.rail[data-screen="plan"] .fair-options { margin-bottom: 6px; }
 body.rail[data-screen="plan"] .fair-card .fair-foot { min-height: 1.4em; line-height: 1.4; }
 /* AI 제안 패널도 같은 칸을 쓴다 — 패널이 열려 있는 동안 카드는 제목과 맨 아래 한 줄(‘…골라야 출발할 수 있어요’·저장 상태)만 남기고 접어, 패널이 나머지를 쓴다.
    패널을 닫으면 카드가 다시 펼쳐진다(칸을 반씩 나누면 1280×800에서 둘 다 못 읽을 만큼 작아진다) */
-body.rail.ai-open[data-screen="plan"] .fair-card { height: 64px; max-height: 64px; box-sizing: border-box; overflow: hidden; padding: 8px 12px; }
+body.rail.ai-open[data-screen="plan"] .fair-card { height: 64px; max-height: 64px; box-sizing: border-box; overflow: hidden; padding: 8px; }
 body.rail.ai-open[data-screen="plan"] .fair-card > :not(h3):not(.fair-foot) { display: none; }
 body.rail.ai-open[data-screen="plan"] .fair-card h3 { margin: 0 0 2px; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-body.rail.ai-open[data-screen="plan"] .game:has(.fair-card) #plan-ai-popover { align-self: start; height: calc(100% - 72px); max-height: calc(100% - 72px); }
+/* 접힌 카드(64px)는 slot 아래로 32px 내려가 있으므로(위 margin −32px) 패널은 slot 높이 − (64 − 32) − 8 */
+body.rail.ai-open[data-screen="plan"] .game:has(.fair-card) #plan-ai-popover { align-self: start; height: calc(100% - 40px); max-height: calc(100% - 40px); }
 /* 오른쪽 칸의 AI 제안 패널: 머리·결정 버튼 줄을 낮춰 비교표가 보이는 높이를 늘린다(1280×800 4·5단계는 칸이 230px쯤뿐) */
 body.rail[data-screen="plan"] #plan-ai-popover .ai-pop-head { padding: 2px 6px 2px 14px; }
 body.rail[data-screen="plan"] #plan-ai-popover .ai-pop-head h2 { font-size: 18px; }

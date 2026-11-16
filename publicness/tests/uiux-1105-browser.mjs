@@ -176,7 +176,7 @@ try {
     await page.locator('#route-bus-1').focus(); await page.keyboard.press('Enter'); await page.waitForTimeout(150); assert.equal(await page.locator('#route-bus-1').getAttribute('aria-pressed'), 'true', '키보드로 고르기'); await page.keyboard.press('Escape'); await page.waitForTimeout(150);
     // 노선 번호 표시를 켜도 동작
     await page.evaluate(() => { const c = document.querySelector('#opt-route-numbers'); c.checked = true; c.dispatchEvent(new Event('change')); }); await page.waitForTimeout(350);
-    assert.equal(await page.locator('#route-bus-1 .route-num').textContent(), '1'); r = await read(); assert.equal(r[3].count, '×2'); assert.equal(await page.locator('#net-layer .net-cap text').first().textContent(), '1');
+    assert.equal(await page.locator('#route-bus-1 .route-num').textContent(), '1'); r = await read(); assert.equal(r[3].count, '×2'); assert.equal(await page.locator('#net-layer .net-cap').count(), 0, '노선 끝 점 없음(2026-11-16)');
     await page.evaluate(() => { const c = document.querySelector('#opt-route-numbers'); c.checked = false; c.dispatchEvent(new Event('change')); }); await page.waitForTimeout(200);
     await depart(page); assert.equal(await page.locator('#net-layer .net-cap text').count(), 0, '운행 중 지도 숫자 없음'); assert.equal(await page.locator('#stage .route-count:visible, #stage .route-full:visible').count(), 0);
     await page.screenshot({ path: SHOT + '/_shot-uiux-buscount-run-' + vp.width + '.png' }); assert.deepEqual(page.errors, []); ok('버스 수 표시 ' + vp.width); await page.close();

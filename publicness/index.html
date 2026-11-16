@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>이번 정류장은… — AI 마을버스 운영단</title>
 <meta name="description" content="AI 자율주행 마을버스를 운영하며 누구의 이동을 챙길지 고르는 공정성·포용성 시뮬레이션 게임">
+<!-- 본문 글꼴 Pretendard는 게임 폴더에 싣는다(css/pretendard.css, assets/fonts — 2026-11-14). 본문 굵기(400)만 미리 받는다.
+     http(s)일 때만: file://(더블클릭)에서는 미리 받기가 CORS 오류를 내고 쓰이지도 않는다(@font-face는 file://에서도 읽힌다) -->
+<script>if (location.protocol !== 'file:') { const l = document.createElement('link'); l.rel = 'preload'; l.as = 'font'; l.type = 'font/woff2'; l.crossOrigin = ''; l.href = 'assets/fonts/Pretendard-Regular.subset.woff2'; document.head.appendChild(l); }</script>
+<link rel="stylesheet" href="css/pretendard.css">
 <link rel="stylesheet" href="css/tokens.css">
 <link rel="stylesheet" href="css/style.css">
 <link rel="stylesheet" href="css/scores.css">
@@ -16,6 +20,7 @@
 <link rel="stylesheet" href="css/report.css">
 <link rel="stylesheet" href="css/fairness.css">
 <link rel="stylesheet" href="css/title-type.css">
+<link rel="stylesheet" href="css/rotate.css">
 <script src="js/img-fallback.js"></script>
 </head>
 <body data-screen="title" class="minimal-ui">
@@ -26,7 +31,7 @@
 <!-- 시작 화면 -->
 <section id="screen-title" class="title-screen" aria-labelledby="title-h1">
   <div class="title-copy">
-    <p class="eyebrow" id="title-sub">윤리시티 · 공공성 편</p>
+    <p class="eyebrow" id="title-sub">윤리시티 · 공정성·포용성 편</p>
     <h1 id="title-h1" class="series-title"><span class="title-ink bus-word"><span class="title-text">이번 정류장은…</span><img src="assets/title-type/title.png" alt="" aria-hidden="true" onload="this.parentElement.classList.add('is-ready')" onerror="this.parentElement.classList.remove('is-ready')"></span><svg class="title-route" viewBox="0 0 172 12" width="172" height="12" aria-hidden="true" focusable="false"><path d="M5 6H167" fill="none" stroke="currentColor" stroke-width="1.2"/><g fill="white" stroke="currentColor" stroke-width="1.5"><circle cx="5" cy="6" r="3"/><circle cx="59" cy="6" r="3"/><circle cx="113" cy="6" r="3"/><circle cx="167" cy="6" r="3"/></g></svg></h1>
     <p class="title-en" id="title-en">This stop is…</p>
     <p class="hook hook-strong" id="hook-2">아직 정해진 길은 없어요. 우리 마을의 첫 노선을 직접 연결해 보세요.</p>
@@ -41,7 +46,7 @@
     <button type="button" class="btn btn-primary btn-lg" id="btn-start">첫 운행 계획하기</button>
     <p class="note" id="save-note">진행은 이 브라우저에 자동으로 저장돼요. 새로고침하거나 창을 닫았다가 열어도 ‘이어하기’로 계속할 수 있어요.</p>
     <button type="button" class="btn" id="title-text-toggle" aria-pressed="false">설명 보기</button>
-    <p class="app-version" id="title-version"></p>
+    <p class="app-version" id="title-version">&nbsp;</p><!-- 빈 칸을 미리 잡아 둔다(2026-11-14): 초기화 뒤 버전 글자가 들어오면서 시작 버튼이 10px 밀렸다 -->
   </div>
   <figure class="title-art" aria-hidden="true">
     <img id="title-img" src="assets/art/title-two-stops.webp" alt="" onerror="this.parentNode.classList.add('placeholder'); this.remove();">
@@ -99,7 +104,7 @@
 
 <dialog id="goal-intro" class="story-dialog" aria-labelledby="goal-intro-h" aria-describedby="story-full" tabindex="-1">
   <div id="story-stage" class="story-stage"><p id="story-stage-title" class="stage-title"></p><p id="story-stage-sub" class="stage-sub"></p></div>
-  <img id="story-image" class="story-image" alt="">
+  <img id="story-image" class="story-image" alt="" data-own-fallback>
   <div class="story-tools"><p id="story-phase" class="story-phase" hidden></p><span id="story-count"></span><button type="button" class="btn" id="btn-goal-start">건너뛰고 시작</button></div>
   <div class="story-dialogue">
     <h2 id="goal-intro-h"></h2>
@@ -221,5 +226,6 @@
 <script src="js/route-drag.js"></script>
 <script src="js/minimal-ui.js"></script>
 <script src="js/bgm.js"></script>
+<script src="js/rotate-ask.js"></script>
 </body>
 </html>

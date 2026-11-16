@@ -5,7 +5,7 @@
 (function(root){
   'use strict';
   var PB=root.PB,S=PB.Session,original=PB.UI.plan,state={session:null,phase:null,text:false,ai:false,bus:null,from:null,person:null};
-  var SPRITE='assets/art/bus-sprite.webp',HIT=44,MARGIN=12,HINT_KEY='ethicity.publicness.busHint',drag=null,fairRO=null;
+  var SPRITE='assets/art/bus-sprite.webp',HIT=44,MARGIN=12,HINT_KEY='ethicity.publicness.busHint',drag=null,fairRO=null,fairMem={key:null,top:null,ch:0};
   function app(){return PB.App;}
   function button(id,text,fn){var b=app().el('button',{id:id,type:'button','class':'btn',onclick:fn},text);return text==='×'?PB.Icons.label(b,'close','닫기'):id==='btn-lease'?PB.Icons.label(b,'plus',text.replace(/^\+\s*/,'')):b;}
   function redraw(){app().keepFocus=true;app().render();}
@@ -267,10 +267,37 @@
     /* 2026-11-11 플레이테스트 3: ‘골라야 출발’ 줄은 카드 안에 들어 있다(ui-fairness whyLine). 카드 없이 줄만 있는 예외일 때만 따로 옮긴다 — 넓은 화면에서는 css가 오른쪽 칸(slot)에 고정 */
     var loose=panel.querySelector('#choice-required');if(loose&&!loose.closest('.fair-card'))bar.insertBefore(loose,bar.firstChild);
     ['elder-card','petition-card'].forEach(function(id){var n=panel.querySelector('#'+id);if(n)bar.insertBefore(n,bar.firstChild);});
-    /* 넓은 화면에서 카드가 칸보다 길 때(단계 배너가 떠 있는 몇 초·규칙을 펼쳤을 때)는 아래쪽(선택 버튼·‘골라야 출발’ 줄)이 보이게 — 배너가 첫 클릭에 사라지며 칸이 늘어나도 버튼이 제자리라 그 클릭이 빗나가지 않는다 */
-    var fcard=bar.querySelector('.fair-card'),pinFair=function(){if(fcard&&document.body.classList.contains('rail')&&fcard.scrollHeight>fcard.clientHeight+1)fcard.scrollTop=fcard.scrollHeight;};
-    root.requestAnimationFrame(pinFair);
-    if(fairRO){fairRO.disconnect();fairRO=null;}if(fcard&&root.ResizeObserver){fairRO=new root.ResizeObserver(pinFair);fairRO.observe(fcard);}/* 알림이 떠서 칸이 잠깐 줄어들 때도 */
+    /* 넓은 화면(rail)에서 카드가 칸보다 길 때의 스크롤 자리(2026-11-14 제출 전 수정).
+     * 전에는 넘치기만 하면 늘 맨 아래로 붙였다(fcard.scrollTop = scrollHeight) → 낮은 화면(1366×650: 칸 162px · 카드 253px)에서는 질문 제목과 판단 근거가 계속 가려졌고,
+     *   다시 그릴 때·창 크기를 바꿀 때마다 읽던 자리가 아래로 밀렸다. 이제:
+     *   ① 처음에는 맨 위(질문·근거부터) — 제목은 css로 늘 위에 붙어 있다(.fair-card h3 sticky)
+     *   ② 학생이 스크롤한 자리는 기억해 다시 그려도 그대로(fairMem — 카드·단계가 바뀌면 지움)
+     *   ③ 단계 배너가 알림 줄에 떠 있는 동안만, 배너가 사라지며 칸이 늘어날 만큼만 내려 둔다 → 배너가 첫 클릭에 사라져도 카드의 버튼은 제자리(그 클릭이 빗나가지 않게 — 2026-11-11 플레이테스트 3의 까닭은 그대로 지킴)
+     *   ④ 학생이 스크롤한 뒤에 칸 크기가 바뀌면 보이던 아래쪽을 기준으로 맞춘다(버튼이 손가락 밑에서 달아나지 않게) */
+    var fcard=bar.querySelector('.fair-card'),fairProg=false;
+    var fairKey=fcard?(fcard.id||'card')+':'+App.s.phase:null;if(fairMem.key!==fairKey)fairMem={key:fairKey,top:null,ch:0};
+    var fairSet=function(v){var max=Math.max(0,fcard.scrollHeight-fcard.clientHeight);v=Math.max(0,Math.min(max,Math.round(v)));if(Math.abs(fcard.scrollTop-v)>=1){fairProg=true;fcard.scrollTop=v;}fairMem.ch=fcard.clientHeight;fcard.classList.toggle('more-below',max-v>2);};
+    var pinFair=function(){
+      if(!fcard||!fcard.isConnected)return;
+      if(!document.body.classList.contains('rail')||document.body.classList.contains('ai-open')){fcard.classList.remove('more-below');return;}
+      var over=fcard.scrollHeight-fcard.clientHeight;
+      if(over<=1){fairMem.top=null;fairSet(0);return;} /* 다 보이면 기억할 자리도 없다 */
+      if(fairMem.top!=null){var keep=fairMem.top+(fairMem.ch||fcard.clientHeight)-fcard.clientHeight;fairSet(keep);fairMem.top=fcard.scrollTop;return;} /* ②④ */
+      var banner=document.getElementById('map-banner'),strip=document.getElementById('map-strip'),extra=0;
+      /* 배너가 사라지면 카드 칸이 얼마나 늘어날지는 알림 줄의 다른 알림에 따라 달라서(59~77px) 어림하지 않고 잰다: 배너를 잠깐 없는 셈 치고 카드 높이를 읽은 뒤 바로 되돌린다(같은 틀 안 — 화면에는 안 보임) */
+      if(banner&&strip&&strip.contains(banner)){var was=banner.style.display,now=fcard.clientHeight;banner.style.display='none';extra=Math.max(0,fcard.clientHeight-now);banner.style.display=was;}
+      fairSet(Math.min(over,extra)); /* ③ 배너가 없으면 0 = ① */
+    };
+    /* 학생이 직접 움직인 스크롤만 기억한다(휠·터치·키보드·초점 이동·스크롤 막대). 칸이 늘어나 브라우저가 스스로 끝에 맞춘 스크롤까지 기억하면 그 자리에 묶인다 */
+    var fairIntent=0,fairMark=function(){fairIntent=Date.now();};
+    var fairDown=0;
+    if(fcard){['wheel','touchmove','keydown'].forEach(function(t){fcard.addEventListener(t,fairMark,{passive:true});});
+      fcard.addEventListener('pointerdown',function(e){fairDown=Date.now();if(e.target===fcard)fairMark();},{passive:true}); /* 스크롤 막대만 — 버튼을 누른 것은 스크롤할 뜻이 아니다 */
+      fcard.addEventListener('focusin',function(){if(Date.now()-fairDown>400)fairMark();}); /* Tab으로 옮긴 초점(브라우저가 그 자리로 스크롤) — 눌러서 생긴 초점은 뺀다 */
+      fcard.addEventListener('scroll',function(){if(fairProg){fairProg=false;return;}if(Date.now()-fairIntent>1500)return;fairMark(); /* 관성 스크롤이 이어지는 동안 */
+        fairMem.top=fcard.scrollTop;fairMem.ch=fcard.clientHeight;fcard.classList.toggle('more-below',fcard.scrollHeight-fcard.clientHeight-fcard.scrollTop>2);},{passive:true});}
+    pinFair();root.requestAnimationFrame(pinFair);
+    if(fairRO){fairRO.disconnect();fairRO=null;}if(fcard&&root.ResizeObserver){fairRO=new root.ResizeObserver(pinFair);fairRO.observe(fcard);}/* 알림이 떠서 칸이 잠깐 줄어들 때·창 크기가 바뀔 때도 */
     var issues=panel.querySelector('#plan-errors'),oldIssues=document.querySelector('#map-strip #plan-errors');if(oldIssues)oldIssues.remove();
     /* 휴대폰 배치(2026-11-02)는 오류 줄을 알림 줄(시간·수지 줄 위 겹침)에 — 정류장 하나만 이은 동안 잠깐 생겼다 사라지는 줄 때문에 지도 크기가 바뀌지 않게 */
     if(issues.textContent){var bc=document.body.classList,strip=document.getElementById('map-strip');if(strip&&(bc.contains('phone-p')||bc.contains('phone-l')||bc.contains('rail')||bc.contains('sheet')))strip.appendChild(issues);else bar.appendChild(issues);}
