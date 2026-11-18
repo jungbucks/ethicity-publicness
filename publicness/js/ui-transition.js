@@ -157,11 +157,12 @@
   box.appendChild(el('p',{'class':'note note-saved',role:'status'}));return box;
  }
  /* 2026-11-09 교사 플레이테스트 4: 같은 조건으로 다시 한 게임의 같은 단계와 비교 한두 줄(js/run-compare.js — 이미 계산된 숫자만).
-  * s.runId = 게임 구분(세션 선택 필드, 예전 저장본엔 없어 여기서 붙임 — App.save가 저장). 기록은 localStorage ethicity.publicness.stageRuns */
+  * s.runId = 게임 구분(세션 선택 필드, 예전 저장본엔 없어 여기서 붙임 — App.save가 저장). 기록은 localStorage ethicity.publicness.stageRuns
+  * 2026-11-18 검토 8·9번: 요약에 노선별 차량 종류(일반·직행·광역)와 그 단계 무임 정책·집에 머문 이동을 함께 남긴다(설정·정책을 넘김) */
  function compareLines(App,s,h){
   var RC=PB.RunCompare,store=null;if(!RC)return null;try{store=root.localStorage;}catch(e){return null;}if(!store)return null;
   if(!s.runId)s.runId=RC.newId();
-  var key=RC.scenarioKey(s,(s.config&&s.config.SCENARIO_VERSION)||PB.config.SCENARIO_VERSION),cur=RC.summary(h,s.draft),prev=RC.previous(store,key,h.phase,s.runId);
+  var key=RC.scenarioKey(s,(s.config&&s.config.SCENARIO_VERSION)||PB.config.SCENARIO_VERSION),cur=RC.summary(h,s.draft,{config:s.config,elder:PB.Session.elderChoice(s)}),prev=RC.previous(store,key,h.phase,s.runId);
   RC.remember(store,key,h.phase,s.runId,cur,Date.now());
   return prev?RC.lines(prev.sum,cur,{duration:App.duration,won:App.won,route:PB.Names.route,name:App.nodeName}):null;
  }
