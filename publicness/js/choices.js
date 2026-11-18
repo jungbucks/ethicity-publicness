@@ -20,10 +20,10 @@
   // 모든 청원(생긴 단계 순). answer = 답하는 단계(마지막 단계에 생긴 청원은 phasesOf 밖 → 답 없음)
   function list(s) {
     var out = [], fp = s && s.fixedPetition;
-    if (fp) out.push({ kind: 'fixed', phase: fp.phase, answer: fp.phase + 1, zone: fp.zone, t: fp.t, count: fp.count, total: fp.total, reply: s.petitionReply || null });
+    if (fp) out.push({ kind: 'fixed', phase: fp.phase, answer: fp.phase + 1, zone: fp.zone, t: fp.t, count: fp.count, total: fp.total, to: fp.to || null, reply: s.petitionReply || null });
     if (eventsOn(s)) (s.history || []).forEach(function (h) {
       var p = h && h.petition; if (!p || p.fixed || (fp && h.phase === fp.phase)) return;
-      out.push({ kind: 'event', phase: h.phase, answer: h.phase + 1, zone: p.zone, t: p.t, count: p.count, total: p.total, reply: (s.petitionReplies || {})[h.phase + 1] || null });
+      out.push({ kind: 'event', phase: h.phase, answer: h.phase + 1, zone: p.zone, t: p.t, count: p.count, total: p.total, to: p.to || null, reply: (s.petitionReplies || {})[h.phase + 1] || null });
     });
     return out.sort(function (a, b) { return a.phase - b.phase; });
   }
@@ -77,7 +77,18 @@
     var rows = list(s).map(function (p) { return outcome(s, p); }).filter(Boolean);
     return rows.length > 0 && rows.every(function (r) { return r.ok; });
   }
-  var api = { KINDS: KINDS, set: set, get: get, required: required, list: list, petitionFor: petitionFor, missed: missed, outcome: outcome, badge: badge };
+  /* 답하지 않은 청원(2026-11-18 플레이테스트 P1-7): 생겼지만 답할 차례가 없는 청원 — 기본 모드의 사건 청원(위 list에 넣지 않음)·마지막 단계에 생긴 청원. 결과 화면·보고서에 ‘답하지 않은 청원’으로 남긴다 */
+  function unanswered(s) {
+    var last = phasesOf(s), listed = list(s), out = [];
+    (s && s.history || []).forEach(function (h) {
+      var p = h && h.petition; if (!p) return;
+      var it = listed.filter(function (x) { return x.phase === h.phase && x.zone === p.zone; })[0];
+      if (it && it.answer <= last) return;
+      out.push({ phase: h.phase, zone: p.zone, t: p.t, count: p.count, total: p.total, to: p.to || null });
+    });
+    return out;
+  }
+  var api = { KINDS: KINDS, set: set, get: get, required: required, list: list, petitionFor: petitionFor, missed: missed, outcome: outcome, badge: badge, unanswered: unanswered };
   root.PB = root.PB || {};
   root.PB.Choices = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

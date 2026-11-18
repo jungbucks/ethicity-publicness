@@ -16,7 +16,7 @@ try{
   for(const speed of [1,2]){
     const page=await browser.newPage({viewport:{width:1366,height:900}});await page.goto(url);
     await page.locator('#btn-start').click();await page.locator('#btn-goal-start').click();await beginPlan(page);await setPlan(page,P1);
-    await page.evaluate(()=>window.__pbFast=true);await page.locator('#btn-depart').click();await page.locator('#confirm-yes').click();await page.locator('#speed-'+speed).click();
+    await page.evaluate(()=>window.__pbFast=true);await page.locator('#btn-depart').click();await (async () => { if (await page.locator('#confirm-depart').evaluate((d) => d.open)) await page.locator('#confirm-yes').click(); })() /* 2026-11-18 P0-2: 이유가 없으면 확인창 없이 바로 출발 */;if(await page.evaluate(()=>PB.App.s.stage==='run'))await page.locator('#speed-'+speed).click({timeout:5000}).catch(()=>{});/* __pbFast면 확인창 없이 출발한 운행이 벌써 끝났을 수 있다 */
     await page.locator('#resident-summary').waitFor({timeout:60000});
     records.push(await page.evaluate(()=>JSON.stringify({m:PB.App.s.history[0].metrics,r:PB.App.s.history[0].residents})));await page.close();
   }
@@ -30,7 +30,7 @@ try{
   assert.ok(lay.bodyBottom<=lay.barTop+1&&lay.barBottom<=977,'출발 줄이 스크롤 영역과 겹치지 않음 '+JSON.stringify(lay));
   for(const q of ['#btn-new-route','#stop-picker summary','.route-summary']){await page.locator(q).scrollIntoViewIfNeeded();const r=await page.locator(q).boundingBox();assert.ok(r.y+r.height<=lay.barTop,q+' 가 출발 줄 위에서 보임');}
   await page.locator('#btn-depart').click();
-  assert.equal(await page.locator('#confirm-depart-h').innerText(),'이대로 출발할까요?');await page.locator('#confirm-yes').click();await page.locator('#speed-2').click();
+  if(await page.locator('#confirm-depart').evaluate((d)=>d.open))assert.equal(await page.locator('#confirm-depart-h').innerText(),'이대로 출발할까요?'); /* 2026-11-18 P0-2: 이유가 없으면 확인창 없이 바로 출발 */await (async () => { if (await page.locator('#confirm-depart').evaluate((d) => d.open)) await page.locator('#confirm-yes').click(); })() /* 2026-11-18 P0-2: 이유가 없으면 확인창 없이 바로 출발 */;await page.locator('#speed-2').click();
   const half=await page.evaluate(()=>PB.config.bus.window*PB.config.playback.msPerMinute/2);
   const t0=await page.evaluate(()=>Date.now());await page.clock.runFor(half-2000);assert.equal(await page.evaluate(()=>PB.App.s.stage),'run','2배속 절반 직전엔 아직 운행 중');
   await page.clock.runFor(4000);await page.locator('#resident-summary').waitFor();assert.ok(await page.evaluate(t0=>Date.now()-t0,t0)<=half+3000);
@@ -41,14 +41,14 @@ try{
   assert.deepEqual(after,before);
   await page.locator('#btn-next-phase').click();await page.locator('#btn-begin-plan').waitFor();assert.equal(await page.evaluate(()=>PB.App.s.phase),2);
   await beginPlan(page);await setPlan(page,[[['F','C','B','A'],1],[['D','A','G'],1],[['E','H','A'],1]]);
-  await page.locator('#btn-depart').click();await page.locator('#confirm-yes').click();
+  await page.locator('#btn-depart').click();await (async () => { if (await page.locator('#confirm-depart').evaluate((d) => d.open)) await page.locator('#confirm-yes').click(); })() /* 2026-11-18 P0-2: 이유가 없으면 확인창 없이 바로 출발 */;
   assert.equal(await page.locator('#speed-2').getAttribute('aria-pressed'),'true','다음 단계에도 2배속');
   await page.clock.runFor(8000);
   // 운행 중 새로고침 → 출발 직전 계획으로, 정산 없음 → 다시 출발하면 한 번만 기록
   await page.reload();assert.match(await page.locator('#continue-note').innerText(),/2 \/ 5단계 운행/);await page.locator('#btn-continue').click();
   await page.locator('#btn-depart').waitFor();assert.match(await page.locator('#plan-message').innerText(),/출발 직전 계획으로 돌아왔어요/);
   assert.equal(await page.evaluate(()=>PB.App.s.history.length),1);assert.equal(await page.evaluate(()=>PB.App.s.draft.buses.filter(b=>b.routeNum!=null).length),3);
-  await page.locator('#btn-depart').click();await page.locator('#confirm-yes').click();
+  await page.locator('#btn-depart').click();await (async () => { if (await page.locator('#confirm-depart').evaluate((d) => d.open)) await page.locator('#confirm-yes').click(); })() /* 2026-11-18 P0-2: 이유가 없으면 확인창 없이 바로 출발 */;
   assert.equal(await page.locator('#speed-2').getAttribute('aria-pressed'),'true','새로고침 뒤에도 2배속');
   await page.clock.runFor(32000);await page.locator('#resident-summary').waitFor();assert.equal(await page.evaluate(()=>PB.App.s.history.length),2);
   assert.deepEqual(errors,[]);await ctx.close();

@@ -10,7 +10,7 @@ try{
   const page=await browser.newPage({viewport:{width:1366,height:900}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto(`http://127.0.0.1:${server.address().port}/publicness/`);
   await page.locator('#btn-start').click();await page.locator('#btn-goal-start').click();if(await page.locator('#learning-dialog:modal').count())await page.locator('#btn-learning-continue').click();await beginPlan(page);await plannedTown(page);
-  await page.locator('#btn-depart').click();await page.locator('#confirm-yes').click();
+  await page.locator('#btn-depart').click();await (async () => { if (await page.locator('#confirm-depart').evaluate((d) => d.open)) await page.locator('#confirm-yes').click(); })() /* 2026-11-18 P0-2: 이유가 없으면 확인창 없이 바로 출발 */;
   await page.waitForFunction(()=>PB.App.view.busInfo&&PB.App.view.busInfo().length>=2,{},{timeout:20000});
   const info=await page.evaluate(()=>{const s=PB.App.s,want={};s.current.plan.buses.forEach(b=>{if(b.route)want[b.id]=PB.App.routeStyle(PB.App.numForPlanRoute(b.route)).color;});return{buses:PB.App.view.busInfo(),want};});
   assert.ok(info.buses.every(b=>b.model),'모든 버스가 모델: '+JSON.stringify(info.buses));

@@ -49,6 +49,6 @@ body.minimal-emergency[data-screen=run] .person-chip-time,body.minimal-emergency
 .net-label .net-service{box-sizing:border-box;font-variant-numeric:tabular-nums;padding:0 6px;border-radius:8px;background:#eef1ee;color:#41504a;font-size:11px;font-weight:700;white-space:nowrap}.net-label .net-service.done{background:#3b8267;color:#fff}
 
 /* P1-4 예상 수지 내역(누르거나 올리면) */
-#minimal-profit{position:relative;cursor:pointer}#minimal-profit:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:8px}
+#minimal-profit{position:relative;top:auto;cursor:pointer}/* 2026-11-18 P1-4: .minimal-profit의 top:14px가 relative에도 걸려 수지 줄이 14px 내려가 #run-controls를 덮었다 */#minimal-profit:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:8px}
 .minimal-profit-detail{position:absolute;right:0;top:100%;z-index:70;min-width:220px;margin:4px 0 0;padding:8px 12px;list-style:none;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(23,35,53,.18);font-size:13px;color:var(--text)}
 .minimal-profit-detail .detail-head{display:block;margin-top:4px;font-size:12px;font-weight:700;color:var(--text-mute)}.minimal-profit-detail[hidden]{display:none}.minimal-profit-detail li{display:flex;justify-content:space-between;gap:16px;padding:2px 0}.minimal-profit-detail b{font-variant-numeric:tabular-nums}

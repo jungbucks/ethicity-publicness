@@ -316,6 +316,13 @@
     if (s.stage === 'result' && s.phase < s.config.phases.length && !(s.end && s.end.cause === 'contract')) { nextPhase(c); beginPlan(c); }
     return c;
   }
+  /* ‘소외 지역’은 한 곳에서(2026-11-18 플레이테스트 P1-5): AI ‘소외 지역 연결’이 챙기는 지역 = Advisor.targets(그 단계 AI 입력) — 1단계는 사람이 정해 둔 지역(config.reachInitial),
+   * 그다음은 탑승 기록이 없는 외곽 마을·새 동네(신도시 단계)·탑승 기록 비율이 가장 낮은 곳. 계획 화면이면 지금 단계, 결과 화면이면 다음 단계(지금 지도에 보이는 정류장만 — ‘AI라면?’과 같은 입력).
+   * 계획 화면 AI 패널·결과 ‘AI라면?’·‘다음 운행 목표’가 모두 이 목록을 쓴다 */
+  function underserved(s) {
+    if (s.stage === 'result') return Advisor.targets(revealed(plannedNext(s), { allowNodes: visibleNodeIds(s) }));
+    return Advisor.targets(revealed(s));
+  }
   // AI 제안을 적용한 초안 사본(계획 화면 미리보기·결과 화면 카드가 같은 함수)
   function previewRec(s, rec) {
     var pv = Object.assign({}, s, { draft: clone(s.draft), goalHistory: clone(s.goalHistory), _g: null });
@@ -323,6 +330,19 @@
     var used = pv.draft.buses.map(function (b) { return b.routeNum; });
     pv.draft.routes = pv.draft.routes.filter(function (r) { return used.indexOf(r.num) >= 0; });
     return pv;
+  }
+  /* AI 제안 지도 미리보기(2026-11-18 플레이테스트 P0-1): 지금 초안(before)에서 제안 초안(after)으로 가면 빠지는 구간과 더는 서지 않는 정류장.
+   * 구간은 방향 없이 두 정류장 쌍으로 비교(제안의 어느 노선이든 그 쌍을 지나면 남는 구간), 정류장 2곳 이상 이은 노선만 본다(지도에 그려지는 노선) */
+  function previewDiff(before, after) {
+    function live(s) { return s.draft.routes.filter(function (r) { return r.nodes.length >= 2; }); }
+    function key(a, b) { return a < b ? a + '-' + b : b + '-' + a; }
+    var segs = {}, stops = {}, seen = {}, out = { segs: [], stops: [] };
+    live(after).forEach(function (r) { for (var i = 1; i < r.nodes.length; i++) segs[key(r.nodes[i - 1], r.nodes[i])] = true; r.nodes.forEach(function (id, i) { if (r.stops[i]) stops[id] = true; }); });
+    live(before).forEach(function (r) {
+      for (var i = 1; i < r.nodes.length; i++) { var k = key(r.nodes[i - 1], r.nodes[i]); if (!segs[k] && !seen[k]) { seen[k] = true; out.segs.push({ a: r.nodes[i - 1], b: r.nodes[i], key: k }); } }
+      r.nodes.forEach(function (id, i) { if (r.stops[i] && !stops[id] && out.stops.indexOf(id) < 0) out.stops.push(id); });
+    });
+    return out;
   }
   // 두 초안의 가장 큰 변화 하나: 노선 추가 > 노선 삭제 > 정류장 추가 > 정류장 삭제 > 버스 이동 > 버스 빌리기
   function planChange(a, b) {
@@ -421,11 +441,18 @@
     (passengers || []).forEach(function (p) { if (p.t > t || p.o !== zone) return; total++; if (p.arriveT == null || p.arriveT > t) open++; });
     return { zone: zone, t: t, count: open, total: total };
   }
+  /* 청원이 바라는 것(2026-11-18 플레이테스트 P1-7): 청원 시각까지 그 동네에서 생겨 아직 도착하지 못한 이동의 목적지 중 가장 많은 곳(같으면 정류장 순). 청원 판정·건수는 그대로, 설명용 to만 */
+  function petitionTo(passengers, t, zone) {
+    var n = {}, best = null;
+    (passengers || []).forEach(function (p) { if (p.t > t || p.o !== zone || !(p.arriveT == null || p.arriveT > t)) return; n[p.d] = (n[p.d] || 0) + 1; });
+    Object.keys(n).sort().forEach(function (d) { if (!best || n[d] > n[best]) best = d; });
+    return best;
+  }
   function fixPetition(s, result) {
     var cp = s.config.petition;
     if (!cp || s.phase !== cp.phase) return;
     var p = petitionAt(result.passengers, cp.t);
-    p.fixed = true; p.noRecord = rideRatios(s)[p.zone] === 0;
+    p.fixed = true; p.noRecord = rideRatios(s)[p.zone] === 0; p.to = petitionTo(result.passengers, p.t, p.zone);
     result.petition = p;
     result.log = result.log.filter(function (e) { return e.type !== 'petition'; });
     var at = result.log.length;
@@ -486,6 +513,8 @@
     return {
       noBus: !buses.some(function (b) { return b.routeNum != null; }),
       resting: owned.length, restingCost: owned.length * F.holding, restingLeased: leased.length, restingLeaseCost: leased.length * F.lease.fee,
+      /* 2026-11-18 P0-2: 노선을 달리는 빌린 버스 — 임차료는 운행해도 그대로 나간다(출발 확인창 이유 줄) */
+      leasedRunning: buses.filter(function (b) { return b.leased && b.routeNum != null; }).length, leaseRunningCost: buses.filter(function (b) { return b.leased && b.routeNum != null; }).length * F.lease.fee,
       overGap: gaps.filter(function (x) { return x.over; }), idleRoutes: gaps.filter(function (x) { return x.valid && !x.buses; }).map(function (x) { return x.num; }),
       unserved: unserved.filter(isNew).concat(unserved.filter(function (id) { return !isNew(id); })), newStops: fresh,
       residents: Demand.residents(s.config, phase).filter(function (rd) { return !serves(rd.o) || !serves(rd.d); }).map(function (rd) { return { id: rd.id, name: rd.name, o: rd.o, d: rd.d }; }),
@@ -560,6 +589,12 @@
     var errs = Graph.validateRoute(g, next); if (errs.length) return { fail: errs[0] };
     return { route: next };
   }
+  /* 운행 중 고친 노선(2026-11-18 플레이테스트 P0-3): 승객 기록(journey)의 routeId는 고친 뒤 노선 id인데, 운행표(timelines)는 출발 계획의 노선 id 그대로다.
+   * 고친 뒤 노선 id → { fromId: 출발 노선 id, route: 고친 모양, routeNum, at } — 결과 화면이 인물 카드의 연결 판정·노선 이름에 쓴다. 없으면 null */
+  function midRouteFor(s, phase, routeId) {
+    var c = (s.midChanges || []).filter(function (x) { return x.phase === phase && x.kind !== 'move' && x.route && x.from && Graph.routeId(x.route) === routeId; })[0];
+    return c ? { fromId: Graph.routeId(c.from), route: c.route, routeNum: c.routeNum, at: c.at } : null;
+  }
   // 한 가지 고치기를 기록하고 운행을 다시 계산한다(출발 계획·계획 초안은 그대로 — 그날만). 안 되면 false
   function midApply(s, c) {
     if (s.stage !== 'run' || !s.current || !c) return false;
@@ -630,6 +665,7 @@
     if (s.stage !== 'run' || !s.current) return null;
     if (s.history.some(function (h) { return h.phase === s.phase; })) { s.stage = 'result'; return null; } // 같은 단계를 두 번 정산하지 않는다
     var c = s.current, D = {}, before = clone(s.trust);
+    if (c.result.petition && c.result.petition.to === undefined) c.result.petition.to = petitionTo(c.result.passengers, c.result.petition.t, c.result.petition.zone); /* 사건 청원도 바라는 곳(P1-7) */
     Object.keys(c.metrics.zones).forEach(function (z) {
       D[z] = c.metrics.zones[z].D;
       s.trust[z] = Metrics.nextTrust(s.trust[z] != null ? s.trust[z] : s.config.trust.initial, D[z], s.config);
@@ -648,7 +684,7 @@
       if (pp) entry.petitionCheck = petitionZoneAt(c.result.passengers, pp.t, pp.zone);
     }
     s.history.push(entry);
-    if (s.config.petition && s.phase === s.config.petition.phase && c.result.petition) { var fp = c.result.petition; s.fixedPetition = { phase: s.phase, zone: fp.zone, t: fp.t, count: fp.count, total: fp.total, noRecord: !!fp.noRecord }; }
+    if (s.config.petition && s.phase === s.config.petition.phase && c.result.petition) { var fp = c.result.petition; s.fixedPetition = { phase: s.phase, zone: fp.zone, t: fp.t, count: fp.count, total: fp.total, noRecord: !!fp.noRecord, to: fp.to || null }; }
     settle(s, entry);
     // 두 점수(재정 건전성·이동 수요 충족) — 정산 직후 한 번 기록해 저장본에 남긴다(js/scores.js)
     entry.scores = Scores.phaseScores(s.config, graph(s), s.phase, s.seed, c.event, c.plan, c.result.passengers, ledgerBalance(s, s.phase), c.stayed);
@@ -819,14 +855,14 @@
 
   var api = {
     checkSave: checkSave, safeRestore: safeRestore,
-    elderChoice: elderChoice, petitionAt: petitionAt, petitionZoneAt: petitionZoneAt, rideRequests: rideRequests, aiView: aiView,
-    departChecks:departChecks,residentTransfers:residentTransfers,routeGaps:routeGaps,routeCycle:routeCycle,routeHeadway:routeHeadway,dayInputs:dayInputs,midStatus:midStatus,midRoute:midRoute,midApply:midApply,runningRoutes:runningRoutes,routeBuses:routeBuses,emergencyDecision:emergencyDecision,EMERGENCY_AT:EMERGENCY_AT,busRouteAt:busRouteAt,emergencyPreview:emergencyPreview,emergencyImpact:emergencyImpact,routeNumOf:routeNumOf,
+    elderChoice: elderChoice, petitionAt: petitionAt, petitionZoneAt: petitionZoneAt, petitionTo: petitionTo, rideRequests: rideRequests, aiView: aiView,
+    departChecks:departChecks,residentTransfers:residentTransfers,routeGaps:routeGaps,routeCycle:routeCycle,routeHeadway:routeHeadway,dayInputs:dayInputs,midStatus:midStatus,midRoute:midRoute,midApply:midApply,midRouteFor:midRouteFor,runningRoutes:runningRoutes,routeBuses:routeBuses,emergencyDecision:emergencyDecision,EMERGENCY_AT:EMERGENCY_AT,busRouteAt:busRouteAt,emergencyPreview:emergencyPreview,emergencyImpact:emergencyImpact,routeNumOf:routeNumOf,
     serialize: serialize, restore: restore, migrateTransition: migrateTransition, CHOICES: CHOICES, choiceKey: choiceKey, scoresOverall: scoresOverall, rescore: rescore, financeRule: financeRule, finalCause: finalCause, contractRule: contractRule, contractPhases: contractPhases, financeStatus: financeStatus, balance: balance, DEFICIT_LIMIT: DEFICIT_LIMIT, NEGATIVE_LIMIT: NEGATIVE_LIMIT, residentVerdict: residentVerdict, tripLimit: tripLimit, expectedRun: expectedRun,
     parseSeedParam: parseSeedParam, create: create, graph: graph, visibleNodeIds: visibleNodeIds, routeByNum: routeByNum,
     toPlan: toPlan, validate: validate, routeLimit: routeLimit, routesInOrder: routesInOrder, stopLimit:stopLimit, routeFits:routeFits, routeRule:routeRule, canAssign:canAssign, addRoute: addRoute, updateRoute: updateRoute, deleteRoute: deleteRoute,
     assign: assign, lease: lease, unlease: unlease, leaseLimit: leaseLimit, leasedBuses: leasedBuses, LEASE_BASE: LEASE_BASE, restingFor: restingFor, autoPlace: autoPlace, busCost: busCost, typicalBusCost: typicalBusCost, setOffset: setOffset, beginPlan: beginPlan, introduceFourth: introduceFourth,
     chooseGoal: chooseGoal, markGoalAction: markGoalAction, applyRecommendation: applyRecommendation, applyFourth: applyFourth,
-    revealed: revealed, plannedNext: plannedNext, previewRec: previewRec, planChange: planChange, expected: expected, startRun: startRun, finishRun: finishRun, nextPhase: nextPhase, endingSummary: endingSummary
+    revealed: revealed, plannedNext: plannedNext, underserved: underserved, previewRec: previewRec, previewDiff: previewDiff, planChange: planChange, expected: expected, startRun: startRun, finishRun: finishRun, nextPhase: nextPhase, endingSummary: endingSummary
   };
   root.PB = root.PB || {};
   root.PB.Session = api;

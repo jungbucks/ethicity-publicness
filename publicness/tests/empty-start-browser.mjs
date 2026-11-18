@@ -27,7 +27,7 @@ try{
     if(phase===2){await fill(3,['E','H']);await page.locator('#assign-route-3').click();}
     if(phase===3){await fill(4,['I','A']);await page.locator('#assign-route-4').click();}
     if(phase>=4)await page.locator('#bus-sel-'+(phase+1)).selectOption('1');
-    await page.locator('#btn-depart').click();await page.locator('#confirm-yes').click();await page.locator('#resident-summary').waitFor();
+    await page.locator('#btn-depart').click();await (async () => { if (await page.locator('#confirm-depart').evaluate((d) => d.open)) await page.locator('#confirm-yes').click(); })() /* 2026-11-18 P0-2: 이유가 없으면 확인창 없이 바로 출발 */;await page.locator('#resident-summary').waitFor();
     assert.ok(await page.locator('#route-report').isVisible());assert.equal(await page.locator('#route-report tbody tr').count(),Math.min(phase+1,4));
     if(phase===4){await page.screenshot({path:`publicness/tests/_shot-route-report-${mode}.png`});await page.screenshot({path:`publicness/tests/_shot-terminal-${mode}.png`});}
   }

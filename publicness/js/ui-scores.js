@@ -113,6 +113,15 @@
     if (N + unreal + stay - m.excluded !== m.N || !parts.length) return '요약은 실제로 생긴 이동 ' + N + '건, 점수는 평가 대상 이동 ' + m.N + '건을 세서 건수가 달라요.';
     return '요약은 실제로 생긴 이동 ' + N + '건을 세고, 점수는 ' + parts.join(' ').replace(/더하고$/, '더해서') + ' ' + m.N + '건을 세요.';
   }
+  /* 2026-11-18 플레이테스트 P1-10: 결과 화면(실제로 생긴 이동 N)·보고서와 엔딩(평가 대상 m.N)의 건수가 달라 보이던 것 — 계산은 그대로 두고, 다를 때 한 줄로 이유를 붙인다.
+   * ‘평가 대상 236건(돌아오지 못한 이동 1건 포함)’. 나머지 차이(무임 폐지로 집에 머묾·도착할 수 없는 요청)도 같은 괄호에, 셈이 맞지 않으면 범위가 다르다고만 */
+  UI.evalCountLine = function (N, m) {
+    if (!m || !m.N || m.N === N) return '';
+    var r = m.reasons || {}, unreal = (r.parentFailed || 0) + (r.lateParent || 0), stay = r.stayHome || 0, ex = m.excluded || 0, parts = [], f = function (n) { return n.toLocaleString('ko-KR'); };
+    if (unreal) parts.push('돌아오지 못한 이동 ' + f(unreal) + '건 포함'); if (stay) parts.push('무임 폐지로 집에 머문 이동 ' + f(stay) + '건 포함'); if (ex) parts.push('운행 종료 직전이라 도착할 수 없는 ' + f(ex) + '건 제외');
+    if (N + unreal + stay - ex !== m.N || !parts.length) return '평가 대상 ' + f(m.N) + '건(실제로 생긴 이동 ' + f(N) + '건과 세는 범위가 달라요)';
+    return '평가 대상 ' + f(m.N) + '건(' + parts.join(', ') + ')';
+  };
   var NOTE = '두 점수는 운영 결과를 돌아보고 다음 계획을 고치기 위한 참고 지표예요. 윤리성이나 성적을 재는 점수가 아니에요.';
 
   // 단계 결과(결과 화면 맨 위). h = 이번 단계 기록(h.scores), routes = Metrics.routeReport 행
@@ -151,6 +160,8 @@
     pair.appendChild(financeBox(App, o.finance));
     pair.appendChild(mobilityBox(App, o.mobility));
     sec.appendChild(pair);
+    var realN = s.history.filter(function (h) { return h.scores && h.scores.version === o.version; }).reduce(function (a, h) { return a + h.metrics.N; }, 0), evalLine = UI.evalCountLine(realN, o.mobility);
+    if (evalLine) sec.appendChild(el('p', { 'class': 'note', id: 'score-eval-count' }, evalLine + ' · 단계 결과의 이동 요청을 더하면 ' + realN.toLocaleString('ko-KR') + '건이에요.'));
     sec.appendChild(el('p', { 'class': 'score-line', id: 'score-line' }, missedLine(App, o.mobility)));
     if (o.mobility.N) sec.appendChild(publicList(App, o.mobility));
     var d = el('details', { 'class': 'score-method', id: 'score-phases' });

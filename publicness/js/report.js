@@ -107,6 +107,12 @@
       var line = { phase: p.phase, kind: p.kind, text: petitionLine(s, f, p) };
       out.petitions.push(line); if (p.kind === 'fixed') out.petition = line.text;
     });
+    /* 2026-11-18 P1-7: 답할 차례가 없던 청원도 ‘답하지 않은 청원’으로 */
+    (C.unanswered ? C.unanswered(s) : []).forEach(function (p) {
+      var D = lib('Demand', './demand.js'), clock = f.clock || function (t) { return D.clock(s.config || {}, t); };
+      out.petitions.push({ phase: p.phase, kind: 'unanswered', text: p.phase + '단계 ' + f.name(p.zone) + ' 주민 청원 · 답하지 않은 청원 · ' + clock(p.t) + ' “' + f.name(p.zone) + '에서 ' + (p.to ? f.name(p.to) + ' 쪽으로 ' : '') + '가는 버스를 늘려 주세요” · 못 간 이동 ' + p.count + '건(그때까지 요청 ' + p.total + '건 중)' });
+    });
+    out.petitions.sort(function (a, b) { return a.phase - b.phase; });
     if (ep && ELD[ep.choice]) out.elder = (ep.phase || 4) + '단계 어르신 무임승차 ' + ELD[ep.choice] + ' · 이유: ' + why(ep);
     return out;
   }

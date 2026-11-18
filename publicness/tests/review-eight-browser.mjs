@@ -7,7 +7,7 @@ for(const day of run.days){
  if(day.phase>1){await page.locator('#btn-next-phase').click();while(await page.locator('#goal-intro').evaluate(d=>d.open)){if(await page.locator('#goal-intro').getAttribute('data-stage')==='true')await page.keyboard.press('Enter');else await page.locator('#btn-goal-start').click();}}
  if(await page.locator('#learning-dialog:modal').count())await page.locator('#btn-learning-continue').click();await beginPlan(page);
  await page.evaluate(d=>{const s=PB.App.s;for(const r of d.routes)PB.Session.updateRoute(s,r.num,r);for(const b of d.buses)PB.Session.assign(s,b.id,b.routeNum);PB.App.render();},day);
- await page.locator('#btn-depart').click();await page.locator('#confirm-yes').click();await page.locator('#resident-summary').waitFor();
+ await page.locator('#btn-depart').click();await (async () => { if (await page.locator('#confirm-depart').evaluate((d) => d.open)) await page.locator('#confirm-yes').click(); })() /* 2026-11-18 P0-2: 이유가 없으면 확인창 없이 바로 출발 */;await page.locator('#resident-summary').waitFor();
  // 기준 기록(로컬 _play-review.json, 진호 추가 전)에 있는 인물만 비교 — 진호(7단계~)는 따로 출력
  const ids=Object.keys(day.residents);
  assert.deepEqual(await page.evaluate(ids=>Object.fromEntries(ids.map(id=>[id,PB.App.s.history.at(-1).residents[id]?.dayStatus])),ids),Object.fromEntries(ids.map(id=>[id,day.residents[id]?.dayStatus])));

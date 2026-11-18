@@ -45,8 +45,8 @@ try{for(const view of (process.env.VIEWS||'2d,3d').split(',')){
  // 출발 확인: 조건·지급 시점·예상(기본 수요 기준)
  // 출발 확인은 '이대로 출발할까요?'만(2026-11-02 사용자 결정, 이전 2026-10-27 운행 구성만) — 예상 결과·재정 예상은 계획 화면에만
  await page.locator('#btn-depart').click();const dep=await page.locator('#confirm-depart').innerText();
- assert.doesNotMatch(dep,/운행 구성/);/* 2026-11-02 사용자 결정: 출발 확인은 질문만 */assert.equal(await page.locator('#depart-finance,#depart-risks').count(),0);assert.doesNotMatch(dep,/예상/);
- await page.locator('#confirm-yes').click();await page.waitForTimeout(300);await page.locator('#run-skip').click();
+ assert.doesNotMatch(dep,/운행 구성/);/* 2026-11-02 사용자 결정: 출발 확인은 질문만 */assert.equal(await page.locator('#depart-finance,#depart-risks').count(),0);assert.doesNotMatch(dep.replace(/이번 단계 예상 수지가[^\n]*/,''),/예상/);/* 2026-11-18 P0-2: 예상 수지는 마이너스일 때만 이유 줄 */
+ await (async () => { if (await page.locator('#confirm-depart').evaluate((d) => d.open)) await page.locator('#confirm-yes').click(); })() /* 2026-11-18 P0-2: 이유가 없으면 확인창 없이 바로 출발 */;await page.waitForTimeout(300);await page.locator('#run-skip').click();
  for(let i=0;i<80&&!(await page.locator('#finance').count());i++){if(await page.locator('#skip-yes').isVisible().catch(()=>false))await page.locator('#skip-yes').click();await page.waitForTimeout(200);}
  // 결과: 재정표 항목, 노선별 표 합계 + 공동 항목 = 회차 수지(화면 숫자로 확인)
  const fin=await page.locator('#finance').textContent();

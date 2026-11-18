@@ -47,7 +47,9 @@ async function answerChoices(page) {
 // 출발 확인창까지 — 경고 줄과 기본 초점(8번)
 async function depart(page) {
   await page.locator('#btn-depart').click();
+  if (await page.evaluate(() => PB.App.s.stage === 'run')) return { none: true, lines: [] }; /* 2026-11-18 P0-2: 이유가 없으면 확인창 없이 바로 출발 */
   if (!await page.locator('#confirm-depart[open]').count()) await page.locator('#btn-depart').click(); // 이유 안내 뒤 두 번째
+  if (!await page.locator('#confirm-depart[open]').count() && await page.evaluate(() => PB.App.s.stage === 'run')) return { none: true, lines: [] }; /* 2026-11-18 P0-2: 이유가 없으면 확인창 없이 바로 출발 */
   await page.locator('#confirm-depart[open]').waitFor();
   return page.evaluate(() => ({ lines: [...document.querySelectorAll('#confirm-depart-body li')].map((l) => [l.id, l.textContent]), focus: document.activeElement && document.activeElement.id, title: document.querySelector('#confirm-depart-h').textContent }));
 }
@@ -128,10 +130,10 @@ try {
     }
     const dep = await depart(page);
     // 8번: 경고가 있으면 노선 고치기, 없으면 이대로 출발
-    assert.equal(dep.focus, dep.lines.length ? 'confirm-no' : 'confirm-yes', `${p}단계 확인창 초점 ${JSON.stringify(dep)}`);
+    if (!dep.none) assert.equal(dep.focus, dep.lines.length ? 'confirm-no' : 'confirm-yes', `${p}단계 확인창 초점 ${JSON.stringify(dep)}`);
     if (p === 4) { const t = dep.lines.find((l) => l[0] === 'depart-transfers'); assert.ok(t && /유나: 갈아타기 2번 필요, 이대로면 못 가요/.test(t[1]) && /다은: 갈아타기 2번 필요/.test(t[1]), JSON.stringify(dep.lines)); await page.screenshot({ path: shot('depart4-1280') }); report.sentences.depart4 = t[1]; }
     report['depart' + p] = dep;
-    await page.locator('#confirm-yes').click();
+    await (async () => { if (await page.locator('#confirm-depart').evaluate((d) => d.open)) await page.locator('#confirm-yes').click(); })() /* 2026-11-18 P0-2: 이유가 없으면 확인창 없이 바로 출발 */;
     await skip(page, p);
     await page.waitForTimeout(600);
     const broken = await brokenImages(page); assert.deepEqual(broken, [], p + '단계 결과: 깨진 그림 없음');
@@ -217,7 +219,7 @@ try {
       await page.waitForTimeout(700); await answerChoices(page);
       if (p >= 3) { assert.deepEqual(await brokenImages(page), [], '기본 ' + p + '단계 계획: 깨진 그림 없음'); assert.ok(await page.locator('#people-hud .img-fallback-initial, #map-people .img-fallback-initial').count() >= 2, '기본 ' + p + '단계: 막은 초상은 이름 첫 글자'); }
       if (p === 4) await page.screenshot({ path: shot('default-plan4-1280') });
-      await depart(page); await page.locator('#confirm-yes').click(); await skip(page, p);
+      await depart(page); await (async () => { if (await page.locator('#confirm-depart').evaluate((d) => d.open)) await page.locator('#confirm-yes').click(); })() /* 2026-11-18 P0-2: 이유가 없으면 확인창 없이 바로 출발 */; await skip(page, p);
       assert.deepEqual(await brokenImages(page), [], '기본 ' + p + '단계 결과: 깨진 그림 없음');
       if (p < 5) await nextStage(page);
     }

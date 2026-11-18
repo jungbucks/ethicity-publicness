@@ -225,11 +225,29 @@
     var ph=Session.contractPhases(end);
     return (ph.length>1?ph.join('·')+'단계를 마칠 때 ':'')+'누적 잔액이 '+Session.NEGATIVE_LIMIT+'회 연속 0원 미만이어서 운영 계약이 종료됐어요.';
   }
-  function endingConclusion(reactions,history,end){
+  /* 학기 말 총평 세 갈래(2026-11-18 플레이테스트 P1-9 — 재정 21점·주요 인물 6명 중 3명 불만족에도 ‘나름 잘 설계했어요’가 나왔다). 점수 계산은 그대로, 문장만.
+   * overall = Session.scoresOverall(두 점수: 재정 건전성·이동 수요 충족). 기준 숫자는 VERDICT_BAR(교사 검수 대기):
+   *  · 잘함: 주요 인물 모두 만족 + 두 점수 모두 good 이상 → ‘다양한 사람들을 만족시켰어요.’
+   *  · 보통: 주요 인물 절반 넘게 만족 + 두 점수 모두 low 이상 → ‘도시 노선을 나름 잘 설계했어요. 하지만 이게 최선이었을까요?’
+   *  · 아쉬움: 그 밖(만족 못 한 인물이 절반 이상이거나 한 점수라도 low 미만) → 약한 곳을 짚는 문장
+   * overall이 없으면(예전 호출) 예전 두 갈래 */
+  var VERDICT_BAR={good:70,low:50};
+  function verdictOf(reactions,overall){
+    var all=reactions.length>0&&reactions.every(function(r){return r.satisfied;});
+    if(!overall)return all?'다양한 사람들을 만족시켰어요.':'도시 노선을 나름 잘 설계했어요. 하지만 이게 최선이었을까요?';
+    var fin=overall.finance&&overall.finance.score!=null?overall.finance.score:null,mob=overall.mobility?overall.mobility.score:null,n=reactions.length,happy=reactions.filter(function(r){return r.satisfied;}).length;
+    var at=function(v,bar){return v==null||v>=bar;};
+    if(all&&at(fin,VERDICT_BAR.good)&&at(mob,VERDICT_BAR.good))return '다양한 사람들을 만족시켰어요.';
+    if((!n||happy*2>n)&&at(fin,VERDICT_BAR.low)&&at(mob,VERDICT_BAR.low))return '도시 노선을 나름 잘 설계했어요. 하지만 이게 최선이었을까요?';
+    var weak=[];if(n&&happy*2<=n)weak.push('주요 인물 '+n+'명 중 '+(n-happy)+'명이 만족하지 못했어요');if(fin!=null&&fin<VERDICT_BAR.low)weak.push('재정 건전성은 '+fin+'점이에요');if(mob!=null&&mob<VERDICT_BAR.low)weak.push('이동 수요 충족은 '+mob+'점이에요');
+    if(!weak.length)weak.push('주요 인물 '+n+'명 중 '+(n-happy)+'명이 만족하지 못했어요');
+    return weak.join('. ')+'. 누구의 이동과 어떤 비용을 먼저 챙길지 다시 설계해 봐요.';
+  }
+  function endingConclusion(reactions,history,end,overall){
     var allSatisfied=reactions.length>0&&reactions.every(function(r){return r.satisfied;});
     var profit=history.reduce(function(total,h){return total+h.metrics.costs.total;},0);
     /* 2026-11-11 플레이테스트 13: 총평만 반말 평서체였다 — 다른 화면처럼 해요체로. 금액 이름은 다른 화면과 같은 ‘누적 잔액’(운영 종료 때는 ‘보유 잔액’ 그대로) */
-    var verdict=allSatisfied?'다양한 사람들을 만족시켰어요.':'도시 노선을 나름 잘 설계했어요. 하지만 이게 최선이었을까요?';
+    var verdict=verdictOf(reactions,overall);
     var happy=reactions.filter(function(r){return r.satisfied;}).length,who=reactions.length?'주요 인물 '+reactions.length+'명 중 '+happy+'명이 만족했지만, ':'';
     if(end&&end.cause==='bankrupt')verdict=who+'학기 말 잔액이 '+won(profit)+'이라 파산했어요. 주민의 이동은 지키면서 운영 비용을 다시 설계해 봐요.';
     else if(end&&end.cause==='contract')verdict=contractCause(end)+' 그동안 주민이 해낸 이동은 기록에 남아 있어요. 어디서 돈이 나갔는지부터 다시 봐요.';

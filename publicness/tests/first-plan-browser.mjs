@@ -75,7 +75,7 @@ try{
  await page.locator('#btn-help').click();await page.locator('#btn-tutorial-replay').click();assert.equal(await page.locator('#help').evaluate(d=>d.open),false);
  assert.ok(await page.locator('#tutorial-dialog').evaluate(d=>d.open));await page.keyboard.press('Escape');assert.equal(await page.locator('#tutorial-dialog').evaluate(d=>d.open),false);
  await page.evaluate(()=>{PB.App.onNodeClick('F');PB.App.onNodeClick('D');});await page.locator('#assign-route-1').click();
- await page.evaluate(()=>window.__pbFast=true);await page.locator('#btn-depart').click();await page.locator('#confirm-yes').click();await page.locator('#resident-summary').waitFor({timeout:60000});
+ await page.evaluate(()=>window.__pbFast=true);await page.locator('#btn-depart').click();await (async () => { if (await page.locator('#confirm-depart').evaluate((d) => d.open)) await page.locator('#confirm-yes').click(); })() /* 2026-11-18 P0-2: 이유가 없으면 확인창 없이 바로 출발 */;await page.locator('#resident-summary').waitFor({timeout:60000});
  await page.locator('#btn-next-phase').click();
  while(await page.locator('#goal-intro').evaluate(d=>d.open)){if(await page.locator('#goal-intro').getAttribute('data-stage')==='true')await page.keyboard.press('Enter');else await page.locator('#btn-goal-start').click();}
  if(await page.locator('#learning-dialog:modal').count())await page.locator('#btn-learning-continue').click();await page.locator('#btn-begin-plan').click();

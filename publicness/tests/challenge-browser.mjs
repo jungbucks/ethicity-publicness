@@ -42,7 +42,7 @@ try{
     await page.screenshot({path:'publicness/tests/_shot-regional-'+mode+'.png'});
    }
    // 이 설계는 추가 버스를 1번에 몰아 적자가 쌓인다 — 재정 종료는 finance-browser에서 보고, 여기서는 8단계 진행만(수지 0 하한)
-   await page.locator('#btn-depart').click();await page.locator('#confirm-yes').click();await page.evaluate(()=>{const k=PB.App.s.current.metrics.costs;k.total=Math.max(0,k.total);});await page.locator('#resident-summary').waitFor();
+   await page.locator('#btn-depart').click();await (async () => { if (await page.locator('#confirm-depart').evaluate((d) => d.open)) await page.locator('#confirm-yes').click(); })() /* 2026-11-18 P0-2: 이유가 없으면 확인창 없이 바로 출발 */;await page.evaluate(()=>{const k=PB.App.s.current.metrics.costs;k.total=Math.max(0,k.total);});await page.locator('#resident-summary').waitFor();
    if(phase>=6)assert.match(await page.locator('#family-result').textContent(),/3팀/);
   }
   assert.equal(await page.locator('#btn-next-phase').textContent(),'학기 마무리 보기');await page.locator('#btn-next-phase').click();

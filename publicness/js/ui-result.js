@@ -33,9 +33,12 @@
   function routeInfoFor(App){
     var s=App.s,tls=s.current.result.timelines.filter(function(tl){return tl.route;}),memo={};
     return function(id){
-      if(id in memo)return memo[id];var same=tls.filter(function(tl){return tl.routeId===id;});if(!same.length)return (memo[id]=null);
-      var num=App.numForPlanRoute(same[0].route),h=PB.UI.Econ&&num!==99?PB.UI.Econ.headway(s,num,same.length):null;
-      return (memo[id]={num:num,buses:same.length,headway:h,route:same[0].route,color:App.routeStyle(num).color});
+      if(id in memo)return memo[id];var same=tls.filter(function(tl){return tl.routeId===id;}),fixed=null;
+      /* 2026-11-18 P0-3: 운행 중 고친 노선을 탄 승객은 고친 노선 id — 출발 노선의 운행표를 찾아 고친 모양으로(예전엔 못 찾아 ‘잇는 노선 없음’) */
+      if(!same.length&&PB.Session.midRouteFor){fixed=PB.Session.midRouteFor(s,s.phase,id);if(fixed)same=tls.filter(function(tl){return tl.routeId===fixed.fromId;});}
+      if(!same.length)return (memo[id]=null);
+      var num=App.numForPlanRoute(same[0].route),h=fixed?(function(){var c=PB.Schedule.routeCycle(PB.Session.graph(s),s.config,num,fixed.route);return c!=null?c/same.length:null;})():PB.UI.Econ&&num!==99?PB.UI.Econ.headway(s,num,same.length):null;
+      return (memo[id]={num:num,buses:same.length,headway:h,route:fixed?fixed.route:same[0].route,color:App.routeStyle(num).color});
     };
   }
   // 이유 한 줄과 같은 기준으로 고른 ‘문제 구간’(만족이면 첫 이동) → 작은 지도에 굵게

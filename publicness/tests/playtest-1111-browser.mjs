@@ -92,7 +92,7 @@ async function resultChecks(page, p) {
   assert.deepEqual(r.card.visible, r.visible, p + '단계: 카드에 남긴 보이는 정류장');
   r.card.rows.forEach((x) => assert.deepEqual(x.nodes.filter((n) => r.visible.indexOf(n) < 0), [], `${p}단계 ${x.goal}: 추천 노선의 정류장이 모두 이 단계에 보이는 정류장`));
   const bases = [...new Set(r.card.rows.map((x) => x.base))]; assert.equal(bases.length, 1, `${p}단계: 화살표 앞 숫자가 기준과 무관하게 같음 ${JSON.stringify(r.card.rows.map((x) => x.num))}`);
-  r.rows.forEach((x) => { assert.ok(x.text.includes('(예상 도착률 ' + bases[0] + ' → '), `${p}단계 ${x.goal}: ${x.text}`); });
+  r.rows.forEach((x) => { assert.ok(x.text.includes(' 도착률 ' + bases[0] + ' → AI 제안 ') /* 2026-11-18 P1-6: ‘다음 단계에 지금 노선을 그대로 두면 도착률 A → AI 제안 B’ */, `${p}단계 ${x.goal}: ${x.text}`); });
   const hiddenNames = await page.evaluate(() => PB.App.s.config.nodes.filter((n) => n.fromPhase > PB.App.s.phase).map((n) => n.name));
   [r.summary].concat(r.rows.map((x) => x.text)).forEach((t) => hiddenNames.forEach((n) => assert.ok(!t.includes(n), `${p}단계: 아직 지도에 없는 ${n}을 말하지 않음 — ${t}`)));
   const reach = r.rows.find((x) => x.goal === 'reach'), profit = r.rows.find((x) => x.goal === 'profit');
@@ -206,16 +206,18 @@ try {
     if (p === 1 || p === 3 || p === 4) {
       // ── 7번 출발 확인창 + 6번 운행 화면 ──
       if (p >= 3) { await page.locator('#btn-depart').click(); assert.equal(await page.locator('#confirm-depart[open]').count(), 0, '첫 클릭은 이유 안내'); }
-      await page.locator('#btn-depart').click(); await page.locator('#confirm-depart[open]').waitFor();
+      /* 2026-11-18 P0-2: 이유가 없으면 출발 버튼 클릭에서 바로 운행이 시작된다 — 그 뒤 확인창 검사에 몇 초가 걸려 2× 단계는 읽기 전에 11:00이 지났다. 운행 첫 상태를 페이지 안에서 미리 기다렸다가 적어 둔다 */
+      await page.evaluate(() => { window.__pt1111st0 = null; const tick = () => { const st = document.body.dataset.screen === 'run' && PB.UI.runState(); if (st) { window.__pt1111st0 = { text: document.querySelector('#run-statusbar-text').textContent, tf: st.tf, fixAt: st.fixAt, speed: st.speed, fixOff: document.querySelector('#run-fix').disabled, clock: PB.App.clock(st.tf) }; return; } setTimeout(tick, 5); }; tick(); });
+      await page.locator('#btn-depart').click(); const opened = await page.locator('#confirm-depart').evaluate((d) => d.open); /* 2026-11-18 P0-2: 이유가 없으면 확인창 없이 바로 출발 */
       const lines = await page.evaluate(() => [...document.querySelectorAll('#confirm-depart-body li')].map((l) => [l.id, l.textContent]));
       if (p === 3) { assert.deepEqual(lines, [['depart-over-gap', '배차 간격이 기준(4시간 3분)을 넘는 노선: 초록(버스 1대 · 약 4시간 30분).']], JSON.stringify(lines)); await page.screenshot({ path: shot('depart3-1280') }); }
       else if (p === 1) assert.deepEqual(lines, [['depart-unserved', '노선이 없는 정류장 1곳: 구도심 시장.']], JSON.stringify(lines));
-      else assert.deepEqual(lines, [], p + '단계: 문제가 없으면 제목 한 줄만 ' + JSON.stringify(lines));
-      assert.equal(await page.locator('#confirm-depart-h').innerText(), '이대로 출발할까요?');
-      await page.locator('#confirm-yes').click();
+      else assert.equal(opened, false, p + '단계: 문제가 없으면 확인창 없이 바로 출발 ' + JSON.stringify(lines));
+      if (opened) assert.equal(await page.locator('#confirm-depart-h').innerText(), '이대로 출발할까요?');
+      await (async () => { if (await page.locator('#confirm-depart').evaluate((d) => d.open)) await page.locator('#confirm-yes').click(); })() /* 2026-11-18 P0-2: 이유가 없으면 확인창 없이 바로 출발 */;
       /* 2026-11-14: 운행 첫 상태는 운행 화면이 뜬 바로 그 순간 페이지 안에서 읽는다 — 헤드리스는 운행 중 프레임이 느려(약 5fps, 3초 중 긴 작업 2.4초) 읽기·클릭 하나에 몇 초씩 걸리고,
        * 2×로 시작하는 단계는 11:00까지 약 5초뿐이라 따로 읽으면 이미 11:00이 지나 있을 수 있다 */
-      const st0 = await (await page.waitForFunction(() => { const st = document.body.dataset.screen === 'run' && PB.UI.runState(); return st && { text: document.querySelector('#run-statusbar-text').textContent, tf: st.tf, fixAt: st.fixAt, speed: st.speed, fixOff: document.querySelector('#run-fix').disabled, clock: PB.App.clock(st.tf) }; }, null, { polling: 10 })).jsonValue();
+      const st0 = await (await page.waitForFunction(() => window.__pt1111st0, null, { polling: 10 })).jsonValue();
       assert.equal(st0.text, p >= 3 ? '운행 시작 · 11:00부터 노선을 한 번 고칠 수 있어요.' : '운행 시작', `${p}단계 운행을 시작한 직후(${st0.clock}) 상태 줄: ${st0.text}`); assert.ok(!st0.text.includes('이제'), '11:00 전에는 ‘이제’라고 하지 않음');
       /* 2×는 노선 고치기가 없는 1단계 운행에서 실제로 눌러 고른다 — 고른 배속은 다음 운행에도 이어진다(Storage.writeSpeed, 설계) */
       if (p === 1) { await page.locator('#speed-2').click(); assert.equal(await page.evaluate(() => PB.UI.runState().speed), 2, '1단계 운행에서 2배속을 고름'); }
@@ -252,7 +254,7 @@ try {
   await page.locator('#ending-verdict').waitFor();
   const end = await page.evaluate(() => { const T = (q) => document.querySelector(q).textContent, s = PB.App.s, o = PB.Session.scoresOverall(s); return { verdict: T('#ending-verdict'), profit: T('#ending-profit'), seed: T('#end-seed'), cards: [...document.querySelectorAll('.resident-card')].map((c) => c.dataset.id + ': ' + c.querySelector('p:not(.note)').textContent), v: PB.config.SCENARIO_VERSION, balance: PB.App.won(PB.Session.balance(s)), fin: o.finance.score, mob: o.mobility.score, reserve: o.finance.reserve.amount, cause: s.end.cause,
     cut: PB.Narrative.endingReactions(s.config, s.history).map((r) => r.text.split('\n')[1]) }; });
-  assert.ok(['도시 노선을 나름 잘 설계했어요. 하지만 이게 최선이었을까요?', '다양한 사람들을 만족시켰어요.'].includes(end.verdict), end.verdict);
+  assert.ok(['도시 노선을 나름 잘 설계했어요. 하지만 이게 최선이었을까요?', '다양한 사람들을 만족시켰어요.'].includes(end.verdict) || /누구의 이동과 어떤 비용을 먼저 챙길지 다시 설계해 봐요.$/.test(end.verdict), end.verdict); /* 2026-11-18 P1-9: 총평 세 갈래 */
   assert.equal(end.profit, `누적 잔액 ${end.balance} · 지원금·운임에서 비용을 뺀 5단계 합계`); assert.ok(!/총 수익|누적 손익/.test(await page.locator('#panel').innerText()));
   assert.ok(end.seed.endsWith('시나리오 ' + end.v) && end.v !== 'pb-3.0.0', end.seed);
   end.cards.concat(end.cut).forEach((t) => assert.ok(!/\d일 중|\d일이에요|\d일 이상/.test(t), '엔딩 단위는 회: ' + t));

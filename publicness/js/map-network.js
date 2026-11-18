@@ -59,33 +59,37 @@
         svgEl('rect', { x: 0, y: 0, width: box.width, height: box.height, fill: '#fff' }, m); g.setAttribute('mask', 'url(#' + id + ')'); return m;
       }
       st.routes.forEach(function (r) {
-        var gRoute = svgEl('g', { 'class': 'net-route', 'data-route': r.num }, routeSvg), gCase = svgEl('g', { 'class': 'net-casing' }, gRoute), gLine = svgEl('g', { 'class': 'net-lines' }, gRoute), routeSegs = [];
-        var ns = r.route.nodes, w = Math.min(T.line, 4), casing = Math.min(T.casing, 1), dash = r.preview ? '10 7' : null;
+        var ghost = r.preview && !r.ai, gRoute = svgEl('g', { 'class': 'net-route', 'data-route': r.num }, routeSvg), gCase = svgEl('g', { 'class': 'net-casing' }, gRoute), gLine = svgEl('g', { 'class': 'net-lines' }, gRoute), routeSegs = [];
+        var ns = r.route.nodes, w = Math.min(T.line, 4), casing = Math.min(T.casing, 1), dash = ghost ? '10 7' : null; if (r.ai) gRoute.setAttribute('data-ai', '1');
         for (var i = 1; i < ns.length; i++) {
           var a = st.nodes[ns[i - 1]], b = st.nodes[ns[i]]; if (!a || !b) continue;
           var p = lanePoint(a, b, r.num, 0), q = lanePoint(a, b, r.num, 1);
           routeSegs.push({ x1: p.left, y1: p.top, x2: q.left, y2: q.top, pad: w / 2 + casing });
-          if (!r.preview) { svgEl('line', { x1: p.left, y1: p.top, x2: q.left, y2: q.top, 'stroke-width': w + (r.active ? 6 : casing * 2) }, gCase); if(r.active)gCase.classList.add('selected-route'); segs.push(routeSegs[routeSegs.length - 1]); }
-          var ln = svgEl('line', { x1: p.left, y1: p.top, x2: q.left, y2: q.top, stroke: r.color, 'stroke-width': r.preview ? T.line * 0.6 : w, 'data-route': r.num }, gLine);
+          if (!ghost) { svgEl('line', { x1: p.left, y1: p.top, x2: q.left, y2: q.top, 'stroke-width': w + (r.active ? 6 : casing * 2) }, gCase); if(r.active)gCase.classList.add('selected-route'); segs.push(routeSegs[routeSegs.length - 1]); }
+          var ln = svgEl('line', { x1: p.left, y1: p.top, x2: q.left, y2: q.top, stroke: r.color, 'stroke-width': ghost ? T.line * 0.6 : w, 'data-route': r.num }, gLine);
           if (dash) ln.setAttribute('stroke-dasharray', dash);
           if (r.active) ln.setAttribute('class', 'active');
 
         }
-        if (!r.preview) ns.forEach(function (id, i) { if (r.route.stops[i] && st.nodes[id]) (at[id] = at[id] || []).indexOf(r.color) < 0 && at[id].push(r.color); });
+        if (!ghost) ns.forEach(function (id, i) { if (r.route.stops[i] && st.nodes[id]) (at[id] = at[id] || []).indexOf(r.color) < 0 && at[id].push(r.color); });
         // 이 노선이 서지 않는 정류장을 지나는가: 정류장 원 + 여유 안으로 선이 들어오면 그 둘레만 흐리게
         var stopsHere = {}; ns.forEach(function (id, i) { if (r.route.stops[i]) stopsHere[id] = true; });
-        var dim = masks[r.num + (r.preview ? 'p' : '')] = { el: zoneMask(r, gRoute), segs: routeSegs, stops: stopsHere, preview: !!r.preview };
+        var dim = masks[r.num + (r.preview ? 'p' : '')] = { el: zoneMask(r, gRoute), segs: routeSegs, stops: stopsHere, preview: ghost };
         Object.keys(st.nodes).forEach(function (id) {
           if (stopsHere[id]) return; var n = st.nodes[id], c = project(n.x, n.y), near = T.stop + 7;
           if (!routeSegs.some(function (sg) { return segDist(c.left, c.top, sg) < near; })) return;
           svgEl('circle', { cx: c.left, cy: c.top, r: T.stop + 10, fill: DIM }, dim.el);
-          if (!r.preview) (passing[id] = passing[id] || []).push(r.num);
+          if (!ghost) (passing[id] = passing[id] || []).push(r.num);
         });
       });
+      /* AI 제안 미리보기에서 내 계획에서 빠지는 구간(2026-11-18 P0-1): 회색 점선. 이름표 ‘빠짐’은 얼굴까지 자리 잡은 뒤(아래) */
+      var drop = st.drop || { segs: [], stops: [] }, dropSegs = [];
+      if (drop.segs.length) { var gDrop = svgEl('g', { 'class': 'net-drop' }, routeSvg); drop.segs.forEach(function (d) { var a = st.nodes[d.a], b = st.nodes[d.b]; if (!a || !b) return; var p = project(a.x, a.y), q = project(b.x, b.y);
+        svgEl('line', { x1: p.left, y1: p.top, x2: q.left, y2: q.top, 'stroke-dasharray': '7 6', 'data-seg': d.key }, gDrop); dropSegs.push({ key: d.key, p: p, q: q }); }); }
       // 정류장 마커
       Object.keys(st.nodes).forEach(function (id) {
         var n = st.nodes[id], p = project(n.x, n.y), sel = st.selected.indexOf(id) >= 0, can = !st.selectable.length || st.selectable.indexOf(id) >= 0 || sel;
-        var g = svgEl('g', { 'class': 'net-stop' + (sel ? ' selected' : '') + (can ? '' : ' muted') + (flashT[id] && performance.now() - flashT[id] < 900 ? ' flash' : '') + (passing[id] && !at[id] ? ' pass' : ''), 'data-node': id }, gStop);
+        var g = svgEl('g', { 'class': 'net-stop' + (sel ? ' selected' : '') + (can ? '' : ' muted') + (flashT[id] && performance.now() - flashT[id] < 900 ? ' flash' : '') + (passing[id] && !at[id] ? ' pass' : '') + (drop.stops.indexOf(id) >= 0 ? ' dropped' : ''), 'data-node': id }, gStop);
         if (passing[id]) g.setAttribute('data-pass', passing[id].join(','));
         // 이번 단계에 새로 생긴 정류장(2026-11-01): 처음 2.6초 강조 고리(지도 배너와 함께), 이름표엔 ‘새 정류장’ 배지
         if (st.newNodes.indexOf(id) >= 0 && performance.now() - st.newAt < 2600) svgEl('circle', { 'class': 'new-ring', cx: p.left, cy: p.top, r: T.stop + 10 }, g);
@@ -303,6 +307,14 @@
         if (settled) keep.face[f.id] = { dx: best.x - p.left, dy: best.y - p.top };
         facePos[f.id] = best; placed.push({ x: best.x, y: best.y, w: s, h: s, kind: 'face', id: f.id });
       });
+      dropSegs.forEach(function (d) {
+        var el = document.createElement('div'); el.className = 'net-drop-label'; el.dataset.seg = d.key; el.textContent = '빠짐'; labels.appendChild(el);
+        var w = el.offsetWidth, h = el.offsetHeight, best = null;
+        [0.5, 0.38, 0.62, 0.28, 0.72].some(function (t) { var x = d.p.left + (d.q.left - d.p.left) * t - w / 2, y = d.p.top + (d.q.top - d.p.top) * t - h / 2, r = { x: x, y: y, w: w, h: h };
+          if (!inBox(r) || placed.some(function (q) { return q.kind !== 'pad' && overlap(r, q); })) return false; best = r; return true; });
+        if (!best) best = { x: Math.min(Math.max(2, (d.p.left + d.q.left) / 2 - w / 2), box.width - w - 2), y: Math.min(Math.max(2, (d.p.top + d.q.top) / 2 - h / 2), box.height - h - 2), w: w, h: h };
+        el.style.left = Math.round(best.x) + 'px'; el.style.top = Math.round(best.y) + 'px'; placed.push({ x: best.x, y: best.y, w: w, h: h, kind: 'drop' });
+      });
       // 얼굴이 제자리를 지켰으면 그 위의 번호 원을 한 번 더 비켜 놓는다
       keptFaces = placed.filter(function (q) { return q.kind === 'face'; }); fixCaps();
       // 그 노선이 서지 않는 정류장의 이름표 밑을 지나는 구간도 흐리게(이름표가 놓인 뒤에야 자리를 안다, P0-1)
@@ -329,7 +341,7 @@
       setFaces: function (list) { st.faces = list || []; redraw(); },
       facePos: function (id) { return facePos[id] || null; },
       setOptions: function (o) {
-        if ('showWait' in o) st.showWait = !!o.showWait; if ('show' in o) st.show = !!o.show; if ('service' in o) st.service = o.service || {}; if ('profit' in o) st.profit = o.profit || null;
+        if ('showWait' in o) st.showWait = !!o.showWait; if ('show' in o) st.show = !!o.show; if ('service' in o) st.service = o.service || {}; if ('profit' in o) st.profit = o.profit || null; if ('drop' in o) st.drop = o.drop || null;
         if ('newNodes' in o) { var was = st.newNodes.join(), at = o.newAt || 0; st.newNodes = o.newNodes || []; if (was !== st.newNodes.join() || at !== st.newAt) { st.newAt = at; var left = 2700 - (performance.now() - at); if (st.newNodes.length && left > 0) root.setTimeout(redraw, left); } }
         redraw();
       },

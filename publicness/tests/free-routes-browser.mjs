@@ -50,7 +50,7 @@ try{
     await page.locator('#panel').evaluate(n=>n.scrollTop=0);
     await page.screenshot({path:`publicness/tests/_shot-v2-plan-${mode}.png`});
     await page.clock.pauseAt(new Date(await page.evaluate(()=>Date.now())+1000));
-    await page.locator('#btn-depart').click();await page.locator('#confirm-yes').click();
+    await page.locator('#btn-depart').click();await (async () => { if (await page.locator('#confirm-depart').evaluate((d) => d.open)) await page.locator('#confirm-yes').click(); })() /* 2026-11-18 P0-2: 이유가 없으면 확인창 없이 바로 출발 */;
     check(await page.locator('#speed-1').count()===1&&await page.locator('#speed-2').count()===1,mode+' speed controls available');
     const clock=()=>page.locator('#top-clock').innerText().then(t=>parseInt(t));
     const t0=await clock();await page.clock.runFor(1600);const t1=await clock();
@@ -87,7 +87,7 @@ try{
         const newNum=await page.evaluate(()=>PB.App.s.draft.routes.at(-1).num);
         await page.locator('#bus-sel-4').selectOption(String(newNum));
       }
-      await page.locator('#btn-depart').press('Enter');await page.locator('#confirm-yes').press('Enter');
+      await page.locator('#btn-depart').press('Enter');await (async () => { if (await page.locator('#confirm-depart').evaluate((d) => d.open)) await page.locator('#confirm-yes').press('Enter'); })() /* 2026-11-18 P0-2: 이유가 없으면 확인창 없이 바로 출발 */;
       await page.locator('#resident-summary').waitFor();
     }
     await page.locator('#btn-next-phase').click();await page.locator('#btn-restart').waitFor();

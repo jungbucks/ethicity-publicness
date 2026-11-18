@@ -175,7 +175,7 @@
     var s = App.s, sum = S.endingSummary(s);
     cfg=s.config;
     var end=s.end||{cause:'complete'},failed=end.cause==='bankrupt'||end.cause==='contract';
-    var reactions=N.endingReactions(s.config,s.history),conclusion=N.endingConclusion(reactions,s.history,end);
+    var reactions=N.endingReactions(s.config,s.history),conclusion=N.endingConclusion(reactions,s.history,end,S.scoresOverall(s));/* 2026-11-18 P1-9: 두 점수로 총평 세 갈래 */
     /* 컷을 건너뛰면 결과 맨 위(파산/결과 제목)로(2026-11-05 P2) — 끝까지 보면 예전처럼 ‘운행 기록 보기’ */
     function showReactions(){PB.Cutscene.play('ending',function(how){if(how!=='skip'){$('#btn-records').focus();return;}var p=$('#panel'),t=$('#ending-title');if(p)p.scrollTop=0;root.scrollTo(0,0);if(t){t.setAttribute('tabindex','-1');t.focus({preventScroll:true});}},reactions.concat(conclusion));}
     if (App._resultFor !== s) {

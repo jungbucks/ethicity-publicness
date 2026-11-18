@@ -47,7 +47,8 @@
     var fp = PB.Choices.petitionFor(s, s.phase); hooks = hooks || {};
     if (!fp) return null; /* 2026-11-12 랜덤 검토 4번: 고정 청원(2단계 → 3단계 답)과 사건 청원(생긴 다음 단계에 답)을 같은 카드로 */
     var zone = App.nodeName(fp.zone), c = shell(App, 'petition-card', zone + ' 주민 청원');
-    c.appendChild(App.el('p', { id: 'petition-text', 'class': 'fair-fact' }, App.clock(fp.t) + ' ' + zone + ' 주민 청원: 그때까지 요청 ' + fp.total + '건 중 ' + fp.count + '건이 아직 도착하지 못했어요.'));
+    /* 2026-11-18 P1-7: 무엇을 바라는지 한 줄(바라는 곳 = 그때 못 간 이동의 목적지 중 가장 많은 곳, 예전 저장본엔 없음) */
+    c.appendChild(App.el('p', { id: 'petition-text', 'class': 'fair-fact' }, App.clock(fp.t) + ' ' + zone + ' 주민 청원: ' + UI.petitionAsk(App, fp) + ' · 못 간 이동 ' + fp.count + '건(그때까지 요청 ' + fp.total + '건 중)'));
     c.appendChild(App.el('p', { 'class': 'fair-frame' }, zone + ' 주민의 청원을'));
     c.appendChild(options(App, s, 'petition', hooks, zone + ' 주민의 청원에 대한 답'));
     c.appendChild(whyLine(App, s, 'petition', hooks));
@@ -156,6 +157,7 @@
       o.verdict === 'up' ? '반영했지만 ' + a + '건 → ' + b + '건으로 늘었어요' : '반영했지만 못 간 이동이 ' + a + '건 그대로예요';
   }
   UI.petitionVerdict = verdictText;
+  UI.petitionAsk = function (App, p) { var zone = App.nodeName(p.zone); return '“' + zone + '에서 ' + (p.to ? App.nodeName(p.to) + ' 쪽으로 ' : '') + '가는 버스를 늘려 주세요”'; };
   function elderResult(App, s, h) {
     var ch = PB.Session.elderChoice(s), k = (((h.scores || {}).mobility || {}).reasons || {}).stayHome || 0;
     if (h.phase < 4 || ch !== 'abolish' && ch !== 'keep') return null;

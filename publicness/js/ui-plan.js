@@ -189,7 +189,7 @@
     changed();r.nodes[i]=to.node;if(i===0&&r.nodes[r.nodes.length-1]===from.node)r.nodes[r.nodes.length-1]=to.node;
     P.anchor=i;P.message='경유 정류장을 바꿨어요.';render();
   }
-  function removeAt(r,i){changed();var loop=G.isLoop(r);if(loop){r.nodes.pop();r.stops.pop();}r.nodes.splice(i,1);r.stops.splice(i,1);
+  function removeAt(r,i){changed();P.message=PB.Narrative.josa(app().nodeName(r.nodes[i]),'을를')+' 뺐어요.';/* 2026-11-18 플레이테스트 P2: 빼도 이전 문구가 남던 것 */var loop=G.isLoop(r);if(loop){r.nodes.pop();r.stops.pop();}r.nodes.splice(i,1);r.stops.splice(i,1);
     if(loop&&r.nodes.length>=3){r.nodes.push(r.nodes[0]);r.stops.push(true);}P.anchor=null;render();}
   function choose(goal){
     var s=st(),token=++P.token;S.chooseGoal(s,goal);P.busy=true;P.rec=null;P.preview=false;render();
@@ -204,14 +204,14 @@
     var used=st().draft.buses.map(function(b){return b.routeNum;});st().draft.routes=st().draft.routes.filter(function(r){return used.indexOf(r.num)>=0;});
     P.preview=false;P.editing=used.filter(function(n){return n!=null;})[0]||null;P.anchor=null;P.message='제안을 적용했어요. 지도에서 바로 고칠 수 있어요.';render();
     app().toast(P.message,{priority:true});}// 적용하면 AI 패널은 닫히고(ui-map-plan) 알림만 남는다(2026-11-01)
-  UI.planSetPreview=function(on){P.preview=!!on&&!!P.rec;};
+  UI.planSetPreview=function(on){P.preview=!!on&&!!P.rec;};UI.planRec=function(){return P.rec;};/* 지금 AI 제안(검사용) */
   // AI 목표별로 무엇을 기준으로 고르는지(advisor.js score와 같은 뜻, 2026-11-01). 알고리즘은 그대로이고 설명만 보탠다
   var GOAL_DESC={time:'모든 이동의 도착까지 걸린 시간 합이 가장 짧은 계획을 골라요.',reach:'사람이 정해 둔 지역과 탑승 기록이 가장 적은 지역에 버스가 서게 해요. 기록이 없어도 챙겨요.',profit:'이번 단계 수지(지원금 + 운임 − 비용)가 가장 큰 계획을 골라요.'};
   /* 소외 지역 연결(2026-11-10): 정차 여부 우선. 대상 = 사람이 정해 둔 지역 + 탑승 기록 비율이 가장 낮은 지역(1단계는 앞부분만) */
   function goalDesc(id){return GOAL_DESC[id];}
   function goalCriterion(rec){var first=st().phase===1||!st().history.length;
     var zs=(rec.targets||[]).map(function(z){return app().nodeName(z);}).join('·');
-    return rec.goal==='reach'?(zs?'이 제안의 ‘소외 지역’은 '+(first?'사람이 정해 둔 지역('+zs+')이에요.':zs+'이에요. 사람이 정해 둔 지역과 탑승 기록이 가장 적은 지역이에요.'):'이 제안의 ‘소외 지역’은 사람이 정해 둔 지역'+(first?'이에요.':'과 탑승 기록이 가장 적은 지역이에요.'))
+    return rec.goal==='reach'?(zs?'이 제안의 ‘소외 지역’은 '+(first?'사람이 정해 둔 지역('+zs+')이에요.':PB.Narrative.josa(zs,'이에요')+'. 사람이 정해 둔 지역과 탑승 기록이 가장 적은 지역이에요.'):'이 제안의 ‘소외 지역’은 사람이 정해 둔 지역'+(first?'이에요.':'과 탑승 기록이 가장 적은 지역이에요.'))
       :rec.goal==='time'?'이 제안의 ‘빠른 이동’은 모든 이동의 도착 시간 합이에요. 주요 인물을 따로 챙기지는 않아요.'
       :'이 제안의 ‘수익’은 이번 단계 수지예요. 도착 건수는 수지가 같을 때만 따져요.';}
   /* AI 비교(2026-11-05 P1-6): ‘내 노선 | AI 제안’ 두 열 표를 맨 위에. 좋아짐·나빠짐은 색과 글자 둘 다. 값은 모두 같은 예상 함수(Session.expected) */
@@ -228,7 +228,7 @@
     t.appendChild(body);return t;
   }
   function ai(panel){
-    var d=el('details',{id:'ai-tools'});if(P.rec||P.busy)d.open=true;d.appendChild(el('summary',null,'AI에게 노선 제안받기'));
+    var d=el('details',{id:'ai-tools'});if(P.rec||P.busy||P.outlookOpen)d.open=true;d.appendChild(el('summary',null,'AI에게 노선 제안받기'));outlook(d);
     var row=el('div',{'class':'goal-row'});[{id:'time',name:'빠른 이동'},{id:'reach',name:'소외 지역 연결'},{id:'profit',name:'수익'}].forEach(function(g){
       var cell=el('div',{'class':'goal-cell'}),b=btn(g.name,'goal-'+g.id,function(){choose(g.id);},'goal-btn');b.dataset.goal=g.id;b.disabled=P.busy;b.setAttribute('aria-pressed',String(!!P.rec&&st().goal===g.id));b.setAttribute('aria-describedby','goal-desc-'+g.id);
       cell.appendChild(b);cell.appendChild(el('p',{id:'goal-desc-'+g.id,'class':'goal-desc note'},goalDesc(g.id)));row.appendChild(cell);});/* 제안이 나오면 비교표가 맨 위(P1-6) — 목표 버튼은 카드 아래로 */if(!P.rec)d.appendChild(row);
@@ -356,7 +356,8 @@
     return (rec._view={rows:rows,resting:pv.draft.buses.filter(function(b){return b.routeNum==null;}).map(function(b){return b.id;}),before:S.expected(s),after:S.expected(pv)});
   }
   function outlook(panel){
-    var toggle=btn(P.outlookOpen?'예상 도움 닫기':'AI에게 예상 물어보기','btn-outlook-help',function(){P.outlookOpen=!P.outlookOpen;render('#btn-outlook-help');});
+    /* 2026-11-18 플레이테스트 P2: 텍스트 모드의 ‘AI에게 예상 물어보기’가 ‘AI 제안’과 따로 있던 진입점 — AI 제안 안(#ai-tools 맨 위)으로 합쳤다. 내용(내 노선 예상)은 그대로 */
+    var toggle=btn(P.outlookOpen?'예상 닫기':'지금 노선 예상 보기','btn-outlook-help',function(){P.outlookOpen=!P.outlookOpen;render('#btn-outlook-help');});
     toggle.setAttribute('aria-expanded',String(!!P.outlookOpen));toggle.setAttribute('aria-controls','plan-outlook');panel.appendChild(toggle);
     if(P.outlookOpen)outlookContent(panel);else panel.appendChild(el('section',{id:'plan-outlook',hidden:true}));
   }
@@ -398,7 +399,9 @@
   // 노선이 완성되면 생길 일(자동 배치)과 비용을 미리 알린다
   function busNote(r){if(r.autoPlaced||assigned(r.num).length)return '';var b=S.restingFor(st(),r.num);
     return b?' 이으면 '+B(b.id,null).replace(/^대기 버스$/,'대기 중인 버스 한 대')+'가 바로 운행해요(운영·연료 약 '+app().won(S.typicalBusCost(st()))+').':' 대기 버스가 없어 노선만 생겨요.';}
-  UI.plan=function(App,panel){var s=App.s;if(P.session!==s||P.phase!==s.phase)P={session:s,phase:s.phase,editing:s.draft.routes[0]?s.draft.routes[0].num:null,anchor:null,rec:null,preview:false,busy:false,token:P.token+1,message:'',history:[],baseline:null,recSeen:{},pickerOpen:null};
+  UI.plan=function(App,panel){var s=App.s,fresh=P.session!==s||P.phase!==s.phase;if(fresh)P={session:s,phase:s.phase,editing:s.draft.routes[0]?s.draft.routes[0].num:null,anchor:null,rec:null,preview:false,busy:false,token:P.token+1,message:'',history:[],baseline:null,recSeen:{},pickerOpen:null};
+    /* 2026-11-18 P0-3: 지난 단계 운행 중에 고친 것(노선 고치기·버스 옮기기)은 그날만 — 새 단계 계획에 들어온 첫 화면에서 상태 줄로 한 번 알린다 */
+    if(fresh&&s.phase>1&&(s.midChanges||[]).some(function(c){return c.phase===s.phase-1;})){P.message='지난 운행 중 고친 내용은 계획에 남지 않았어요.';/* 간단 화면은 상태 줄이 알림(#minimal-toast)이라 새 단계 첫 화면에서 한 번 직접 띄운다(좁은 화면은 단계 배너가 닫힌 뒤로 App.toast가 미룸) */root.setTimeout(function(){if(st()===s&&s.stage==='plan'&&P.message==='지난 운행 중 고친 내용은 계획에 남지 않았어요.')app().toast(P.message,{ms:5000});},0);}
     if(s.resumedFromRun){s.resumedFromRun=false;P.message='운행 도중 창이 닫혀, 출발 직전 계획으로 돌아왔어요. 같은 계획으로 다시 출발하면 같은 결과로 운행해요(이 단계 정산은 아직 하지 않았어요).';}
     panel.appendChild(el('p',{'class':'eyebrow'},s.phase+'단계 · '+s.config.phases[s.phase-1]));panel.appendChild(el('h2',null,'어느 동네를 이을까요?'));
     if(s.config.day)cast(panel);
@@ -415,7 +418,7 @@
     var FA=UI.fairness,hooks={rerender:render,nudge:P.nudge||null};if(FA){var pc=FA.petitionCard(App,s,hooks),ec=s.phase===4?FA.elderCard(App,s,hooks):null,fc=pc||ec,fr=fc?null:FA.required(App,s);/* 2026-11-12: 사건 청원 답과 4단계 무임 정책이 같은 단계면 한 카드 안에 차례로(넓은 화면 칸 하나) — ‘골라야 출발’ 줄은 맨 아래 하나만 */if(pc&&ec){var dup=pc.querySelector('#choice-required');if(dup)dup.remove();ec.classList.remove('fair-card');ec.classList.add('fair-sub');pc.appendChild(ec);}/* ‘골라야 출발’ 줄은 카드 안 맨 아래에 있다(2026-11-11) — 카드가 없을 때만 따로 */if(fc)panel.appendChild(fc);if(fr)panel.appendChild(fr);if(FA.profitToggle)panel.appendChild(FA.profitToggle(App,s,hooks));}
     // 노선을 하나라도 완성한 뒤에만 막힌 이유를 띄운다(처음엔 위 안내가 할 일을 알려 줌)
     var blocked=s.draft.routes.some(function(r){return r.nodes.length>=2;})?blockers():[];if(blocked.length)blocker(panel,blocked);
-    routes(panel);buses(panel);outlook(panel);ai(panel);
+    routes(panel);buses(panel);ai(panel);
     var errors=S.validate(s),box=el('div',{id:'plan-errors'});errors.filter(function(e){return !s.draft.routes.some(function(r){return (!r.nodes.length||blocked.indexOf(r)>=0)&&e.indexOf(r.num+'번 노선:')===0;});}).forEach(function(e){box.appendChild(el('p',{'class':'callout warn'},PB.Names.text(e)));});panel.appendChild(box);
     var missing=unassigned();if(missing.length)panel.appendChild(el('p',{id:'unassigned-warning','class':'callout warn'},missing.map(function(r){return C(r.num);}).join(', ')+' 노선은 버스 미배정으로 운행하지 않아요.'));
     var depart=btn('이 노선으로 출발','btn-depart',function(){if(S.validate(s).length)return;if(whyNudge(s))return;P.nudge=null;departCheck();},'btn-primary btn-lg');depart.disabled=errors.length>0||P.busy||PB.Choices.required(s).length>0;if(PB.Choices.required(s).length)depart.setAttribute('aria-describedby','choice-required');
@@ -427,7 +430,9 @@
     P.baseline=snapshot();var r=active();return{selectable:P.preview?[]:nextStops(),selected:P.preview?[]:(r?r.nodes:[]),activeRoute:P.editing,preview:P.preview&&P.rec?P.rec.plan:null};
   };
   /* 출발 확인(2026-11-05 지시서 P0-2 — 11-02 "이대로 출발할까요?만 묻는다" 결정을 사용자 지시서가 뒤집음, 이 커밋만 되돌리면 복구):
-   * 점검 목록 = 운행 버스 0대 · 쉬는 버스와 보유비 · 노선이 없는 정류장(새 정류장 먼저) · 출발지나 목적지가 노선에 없는 인물. 예상 수지는 넣지 않는다(2026-11-06 사용자 결정, 계획 화면에 있음).
+   * 점검 목록 = 운행 버스 0대 · 쉬는 버스와 보유비 · 노선이 없는 정류장(새 정류장 먼저) · 출발지나 목적지가 노선에 없는 인물.
+   * 2026-11-18 플레이테스트 P0-2: 이번 단계 예상 수지가 마이너스면 그 금액과 누적 잔액(0원 밑으로 내려가는지) · 노선을 달리는 빌린 버스의 임차료도 이유로 쓴다(예전 2026-11-06 ‘예상 수지는 넣지 않음’을 사용자 지시가 뒤집음).
+   *   숫자는 지도 위 ‘예상’과 같은 계산(UI.Econ.plan — 기본 수요 기준). 이유가 하나도 없으면 확인창 없이 바로 출발(departCheck).
    * 막는 문제(운행 버스 0대)면 제목을 바꾸고 기본 포커스를 ‘노선 고치기’에. 경고는 접지 않고 본문에 최대 3줄, 더 있을 때만 ‘자세히’ — 경고가 없으면 ‘자세히’를 만들지 않는다 */
   function departLines(s){
     var c=S.departChecks(s),out=[],W=app().won,N=app().nodeName,F=s.config.finance;
@@ -441,6 +446,9 @@
     if(c.unserved.length)out.push({id:'depart-unserved',text:'노선이 없는 정류장 '+c.unserved.length+'곳: '+list(c.unserved,function(id){return N(id)+(c.newStops.indexOf(id)>=0?'(새)':'');})+'.'});
     if(c.resting)out.push({id:'depart-resting',text:'쉬는 버스 '+c.resting+'대 · 이번 단계 보유비 '+c.resting+' x '+W(F.holding)+' = '+W(c.restingCost)+'이 그대로 나가요.'});
     if(c.restingLeased)out.push({id:'depart-resting-leased',text:'빌린 버스 '+c.restingLeased+'대가 쉬어요 · 임차료 '+W(c.restingLeaseCost)+'이 그대로 나가요.'});
+    var E=UI.Econ,k=!c.noBus&&E?E.plan(s).k:null,bal=S.balance(s);
+    if(k&&k.total<0)out.push({id:'depart-deficit',text:'이번 단계 예상 수지가 '+W(k.total)+(bal+k.total<0?'이라 누적 잔액이 0원 밑으로 내려가요(약 '+W(bal+k.total)+').':'이에요 · 누적 잔액 '+W(bal)+' → 약 '+W(bal+k.total)+'.')});
+    if(c.leasedRunning)out.push({id:'depart-lease',text:'빌린 버스 임차료 '+W(c.leaseRunningCost)+(c.leasedRunning>1?'('+c.leasedRunning+'대)':'')+'이 이번 단계에 나가요.'});
     if(c.residents.length)out.push({id:'depart-residents',text:'출발지나 목적지에 노선이 없는 사람: '+c.residents.map(function(r){return r.name+'('+N(r.o)+'→'+N(r.d)+')';}).join(', ')+'.'});
     return {noBus:c.noBus,lines:out};
   }
@@ -448,6 +456,8 @@
   function whyNudge(s){var k=UI.fairness&&UI.fairness.kindOf(s);if(!k)return false;var f=PB.Choices.get(s,k);P.nudged=P.nudged||{};if(!f||!f.choice||f.why||P.nudged[k])return false;P.nudged[k]=true;P.nudge=k;render('#'+k+'-why');return true;}
   function departCheck(){
     var s=st(),body=document.querySelector('#confirm-depart-body'),c=departLines(s),show=c.lines.slice(0,3),rest=c.lines.slice(3);body.textContent='';
+    /* 2026-11-18 P0-2: 이유가 없으면 빈 확인창(제목·버튼만)을 띄우지 않고 바로 출발 */
+    if(!c.lines.length){if(S.startRun(s))app().go('run');return;}
     document.querySelector('#confirm-depart-h').textContent=c.noBus?'운행하는 버스가 없어요':'이대로 출발할까요?';
     function put(box,l){box.appendChild(el('li',{id:l.id},l.text));}
     if(show.length){var ul=el('ul',{id:'depart-checks','class':'callout warn depart-checks'});show.forEach(function(l){put(ul,l);});body.appendChild(ul);}

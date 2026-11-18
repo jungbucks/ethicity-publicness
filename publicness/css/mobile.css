@@ -187,6 +187,8 @@ body.rail .map-toolbar #map-clock .clock { font-size: 22px; }
 body.rail #minimal-profit { min-height: 0; margin-left: auto; padding: 0; display: flex; flex-wrap: wrap; align-items: baseline; justify-content: flex-end; gap: 0 6px; }
 body.rail #minimal-profit strong { font-size: 22px; }
 body.rail #minimal-profit .minimal-profit-expected { margin-left: 0; }
+/* 2026-11-18 P1-4: 시계와 수지는 같은 줄 글자 기준선(baseline)에, 둘 사이 12px — ‘이른 아침’과 ‘지금까지’가 붙어 보였다. 수지가 한 줄에 다 안 들어가면(1148 운행 등) 수지 줄 통째로 다음 줄, 운행 조작 줄과는 6px 넘게 */
+body.rail .map-toolbar { align-items: baseline; column-gap: 12px; row-gap: 6px; }
 body.rail.minimal-emergency #panel { padding: 0; border: 0; }
 body.rail .minimal-emergency-buses { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 body.rail .plan-primary { grid-area: t1; margin: 0; flex-wrap: nowrap; align-items: stretch; min-width: 0; }

@@ -33,7 +33,7 @@ async function play(page, phase, { only = null, then = 'plan', extra = null } = 
   }, [ROUTES, phase, only, then, extra]);
   await page.waitForTimeout(700);
 }
-async function depart(page) { await page.locator('#btn-depart').click(); await page.locator('#confirm-yes').click(); await page.waitForTimeout(700); await page.locator('#run-pause').click(); await page.waitForTimeout(200); } // 출발 직후 멈춤(조정 시각 전에 패널을 여닫아 보려고)
+async function depart(page) { await page.locator('#btn-depart').click(); await (async () => { if (await page.locator('#confirm-depart').evaluate((d) => d.open)) await page.locator('#confirm-yes').click(); })() /* 2026-11-18 P0-2: 이유가 없으면 확인창 없이 바로 출발 */; await page.waitForTimeout(700); await page.locator('#run-pause').click(); await page.waitForTimeout(200); } // 출발 직후 멈춤(조정 시각 전에 패널을 여닫아 보려고)
 async function toEmergency(page) { // 2026-11-09: ⏭로 11:00(노선 고치기 시작)까지 간 뒤 「노선 고치기 · 한 번」
   for (let i = 0; i < 25; i++) { const st = await page.evaluate(() => PB.UI.runState()); if (st && st.tf >= st.fixAt) break; await page.locator('#run-next').click().catch(() => {}); await page.waitForTimeout(1000); }
   await page.evaluate(() => PB.UI.openFix());

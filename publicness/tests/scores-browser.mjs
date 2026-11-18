@@ -8,7 +8,7 @@ async function closeStory(page){for(let i=0;i<20&&await page.locator('#goal-intr
 async function setPlan(page,routes){await page.evaluate(rs=>{const s=PB.App.s,S=PB.Session;s.draft.routes=[];s.draft.buses.forEach(b=>{b.routeNum=null;});
   rs.forEach(([ns,ids])=>{const r=S.addRoute(s,{nodes:ns,stops:ns.map(()=>true)});ids.forEach(id=>S.assign(s,id,r.num));});PB.App.go('plan');},routes);}
 async function run(page){await page.evaluate(()=>{window.__pbFast=true;PB.App.setSpeed(2);});
-  await page.locator('#btn-depart').click();await page.locator('#confirm-yes').click();
+  await page.locator('#btn-depart').click();await (async () => { if (await page.locator('#confirm-depart').evaluate((d) => d.open)) await page.locator('#confirm-yes').click(); })() /* 2026-11-18 P0-2: 이유가 없으면 확인창 없이 바로 출발 */;
   await page.locator('#run-skip').click({timeout:3000}).catch(()=>{});await page.locator('#skip-yes').click({timeout:1500}).catch(()=>{});
   await page.locator('#btn-next-phase').waitFor({timeout:90000});}
 const scoresText=page=>page.locator('#scores').innerText();

@@ -385,6 +385,8 @@
     d.textContent = ''; d.oncancel = function (e) { e.preventDefault(); cancel(); };
     d.appendChild(el('h2', { id: 'emergency-title', tabindex: '-1' }, App.clock(at) + ' · 노선 고치기'));
     d.appendChild(el('p', { id: 'fix-rule', 'class': 'note fix-rule' }, '한 가지만 바꿀 수 있어요. ' + FIX_RULE));
+    /* 2026-11-18 P0-3: 고친 것은 그날 운행에만 — 다음 단계 계획은 출발할 때 계획(초안)으로 시작한다(동작은 그대로, 알리기만) */
+    d.appendChild(el('p', { id: 'fix-scope', 'class': 'note fix-rule' }, '이번 운행에만 적용돼요. 다음 단계는 출발할 때 계획으로 시작해요.'));
     var m = Math.floor(at), waits = Object.keys(R.wait).map(function (n) { return { node: n, n: R.wait[n][m] || 0 }; }).filter(function (x) { return x.n > 0; })
       .sort(function (a, b) { return b.n - a.n || (a.node < b.node ? -1 : 1); }).slice(0, 3);
     d.appendChild(el('p', { id: 'fix-now', 'class': 'fix-now' }, waits.length ? '지금 기다리는 사람 · ' + waits.map(function (x) { return App.nodeName(x.node) + ' ' + x.n + '명'; }).join(' · ') : '지금 정류장에서 기다리는 사람은 없어요.'));

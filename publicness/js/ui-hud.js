@@ -88,9 +88,12 @@
     return A.clock(rd.depart) + ' ' + A.nodeName(rd.o) + '→' + A.nodeName(rd.d) + ' → (' + A.clock(rd.returnAt) + ' 이후) ' + A.nodeName(rd.d) + '→' + A.nodeName(rd.returnTo) + ', ' + end + ' 전 도착';
   }
   // 칩 한 줄(형식은 지시서대로) + 화면 낭독용 긴 설명
+  /* 2026-11-18 플레이테스트 P2: 칩을 다시 그려도 얼굴 그림은 같은 <img>를 옮겨 쓴다(새로 불러오며 흰 원으로 깜빡이지 않게) */
+  var chipImgs = {};
+  function chipImg(id) { var src = 'assets/art/portrait-' + id + '-calm.webp', img = chipImgs[id]; if (!img || img.getAttribute('src') !== src) { img = el('img', { src: src, alt: '' }); chipImgs[id] = img; } return img; }
   function chip(rd, t, tr) {
     var A = app(), st = PB.Narrative.criterionState(t), b = el('button', { type: 'button', 'class': 'person-chip' + (st === 'impossible' ? ' impossible' : st === 'done' ? ' done' : ''), id: 'person-chip-' + rd.id, 'data-resident': rd.id });
-    var face = el('span', { 'class': 'person-chip-face resident-face ' + rd.id, 'aria-hidden': 'true' }); face.appendChild(el('img', { src: 'assets/art/portrait-' + rd.id + '-calm.webp', alt: '' })); b.appendChild(face);
+    var face = el('span', { 'class': 'person-chip-face resident-face ' + rd.id, 'aria-hidden': 'true' }); face.appendChild(chipImg(rd.id)); b.appendChild(face);
     b.appendChild(el('b', null, rd.name));
     b.appendChild(el('span', { 'class': 'person-chip-time' }, A.clock(rd.depart)));
     b.appendChild(el('span', { 'class': 'person-chip-trip' }, shortName(rd.o) + '→' + shortName(rd.d)));
@@ -212,7 +215,7 @@
     else if (nodes[focus.o] && nodes[focus.d]) svg('line', { x1: nodes[focus.o].x, y1: nodes[focus.o].y, x2: nodes[focus.d].x, y2: nodes[focus.d].y, 'class': 'mm-missing' }, m);
     ids.forEach(function (id) { var n = nodes[id], key = id === focus.o || id === focus.d; svg('circle', { cx: n.x, cy: n.y, r: key ? 0.32 : 0.18, 'class': key ? 'mm-stop key' : 'mm-stop' }, m); });
     /* 라벨(2026-11-05 P1-9): 출발·도착 라벨이 가까우면 글자가 포개져 읽을 수 없었다 — 한 번씩만, ‘출발·도착’을 라벨 안에 적고, 정류장 위·아래·옆 중 서로 안 겹치고 틀 안에 드는 자리에 */
-    var FS = 0.42, taken = [], VW = maxX - minX, VH = maxY - minY;
+    var MM_K = 40, FS = 0.42, taken = [], VW = maxX - minX, VH = maxY - minY;
     [[focus.o, '출발 '], [focus.d, '도착 ']].forEach(function (k) {
       var n = nodes[k[0]]; if (!n) return; var text = k[1] + A.nodeName(k[0]), w = text.length * FS * 0.92, h = FS * 1.2, spots = [[-w / 2, -0.42 - h], [-w / 2, 0.42], [0.42, -h / 2], [-w - 0.42, -h / 2], [-w / 2, -0.95 - h], [-w / 2, 0.95]], pick = null;
       spots.some(function (o) {
@@ -220,7 +223,9 @@
         if (taken.some(function (q) { return r.x < q.x + q.w && q.x < r.x + r.w && r.y < q.y + q.h && q.y < r.y + r.h; })) return false; pick = r; return true;
       });
       if (!pick) pick = { x: Math.max(minX, n.x - w / 2), y: Math.max(minY, n.y - 0.42 - h), w: w, h: h };
-      taken.push(pick); var t = svg('text', { x: pick.x, y: pick.y + FS, 'class': 'mm-label', 'data-node': k[0] }, m); t.textContent = text;
+      taken.push(pick);
+      /* 2026-11-18 플레이테스트 P1-8: 지도 단위 글자 크기 0.42는 브라우저가 글자 간격을 0으로 반올림해 ‘출발 밀집 주거지’ 글자가 한 자리에 겹쳐 찍혔다 — K배 큰 글자로 쓰고 같은 자리에서 1/K로 줄인다(크기·자리 그대로, css .mm-label) */
+      var t = svg('text', { x: 0, y: 0, transform: 'translate(' + pick.x + ' ' + (pick.y + FS) + ') scale(' + (1 / MM_K) + ')', 'class': 'mm-label', 'data-node': k[0] }, m); t.textContent = text;
     });
     return m;
   }

@@ -57,7 +57,7 @@ try {
     assert.doesNotMatch(c.text, /—/, 'em dash 없음');
     const iAi = c.order.indexOf('result-ai'); assert.ok(iAi > c.order.indexOf('result-people') && iAi === c.order.indexOf('result-think') - 1, '주민들의 하루 뒤·생각해 보기 바로 앞 ' + c.order);
     if (!c.saved.same) {
-      assert.equal(c.rows, 3); assert.match(c.text, /\[빠른 이동\] AI는 도착 시간을 줄이려고 .+ 추천해요\. \(예상 도착률 .+ → .+\)/); assert.match(c.text, /\[수익\] AI는 수지를 키우려고 .+ 추천해요\. \(예상 수지 .+ → .+\)/);
+      assert.equal(c.rows, 3); assert.match(c.text, /\[빠른 이동\] AI는 도착 시간을 줄이려고 .+ 추천해요\. \(.*그대로 두면.* 도착률 .+ → AI 제안 .+\)/); assert.match(c.text, /\[수익\] AI는 수지를 키우려고 .+ 추천해요\. \(.* 도착률 .+ → AI 제안 .+ · 예상 수지 .+ → .+\)/); /* 2026-11-18 P1-6 */
       await page.locator('.think-option[data-choice=many]').click(); assert.equal(await page.locator('[data-goal=time].ai-picked').count(), 1); assert.ok(await page.locator('[data-goal=time] .ai-picked-tag').isVisible());
       await page.locator('.think-option[data-choice=longest]').click(); assert.equal(await page.locator('[data-goal=reach].ai-picked').count(), 1); assert.equal(await page.locator('[data-goal=time].ai-picked').count(), 0);
       await page.screenshot({ path: `${SHOT}/_shot-r1106-ai-1280.png`, fullPage: true });
@@ -120,7 +120,7 @@ try {
     for (const [w, h] of [[1280, 800], [1148, 977]]) {
       const page = await fresh({ width: w, height: h }); await toPlan(page, 1); await page.waitForTimeout(600);
       const size = () => page.evaluate(() => { const c = document.querySelector('#stage').getBoundingClientRect(); return Math.round(c.width) + 'x' + Math.round(c.height); });
-      const plan = await size(); await page.locator('#btn-depart').click(); await page.locator('#confirm-yes').click(); await page.waitForTimeout(500);
+      const plan = await size(); await page.locator('#btn-depart').click(); await (async () => { if (await page.locator('#confirm-depart').evaluate((d) => d.open)) await page.locator('#confirm-yes').click(); })() /* 2026-11-18 P0-2: 이유가 없으면 확인창 없이 바로 출발 */; await page.waitForTimeout(500);
       const run = await size(); console.log(`  P2-8 ${w}×${h}: 계획 ${plan} · 운행 ${run}`); assert.equal(run, plan, '지도 틀 같음');
       if (w === 1280) {
         let got = null;

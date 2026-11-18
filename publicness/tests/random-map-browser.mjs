@@ -14,7 +14,7 @@ try{
   await page.locator('#stop-picker').evaluate(n=>n.open=true);await page.locator('.next-stop[data-node=F]').click();await page.locator('#stop-picker').evaluate(n=>n.open=true);await page.locator('.next-stop[data-node=C]').click();
   await page.locator('#route-2').click();await page.locator('#stop-picker').evaluate(n=>n.open=true);await page.locator('.next-stop[data-node=B]').click();await page.locator('#stop-picker').evaluate(n=>n.open=true);await page.locator('.next-stop[data-node=A]').click();
   assert.ok(await page.locator('#btn-depart').isEnabled());await page.screenshot({path:`publicness/tests/_shot-random-map-${mode}.png`});
-  await page.evaluate(()=>window.__pbFast=true);await page.locator('#btn-depart').click();await page.locator('#confirm-yes').click();await page.locator('#resident-summary').waitFor();
+  await page.evaluate(()=>window.__pbFast=true);await page.locator('#btn-depart').click();await (async () => { if (await page.locator('#confirm-depart').evaluate((d) => d.open)) await page.locator('#confirm-yes').click(); })() /* 2026-11-18 P0-2: 이유가 없으면 확인창 없이 바로 출발 */;await page.locator('#resident-summary').waitFor();
   await page.locator('#btn-next-phase').click();assert.deepEqual(await page.evaluate(()=>PB.App.s.config.nodes),state.nodes);
   await page.goto(url+'seed='+state.seed);await start();assert.deepEqual(await page.evaluate(()=>PB.App.s.config.nodes),state.nodes);
   await page.goto(url);await start();assert.deepEqual(await page.evaluate(()=>PB.App.s.config.nodes),state.base);

@@ -37,7 +37,7 @@ try{
     const page=await browser.newPage({viewport:{width:1366,height:900}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
     await page.goto(base+(process.env.SHOT3D?'':'?no3d=1'));
     await page.locator('#btn-start').click();await page.locator('#btn-goal-start').click();await beginPlan(page);await setPlan(page,P1);
-    await page.locator('#btn-depart').click();await page.locator('#confirm-yes').click();
+    await page.locator('#btn-depart').click();await (async () => { if (await page.locator('#confirm-depart').evaluate((d) => d.open)) await page.locator('#confirm-yes').click(); })() /* 2026-11-18 P0-2: 이유가 없으면 확인창 없이 바로 출발 */;
     const t0=Date.now();let running=0,runStart=Date.now(),stops=[];
     await page.locator('#run-next').click();
     for(let guard=0;guard<60;guard++){

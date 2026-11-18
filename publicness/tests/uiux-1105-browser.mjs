@@ -25,7 +25,7 @@ async function play(page, phase) {
 const stage = page => page.evaluate(() => { const r = document.querySelector('#stage').getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height) }; });
 const rect = (page, q) => page.evaluate(q => { const e = document.querySelector(q); if (!e) return null; const r = e.getBoundingClientRect(); return { x: r.left, y: r.top, r: r.right, b: r.bottom }; }, q);
 const hit = (a, b) => a.x < b.r && b.x < a.r && a.y < b.b && b.y < a.b;
-async function depart(page) { await page.locator('#btn-depart').click(); await page.locator('#confirm-yes').click(); await page.waitForTimeout(500); await page.locator('#run-pause').click(); await page.waitForTimeout(150); }
+async function depart(page) { await page.locator('#btn-depart').click(); await (async () => { if (await page.locator('#confirm-depart').evaluate((d) => d.open)) await page.locator('#confirm-yes').click(); })() /* 2026-11-18 P0-2: 이유가 없으면 확인창 없이 바로 출발 */; await page.waitForTimeout(500); await page.locator('#run-pause').click(); await page.waitForTimeout(150); }
 async function toEmergency(page) { /* 2026-11-09: ⏭로 11:00까지 → 「노선 고치기 · 한 번」 창(옛 긴급 조정 창 자리) */ for (let i = 0; i < 30; i++) { const st = await page.evaluate(() => PB.UI.runState()); if (st && st.tf >= st.fixAt) break; await page.locator('#run-next').click({ timeout: 1500 }).catch(() => {}); await page.waitForTimeout(700); } await page.evaluate(() => PB.UI.openFix()); assert.equal(await page.locator('#emergency-dialog[open]').count(), 1, '노선 고치기 창'); }
 
 try {
@@ -43,9 +43,10 @@ try {
     // 2. 정상 계획 — 경고 없으면 자세히 없음(구도심 시장까지 이어 본다)
     await page.evaluate(() => { const A = PB.App, S = PB.Session, s = A.s; const set = (num, nodes) => { let r = s.draft.routes.find(x => x.num === num); r.nodes = nodes; r.stops = nodes.map(() => true); r.autoPlaced = true; }; set(1, ['F', 'C', 'B', 'D']); set(2, ['A', 'G', 'E']); s.draft.buses[0].routeNum = 1; s.draft.buses[1].routeNum = 2; A.render(); });
     await page.waitForTimeout(200); await page.locator('#btn-depart').click();
-    assert.equal(await page.locator('#confirm-depart-h').innerText(), '이대로 출발할까요?'); assert.equal(await page.evaluate(() => document.activeElement.id), 'confirm-yes');
-    assert.equal(await page.locator('#confirm-depart-body details').count(), 0, '빈 자세히 없음'); assert.equal(await page.locator('#depart-checks').count(), 0); assert.equal(await page.locator('#depart-profit').count(), 0, '예상 수지 없음(2026-11-06 사용자 결정)');
-    ok('2 정상 계획: 경고·자세히 없음, 포커스 이대로 출발'); await page.locator('#confirm-no').click(); await page.close();
+    const dlg = await page.evaluate(() => ({ open: document.querySelector('#confirm-depart').open, stage: PB.App.s.stage, lines: [...document.querySelectorAll('#confirm-depart-body li')].map((l) => l.textContent) })); /* 2026-11-18 P0-2: 이유가 없으면 확인창 없이 바로 출발 */
+    if (dlg.open) { assert.ok(dlg.lines.length > 0, '확인창이 뜨면 이유가 있음 ' + JSON.stringify(dlg)); assert.equal(await page.evaluate(() => document.activeElement.id), 'confirm-no'); }
+    else assert.equal(dlg.stage, 'run', '경고가 없으면 확인창 없이 바로 운행 ' + JSON.stringify(dlg));
+    ok('2 정상 계획: ' + (dlg.open ? '이유 ' + dlg.lines.length + '줄과 함께 확인창' : '경고가 없으면 확인창 없이 바로 출발')); await page.close();
   }
   // ── 지도 틀: 상태를 바꿔도 같은 크기 ──
   for (const vp of [{ width: 1060, height: 977 }, { width: 1280, height: 800 }]) {
@@ -107,7 +108,7 @@ try {
   }
   // ── 노선 없음 말풍선 ──
   if (want('nolink')) { const page = await fresh({ width: 1280, height: 800 }); await play(page, 1);
-    await page.locator('#btn-depart').click(); await page.locator('#confirm-yes').click(); await page.locator('.bubble[data-kind="noLink"]').first().waitFor({ timeout: 20000 });
+    await page.locator('#btn-depart').click(); await (async () => { if (await page.locator('#confirm-depart').evaluate((d) => d.open)) await page.locator('#confirm-yes').click(); })() /* 2026-11-18 P0-2: 이유가 없으면 확인창 없이 바로 출발 */; await page.locator('.bubble[data-kind="noLink"]').first().waitFor({ timeout: 20000 });
     await page.locator('.bubble[data-kind="noLink"]').first().click({ force: true }); const hint = await page.locator('.bubble-hint').first().textContent(); assert.match(hint, /서는 노선이 없어요|만나는 정류장이 없어요/);
     const pure = await page.evaluate(() => PB.Hud.linkHint(PB.Hud.routesNow(), 'F', 'G')); assert.match(pure, /^빨강과 초록이 만나는 정류장이 없어요/, pure);
     ok('P0-1 c 노선 없음 말풍선: ' + hint + ' / ' + pure); await page.close();

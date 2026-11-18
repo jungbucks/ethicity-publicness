@@ -12,7 +12,7 @@ try{
     await page.goto(`http://127.0.0.1:${server.address().port}/publicness/${mode==='2d'?'?no3d=1':''}`);
     await page.locator('#btn-start').click();await page.locator('#btn-goal-start').click();if(await page.locator('#learning-dialog:modal').count())await page.locator('#btn-learning-continue').click();await beginPlan(page);await plannedTown(page);
     await page.clock.pauseAt(new Date(await page.evaluate(()=>Date.now())+1000));await page.evaluate(()=>window.__pbFast=true);
-    await page.locator('#btn-depart').click();await page.locator('#confirm-yes').click();await page.locator('#speed-2').click();
+    await page.locator('#btn-depart').click();await (async () => { if (await page.locator('#confirm-depart').evaluate((d) => d.open)) await page.locator('#confirm-yes').click(); })() /* 2026-11-18 P0-2: 이유가 없으면 확인창 없이 바로 출발 */;await page.locator('#speed-2').click();
     await page.clock.runFor(50);
     await page.locator('.bubble[data-kind="noLink"]').first().waitFor({timeout:15000});
     assert.ok((await page.locator('.bubble[data-kind="noLink"]').first().innerText()).includes('노선 없음'));

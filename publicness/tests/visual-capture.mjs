@@ -24,7 +24,7 @@ async function shoot(page,scene){
 try{
   let page=await browser.newPage({viewport:{width:1280,height:860},reducedMotion:'reduce'});await setup(page);await shoot(page,'plan');
   // 운행: 출발 → ⏭ 다음 결정까지로 첫 긴급 조정(멈춤)까지
-  await page.locator('#btn-depart').click();await page.locator('#confirm-yes').click();
+  await page.locator('#btn-depart').click();await (async () => { if (await page.locator('#confirm-depart').evaluate((d) => d.open)) await page.locator('#confirm-yes').click(); })() /* 2026-11-18 P0-2: 이유가 없으면 확인창 없이 바로 출발 */;
   for(let i=0;i<20&&!(await page.locator('#emergency-dialog[open]').count());i++){await page.locator('#run-next').click().catch(()=>{});await page.waitForTimeout(1500);}
   await page.waitForTimeout(800);await shoot(page,'run');await page.close();
   page=await browser.newPage({viewport:{width:375,height:812},deviceScaleFactor:2,reducedMotion:'reduce'});await setup(page);await shoot(page,'plan-375');await page.close();

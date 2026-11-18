@@ -111,7 +111,7 @@ body.rail .person-chip-next, body.phone-p .person-chip-next, body.phone-l .perso
 .mini-map.still .mm-focus, .mini-map.still .mm-missing { animation: none; }
 .mini-map .mm-stop { fill: #fff; stroke: #5b606b; stroke-width: .06; }
 .mini-map .mm-stop.key { fill: var(--sem-action); stroke: #fff; stroke-width: .08; }
-.mini-map .mm-label { font-size: .42px; font-weight: 700; fill: #1a1d24; paint-order: stroke; stroke: #fff; stroke-width: .12px; }
+.mini-map .mm-label { font-size: 16.8px; font-weight: 700; fill: #1a1d24; paint-order: stroke; stroke: #fff; stroke-width: 4.8px; } /* 2026-11-18 P1-8: 지도 단위 0.42 × 40배로 쓰고 ui-hud miniMap이 scale(1/40) — 0.42px 글자는 글자 간격이 0이 되어 겹쳤다 */
 .result-events ul { margin: 0; }
 .result-events li { padding: 4px 0; font-variant-numeric: tabular-nums; }
 .result-think { padding: 16px 18px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }

@@ -162,9 +162,9 @@ try {
     await page.locator('#btn-help').click();
     const help = await page.locator('#help').innerText(); assert.doesNotMatch(help, /바꿀 수 없어요/); assert.match(help, /3단계부터는 운행 중 11:00~15:00에 한 번 ‘노선 고치기 · 한 번’을 눌러 멈추고, 정류장 하나 더하기·빼기나 버스 한 대 옮기기 중 하나를 바꿀 수 있어요\./);
     await page.locator('#help form button[type=submit]').click();
-    await page.evaluate(() => PB.Minimal.text(true)); await page.locator('#btn-depart').click(); await page.locator('#confirm-depart[open]').waitFor();
+    await page.evaluate(() => PB.Minimal.text(true)); await page.locator('#btn-depart').click(); /* 2026-11-18 P0-2: 이유가 없으면 확인창 없이 바로 출발 */
     assert.equal(await page.locator('#depart-rule').count(), 0, '출발 확인은 질문만(2026-11-02 사용자 결정) — 규칙 문단 없음');
-    await page.locator('#confirm-yes').click(); await page.waitForTimeout(300);
+    await (async () => { if (await page.locator('#confirm-depart').evaluate((d) => d.open)) await page.locator('#confirm-yes').click(); })() /* 2026-11-18 P0-2: 이유가 없으면 확인창 없이 바로 출발 */; await page.waitForTimeout(300);
     // P1-12 → 2026-11-02 P1-2: 모든 단계 ‘다음 멈춤까지’
     assert.equal(await page.locator('#run-next').getAttribute('aria-label'), '다음 멈춤까지');
     assert.match(await page.locator('#panel .note').filter({ hasText: '이번 단계는 출발하면' }).innerText(), /3단계부터는 11:00~15:00에 한 번 노선을 고칠 수 있어요/);
@@ -233,7 +233,7 @@ try {
     const geo = await page.evaluate(() => {
       const r = e => { const b = document.querySelector(e).getBoundingClientRect(); return { x: b.x, y: b.y, r: b.right, b: b.bottom, w: b.width, h: b.height }; };
       const pop = r('#plan-ai-popover'), st = r('#stage'), acts = ['#rec-preview', '#rec-reject', '#rec-accept'].map(r), cs = getComputedStyle(document.querySelector('#plan-ai-popover'));
-      const lines = [...document.querySelectorAll('.net-lines line[stroke-dasharray]')].map(l => l.getBoundingClientRect());
+      const lines = [...document.querySelectorAll('.net-route[data-ai] .net-lines line')].map(l => l.getBoundingClientRect()); /* 2026-11-18 P0-1: 미리보기 = 제안 노선만 실선(예전 점선) */
       return { pop, st, acts, pos: cs.position, H: innerHeight, W: innerWidth, crit: document.querySelector('#rec-criterion').textContent, people: document.querySelector('#rec-people')?.className, peopleText: document.querySelector('#rec-people')?.textContent, dashed: lines.length, dashedIn: lines.every(b => b.left >= st.x - 2 && b.right <= st.r + 2 && b.top >= st.y - 2 && b.bottom <= st.b + 2) };
     });
     assert.ok(geo.acts.every(a => a.y >= 0 && a.b <= geo.H && a.x >= 0 && a.r <= geo.W && a.h > 0), '세 버튼이 스크롤 없이 화면 안: ' + JSON.stringify(geo.acts));
@@ -242,7 +242,7 @@ try {
     if (w > 850) {
       const overlapX = Math.min(geo.pop.r, geo.st.r) - Math.max(geo.pop.x, geo.st.x), overlapY = Math.min(geo.pop.b, geo.st.b) - Math.max(geo.pop.y, geo.st.y);
       // 2026-11-02 P1-1: 넓은 화면도 지도를 줄이지 않고 지도 오른쪽 가장자리 위에 겹쳐 뜸(지도 틀 안)
-      assert.equal(geo.pos, 'fixed'); assert.ok(geo.pop.x >= geo.st.x && geo.pop.r <= geo.st.r + 1 && geo.st.r - geo.pop.r <= 12, 'AI 패널은 지도 오른쪽 가장자리 위 ' + JSON.stringify(geo.pop)); assert.ok(overlapX > 0 && overlapY > 0); assert.ok(geo.dashed > 0 && geo.dashedIn, '제안 노선(점선)이 지도 안');
+      assert.equal(geo.pos, 'fixed'); assert.ok(geo.pop.x >= geo.st.x && geo.pop.r <= geo.st.r + 1 && geo.st.r - geo.pop.r <= 12, 'AI 패널은 지도 오른쪽 가장자리 위 ' + JSON.stringify(geo.pop)); assert.ok(overlapX > 0 && overlapY > 0); assert.ok(geo.dashed > 0 && geo.dashedIn, '제안 노선이 지도 안');
     } else { assert.equal(geo.pos, 'fixed'); assert.ok(geo.pop.b >= geo.H - 1 && geo.pop.h <= geo.H * 0.5, '아래 시트 ' + JSON.stringify(geo.pop)); }
     await page.screenshot({ path: `${SHOT}/_shot-playtest-ai-${w}.png` });
     await page.locator('#rec-accept').click(); await page.waitForTimeout(300);

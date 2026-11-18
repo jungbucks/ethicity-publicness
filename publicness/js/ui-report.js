@@ -1,9 +1,12 @@
 /* 엔딩 ‘내 운영 보고서’ 화면(2026-11-09 테스터 6번). 내용은 js/report.js(순수), 여기는 그리기·인쇄만.
  * 투명성 편과 같은 방식: 보고서 화면 + ‘PDF로 저장하기’ = window.print(), 인쇄하는 동안만 문서 제목 = 파일 이름, @media print(css/report.css)가 보고서만 A4로.
- * 이름 칸은 저장하지 않는다 — 이 페이지 메모리(nameMem)에만 두어 화면을 다시 그려도 유지되고, 새로고침하면 사라진다. */
+ * 이름 칸은 저장하지 않는다 — 이 페이지 메모리에만 두어 화면을 다시 그려도 유지되고, 새로고침하면 사라진다.
+ * 2026-11-18 보안 검토 2: 탭 하나에 이름 하나였던 것(nameMem) → 지금 게임 세션에만(nameOf(s)). 같은 판에서 보고서로 돌아오면 그대로, 재도전·새 게임은 입력 칸·파일 이름 모두 빈 이름 */
 (function (root) {
   'use strict';
-  var PB = root.PB, UI = PB.UI = PB.UI || {}, nameMem = '', baseTitle = null;
+  var PB = root.PB, UI = PB.UI = PB.UI || {}, names = { s: null, name: '' }, baseTitle = null;
+  function nameOf(s) { return names.s === s ? names.name : ''; }
+  function setName(s, v) { names = { s: s, name: v }; } /* 세션 하나만 기억(이전 판 세션은 놓아 줌) */
   function el(t, a, x) { return PB.App.el(t, a, x); }
   function fmt(App, s) {
     return { won: App.won, duration: App.duration, rate: PB.Metrics.fmtRate, name: App.nodeName, route: function (n) { return PB.Names.route(n, s); }, bus: function (id, from) { return PB.Names.bus(id, s, from); }, clock: App.clock, choices: PB.Session.CHOICES, date: new Date() };
@@ -11,7 +14,7 @@
   function restoreTitle() { if (baseTitle != null) { document.title = baseTitle; baseTitle = null; } }
   function print() {
     if (baseTitle == null) baseTitle = document.title;
-    document.title = PB.Report.fileName(nameMem);
+    document.title = PB.Report.fileName(nameOf(PB.App.s));
     try { root.print(); } finally { restoreTitle(); }
   }
   root.addEventListener('afterprint', restoreTitle);
@@ -31,7 +34,7 @@
     head.appendChild(el('p', { 'class': 'report-meta', id: 'report-end' }, r.meta.end));
     var who = el('label', { 'class': 'report-name', 'for': 'report-name' }, '이름 ');
     var name = el('input', { type: 'text', id: 'report-name', maxlength: '30', autocomplete: 'off', placeholder: '쓰지 않아도 돼요' });
-    name.value = nameMem; name.addEventListener('input', function () { nameMem = name.value; });
+    name.value = nameOf(s); name.addEventListener('input', function () { setName(s, name.value); });
     who.appendChild(name); head.appendChild(who);
     head.appendChild(el('p', { 'class': 'note no-print' }, '이름은 저장하지 않아요. 인쇄할 때만 보고서에 들어가요.'));
     art.appendChild(head);
@@ -55,7 +58,7 @@
     var cs = el('section', { id: 'report-choices', 'class': 'report-stage' });
     cs.appendChild(el('h3', null, '내가 고른 것'));
     /* 2026-11-12 랜덤 검토 4번: 청원마다 한 줄(고정 청원 + 사건 청원) */
-    if (r.choices.petitions && r.choices.petitions.length) r.choices.petitions.forEach(function (p) { cs.appendChild(row(p.phase + '단계 청원', p.text)); });
+    if (r.choices.petitions && r.choices.petitions.length) r.choices.petitions.forEach(function (p) { cs.appendChild(row(p.phase + '단계 ' + (p.kind === 'unanswered' ? '답하지 않은 청원' : '청원'), p.text)); });
     else cs.appendChild(row('2단계 청원', r.choices.petition || '(해당 없음)'));
     cs.appendChild(row('4단계 무임승차', r.choices.elder || '(해당 없음)'));
     art.appendChild(cs);

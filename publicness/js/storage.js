@@ -80,13 +80,23 @@
     return { state: 'ok', save: o };
   }
   function readSave(version, s, valid) { return saveState(version, s, valid).save; }
-  // 깨진 저장본 원문을 따로 남긴다(새 게임이 같은 키에 덮어쓰기 전에). 남길 것이 없거나 못 쓰면 false
+  /* 저장본의 버전만(2026-11-18 플레이테스트 P2 — 이어할 수 없는 예전 버전 저장본을 첫 화면에 한 줄로 알리려고). 없거나 읽을 수 없으면 null */
+  function saveVersion(s) { try { var st = store(s), raw = st && st.getItem(SAVE_KEY); if (!raw) return null; var o = JSON.parse(raw); return plain(o) && typeof o.version === 'string' ? o.version : null; } catch (e) { return null; } }
+  /* 깨진 저장본 진단(2026-11-18 보안 검토 3): 예전에는 원문을 통째로 .broken 키에 복사해 서술 답안이 남았다 — 이제 버전과 오류 분류만 남긴다.
+   * error = 'json'(JSON이 잘림) | 'shape'(뼈대 없음) | 'check'(뼈대는 있으나 더 깊은 검사 실패). version = 저장본의 버전 문자열(못 읽으면 null). 남길 것이 없거나 못 쓰면 false */
   var BROKEN_KEY = SAVE_KEY + '.broken';
-  function keepBroken(s) { try { var st = store(s), raw = st && st.getItem(SAVE_KEY); if (!raw) return false; st.setItem(BROKEN_KEY, raw); return true; } catch (e) { return false; } }
-  function clearSave(s) { try { var st = store(s); if (st) st.removeItem(SAVE_KEY); } catch (e) { /* 무시 */ } }
+  function brokenInfo(raw) {
+    var o; try { o = JSON.parse(raw); } catch (e) { var m = /"version"\s*:\s*"([A-Za-z0-9._-]{1,40})"/.exec(String(raw)); return { error: 'json', version: m ? m[1] : null }; }
+    if (!plain(o)) return { error: 'shape', version: null };
+    var v = typeof o.version === 'string' && /^[A-Za-z0-9._-]{1,40}$/.test(o.version) ? o.version : null;
+    return { error: skeleton(o.session) ? 'check' : 'shape', version: v };
+  }
+  function keepBroken(s) { try { var st = store(s), raw = st && st.getItem(SAVE_KEY); if (!raw) return false; st.setItem(BROKEN_KEY, JSON.stringify(brokenInfo(raw))); return true; } catch (e) { return false; } }
+  /* 이 게임의 진행 기록 지우기 = 저장본 + 깨진 저장본 진단(.broken). 다른 게임 키는 건드리지 않는다(localStorage.clear 금지). opts.keepDiag = 방금 남긴 진단은 두고 저장본만(깨진 저장본 → 새 게임) */
+  function clearSave(s, opts) { try { var st = store(s); if (st) { st.removeItem(SAVE_KEY); if (!(opts && opts.keepDiag)) st.removeItem(BROKEN_KEY); } } catch (e) { /* 무시 */ } }
 
   var api = { readPlayer: readPlayer, writeResult: writeResult, readSound: readSound, writeSound: writeSound, readSpeed: readSpeed, writeSpeed: writeSpeed,
-    readSave: readSave, saveState: saveState, keepBroken: keepBroken, BROKEN_KEY: BROKEN_KEY, writeSave: writeSave, canSave: canSave, clearSave: clearSave, RESULT_KEY: RESULT_KEY, SOUND_KEY: SOUND_KEY, SPEED_KEY: SPEED_KEY, SAVE_KEY: SAVE_KEY, SPEEDS: SPEEDS };
+    readSave: readSave, saveState: saveState, saveVersion: saveVersion, keepBroken: keepBroken, brokenInfo: brokenInfo, BROKEN_KEY: BROKEN_KEY, writeSave: writeSave, canSave: canSave, clearSave: clearSave, RESULT_KEY: RESULT_KEY, SOUND_KEY: SOUND_KEY, SPEED_KEY: SPEED_KEY, SAVE_KEY: SAVE_KEY, SPEEDS: SPEEDS };
   root.PB = root.PB || {};
   root.PB.Storage = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

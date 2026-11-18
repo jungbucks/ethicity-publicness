@@ -335,17 +335,21 @@
       }).filter(function (r, i, arr) { return arr.findIndex(function (x) { return x.num === r.num; }) === i; })
       : App.stageRoutes();
     if(s.stage==='run')(s.emergencyLog||[]).concat((s.midChanges||[]).filter(function(c){return c.kind==='move';})).filter(function(a){return a.phase===s.phase&&a.route;}).forEach(function(a){if(!routes.some(function(r){return r.num===a.routeNum;}))routes.push({num:a.routeNum,route:a.route,color:routeStyle(a.routeNum).color});});
+    /* AI 제안 미리보기(2026-11-18 플레이테스트 P0-1): 예전에는 내 노선(실선) 위에 제안 노선(점선)을 겹쳐 그려, 제안에서 빠지는 구간이 실선으로 남아 보였다.
+     * 이제 지도에는 제안 계획의 노선만 보통 노선처럼 진하게(적용과 같은 함수 previewRec — 버스 없는 노선은 빠짐). 내 계획에서 빠지는 구간·더는 서지 않는 정류장은
+     * 네트워크층이 회색 점선 + ‘빠짐’, 경고색 테두리로(drop). ‘내 노선 보기’로 돌아오면 opts.preview가 없어 원래대로 */
+    var drop=null;
     if(opts.preview){
-      var previewState=Object.assign({},s,{draft:JSON.parse(JSON.stringify(s.draft)),goalHistory:JSON.parse(JSON.stringify(s.goalHistory))});
-      S.applyRecommendation(previewState,{plan:opts.preview});
-      routes=routes.concat(previewState.draft.routes.filter(function(r){return r.nodes.length>=2;}).map(function(r){var style=routeStyle(r.num);return{num:r.num,route:r,color:style.color,dash:'8 6',preview:true};}));
+      var previewState=S.previewRec(s,{plan:opts.preview});
+      drop=S.previewDiff(s,previewState);
+      routes=previewState.draft.routes.filter(function(r){return r.nodes.length>=2&&r.nodes.every(function(n){return g.has(n);});}).map(function(r){var style=routeStyle(r.num);return{num:r.num,route:r,color:style.color,preview:true,ai:true,buses:previewState.draft.buses.filter(function(b){return b.routeNum===r.num;}).length};});
     }
     // 선택한 노선은 굵게·빛으로 강조(다른 노선을 흐리게 하지 않는다)
     else if(s.stage==='plan'&&opts.activeRoute!=null)routes.forEach(function(r){r.active=r.num===opts.activeRoute;});
     if (s.config.challengeApplied) routes.forEach(function (r) { r.kind = r.num === 5 ? 'express' : r.num === 6 ? 'regional' : null; });
     // 인물 얼굴 자리는 계획·운행 화면(2026-11-01: 운행 중에도 얼굴이 지도에서 사라지지 않게). 결과·엔딩에선 비움
     if (App.net) App.net.setFaces(s.stage === 'plan' || s.stage === 'run' ? PB.Demand.residents(s.config, s.phase).map(function (rd) { return { id: rd.id, node: rd.o, size: 40 }; }) : []);
-    if (App.net) App.net.setOptions({ showWait: s.stage === 'run' || s.stage === 'result', profit: PB.UI && PB.UI.fairness ? PB.UI.fairness.profitMap(s) : null });
+    if (App.net) App.net.setOptions({ showWait: s.stage === 'run' || s.stage === 'result', profit: PB.UI && PB.UI.fairness ? PB.UI.fairness.profitMap(s) : null, drop: drop });
     v.setRoutes(routes);
     // A view refresh can happen while paused, when the playback tick does not run.
     // Restore physical transfer roads here as well as during active playback.
@@ -502,7 +506,7 @@
   App.startGame = function () {
     var chosen = document.querySelector('input[name=setting]:checked');
     var opt = App.seedParam.mode === 'fixed' ? { mode: 'fixed', seed: App.seedParam.seed } : { mode: chosen ? chosen.value : 'default' };
-    PB.Storage.clearSave();
+    PB.Storage.clearSave(null, { keepDiag: !!App._keepDiag }); App._keepDiag = false; /* 깨진 저장본에서 새 게임: 방금 남긴 진단(버전·오류 분류)만 두고 */
     App.s = S.create(cfg, opt);
     App._sceneKey = null;
     App.enterPlan();
@@ -635,6 +639,9 @@
       $('#btn-start').textContent = '첫 운행 계획하기'; $('#btn-start').classList.add('btn-primary');
     }
     if (brokenSave) showBroken();
+    /* 2026-11-18 플레이테스트 P2: 받아 주지 않는 버전(SAVE_COMPAT 밖, 예: pb-3.0.0) 저장본은 전처럼 조용히 버리되 첫 화면에 한 줄 */
+    var oldVer = first.state === 'none' ? PB.Storage.saveVersion() : null;
+    if (oldVer && SAVE_VERSIONS.indexOf(oldVer) < 0 && $('#continue-note')) { $('#continue-note').textContent = '이전 버전 기록은 이어할 수 없어요.'; $('#continue-note').classList.add('is-alert'); $('#continue-note').dataset.oldVersion = oldVer; }
     if (saved && cont) {
       var ss = saved.session, total = (ss.config ? ss.config.phases.length : cfg.phases.length);
       cont.hidden = false;
@@ -645,7 +652,7 @@
     }
     $('#btn-start').addEventListener('click', function () {
       if (!brokenSave && readState().save) { App.restartToNew = true; $('#confirm-restart').showModal(); return; }
-      if (brokenSave) PB.Storage.keepBroken();
+      if (brokenSave) App._keepDiag = PB.Storage.keepBroken();
       newGame();
     });
     App.newGame = newGame;

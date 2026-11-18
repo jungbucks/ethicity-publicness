@@ -103,11 +103,11 @@ try {
     await play(page, phase);
     await page.locator('#btn-depart').click();
     // 2026-11-02 사용자 결정: 출발 확인은 '이대로 출발할까요?'만(예상 요약·운행 구성 없음)
-    await page.locator('#confirm-depart[open]').waitFor();
+    if (await page.locator('#confirm-depart').evaluate((d) => d.open)) { /* 2026-11-18 P0-2: 이유가 없으면 확인창 없이 바로 출발 */
     assert.equal(await page.locator('#confirm-depart-h').innerText(), '이대로 출발할까요?');
     assert.equal(await page.locator('#depart-summary, .depart-plan, #depart-rule').count(), 0, '예상 요약·운행 구성·규칙 문단 없음');
-    /* 2026-11-06 사용자 결정: 경고만 보이고 인물 기준·예상 수지는 넣지 않는다 */assert.doesNotMatch(await page.locator('#confirm-depart').innerText(), /기준 충족|예상 수지/);
-    await page.locator('#confirm-yes').click(); await page.waitForTimeout(600);
+    /* 2026-11-06 사용자 결정: 경고만 보이고 인물 기준·예상 수지는 넣지 않는다 */assert.doesNotMatch(await page.locator('#confirm-depart').innerText(), /기준 충족/); /* 예상 수지는 마이너스일 때만 이유 줄(2026-11-18 P0-2) */ }
+    await (async () => { if (await page.locator('#confirm-depart').evaluate((d) => d.open)) await page.locator('#confirm-yes').click(); })() /* 2026-11-18 P0-2: 이유가 없으면 확인창 없이 바로 출발 */; await page.waitForTimeout(600);
     assert.equal(await page.locator('#run-next').getAttribute('aria-label'), '다음 멈춤까지', phase + '단계 버튼 이름');
     const note = await page.evaluate(() => [...document.querySelectorAll('#panel .note')].map(n => n.textContent).find(t => /정원/.test(t)) || '');
     assert.match(note, /‘⏭ 다음 멈춤까지’는 (노선을 고칠 수 있게 되는 11:00이나 )?주요 인물이 왕복을 마치거나 오늘 대기 기준을 넘긴 순간까지 빨리 간 뒤 멈춰요./, phase + '단계 안내문'); assert.doesNotMatch(note, /다음 결정까지|다음 사건까지|만차·대기/);

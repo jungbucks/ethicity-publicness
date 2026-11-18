@@ -27,7 +27,7 @@ try{
   // 신도시–솔잎몰 왕복 노선에 버스 두 대 → 운행 중 [진호] 이름표, 결과 카드
   await beginPlan(page);
   await page.evaluate(()=>{const s=PB.App.s,S=PB.Session;const r=S.routeByNum(s,1);S.updateRoute(s,1,{nodes:['I','M'],stops:[true,true]});s.draft.buses.forEach(b=>b.routeNum=null);S.assign(s,1,1);S.assign(s,2,1);PB.App.render();window.__pbFast=true;});
-  await page.locator('#btn-depart').click();await page.locator('#confirm-yes').click();
+  await page.locator('#btn-depart').click();await (async () => { if (await page.locator('#confirm-depart').evaluate((d) => d.open)) await page.locator('#confirm-yes').click(); })() /* 2026-11-18 P0-2: 이유가 없으면 확인창 없이 바로 출발 */;
   await page.waitForFunction(()=>[...document.querySelectorAll('.rider-count')].some(e=>e.textContent.includes('[진호]')),null,{timeout:60000});
   await page.locator('#resident-summary').waitFor({timeout:90000});
   const card=page.locator('[data-resident="jinho"]');assert.equal(await card.count(),1);

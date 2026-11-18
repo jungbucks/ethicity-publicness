@@ -44,7 +44,7 @@ try{for(const view of (process.env.VIEWS||'3d,2d').split(','))for(const [w,h] of
   const page=await browser.newPage({viewport:{width:w,height:h},deviceScaleFactor:w<500?2:1,reducedMotion:'reduce'}),errors=[];page.on('pageerror',e=>errors.push(e.message));
   await setup(page,view);
   for(const scene of ['plan','run']){
-    if(scene==='run'){await page.locator('#btn-depart').click();await page.locator('#confirm-yes').click();
+    if(scene==='run'){await page.locator('#btn-depart').click();await (async () => { if (await page.locator('#confirm-depart').evaluate((d) => d.open)) await page.locator('#confirm-yes').click(); })() /* 2026-11-18 P0-2: 이유가 없으면 확인창 없이 바로 출발 */;
       for(let i=0;i<20&&!(await page.locator('#emergency-dialog[open]').count());i++){await page.locator('#run-next').click().catch(()=>{});await page.waitForTimeout(1200);}await page.waitForTimeout(600);}
     const r=await inspect(page),tag=`${view} ${w} ${scene}`;
     assert.ok(r.labels>=7,tag+' 이름표 '+r.labels);

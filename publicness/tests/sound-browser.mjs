@@ -17,7 +17,7 @@ try{
  assert.equal(await page.evaluate(()=>window.__tones.length),0,'no sound while planning');
  // 나래 일정(F→D)과 2호차 쉬기, 2배속으로 몇 초 운행
  await page.evaluate(()=>{PB.App.onNodeClick('F');PB.App.onNodeClick('D');});await page.locator('#assign-route-1').click();
- await page.locator('#btn-depart').click();await page.locator('#confirm-yes').click();
+ await page.locator('#btn-depart').click();await (async () => { if (await page.locator('#confirm-depart').evaluate((d) => d.open)) await page.locator('#confirm-yes').click(); })() /* 2026-11-18 P0-2: 이유가 없으면 확인창 없이 바로 출발 */;
  assert.equal(await page.locator('#run-sound').getAttribute('aria-pressed'),'true');assert.match(await page.locator('#run-sound').textContent(),/🔊/);
  await page.locator('#speed-2').click();await page.waitForTimeout(12000);
  const t=await page.evaluate(()=>window.__tones.slice());
@@ -37,7 +37,7 @@ try{
  // 폰 폭: 조작 버튼 4개가 지도 안에
  const phone=await browser.newContext({viewport:{width:375,height:812},hasTouch:true});await phone.addInitScript(fakeAudio);const p=await phone.newPage();
  await p.goto(url);await p.locator('#btn-start').click();await beginPlan(p);await p.evaluate(()=>{PB.App.onNodeClick('F');PB.App.onNodeClick('D');});await p.locator('#assign-route-1').click();
- await p.locator('#btn-depart').click();await p.locator('#confirm-yes').click();await p.locator('#run-sound').waitFor();
+ await p.locator('#btn-depart').click();await (async () => { if (await p.locator('#confirm-depart').evaluate((d) => d.open)) await p.locator('#confirm-yes').click(); })() /* 2026-11-18 P0-2: 이유가 없으면 확인창 없이 바로 출발 */;await p.locator('#run-sound').waitFor();
  const fits=await p.evaluate(()=>[...document.querySelectorAll('#run-controls button')].every(b=>{const r=b.getBoundingClientRect(),s=document.querySelector('#stage').getBoundingClientRect();return r.left>=s.left-1&&r.right<=s.right+1;}));
  assert.ok(fits,'run controls stay inside the map at 375px');await p.evaluate(()=>scrollTo(0,0));await p.waitForTimeout(300);await p.screenshot({path:'publicness/tests/_shot-sound-375.png'});
  console.log('PASS 375px: run controls including sound fit');await phone.close();

@@ -193,7 +193,9 @@
   function depot(App){
     var list=resting(),box=App.el('section',{id:'bus-depot','aria-labelledby':'depot-h'}),head=App.el('div',{'class':'depot-head'});
     head.appendChild(App.el('h3',{id:'depot-h'},'대기 버스'));head.appendChild(App.el('span',{id:'depot-count'},list.length+'대'));
-    head.appendChild(App.el('span',{'class':'depot-cost'},'운행하면 1대 운영·연료 약 '+App.won(S.typicalBusCost(App.s))+' 더 · 쉬어도 보유비 '+App.won(App.s.config.finance.holding)));box.appendChild(head);
+    /* 2026-11-18 플레이테스트 P2: 쉬는 버스가 빌린 버스뿐이면 ‘쉬어도 임차료 25,000원’(예전엔 빌린 버스도 ‘보유비 20,000원’), 섞여 있으면 둘 다 */
+    var Fn=App.s.config.finance,nLease=list.filter(function(b){return b.leased;}).length,idleCost=list.length&&nLease===list.length?'쉬어도 임차료 '+App.won(Fn.lease.fee):'쉬어도 보유비 '+App.won(Fn.holding)+(nLease?' · 빌린 버스는 임차료 '+App.won(Fn.lease.fee):'');
+    head.appendChild(App.el('span',{'class':'depot-cost'},'운행하면 1대 운영·연료 약 '+App.won(S.typicalBusCost(App.s))+' 더 · '+idleCost));box.appendChild(head);
     var row=App.el('div',{'class':'depot-buses',role:'group','aria-label':'대기 버스 — 고른 뒤 노선을 누르거나 노선으로 끌어 놓으세요'});
     var newBuses=App.phaseChanges(App.s).newBusIds;
     list.forEach(function(b,i){
@@ -322,13 +324,16 @@
     requestAnimationFrame(positionPeople);return result;
   };
   // 지도 위 인물 얼굴(출발 정류장 옆). 계획 화면이 만들고, 운행 화면으로 바로 이어 볼 때(새로고침 등) 없으면 인물 HUD가 다시 만든다
+  /* 2026-11-18 플레이테스트 P2: 다시 그릴 때마다 새 <img>를 만들어 AI 제안 적용 직후 얼굴이 1~3초 흰 원으로 깜빡였다 — 인물마다 한 장을 만들어 옮겨 쓴다(다시 불러오지 않음) */
+  var faceImgs={};
+  function faceImg(App,id){var src='assets/art/portrait-'+id+'-calm.webp',img=faceImgs[id];if(!img||img.getAttribute('src')!==src){img=App.el('img',{src:src,alt:''});faceImgs[id]=img;}return img;}
   function mapPeople(App,stage){
     var old=document.getElementById('map-people');if(old)old.remove();
     var people=App.el('div',{id:'map-people','aria-label':'주요 인물'});PB.Demand.residents(App.s.config,App.s.phase).forEach(function(rd){
       // 얼굴을 누르면 인물 HUD 칩과 같이 그 사람의 경로를 굵게(ui-hud.js) — 운행 중에도 그대로 쓴다
       var face=button('resident-map-'+rd.id,'',function(){if(PB.Hud)PB.Hud.toggle(rd.id);});face.className='map-person resident-face '+rd.id;
       face.setAttribute('aria-label',rd.name+' · '+App.nodeName(rd.o)+'에서 '+App.nodeName(rd.d)+'까지');face.setAttribute('aria-pressed',String(!!PB.Hud&&PB.Hud.selected()===rd.id));
-      face.appendChild(App.el('img',{src:'assets/art/portrait-'+rd.id+'-calm.webp',alt:''}));face.title=face.getAttribute('aria-label');/* 지도엔 얼굴만 — 이름은 툴팁·aria-label(배지 체계 정리) */people.appendChild(face);
+      face.appendChild(faceImg(App,rd.id));face.title=face.getAttribute('aria-label');/* 지도엔 얼굴만 — 이름은 툴팁·aria-label(배지 체계 정리) */people.appendChild(face);
     });stage.appendChild(people);people.dataset.phase=App.s.phase;
   }
   /* P1-1(2026-11-02): 넓은 화면의 AI 제안 패널은 지도를 줄이지 않고 지도 오른쪽 가장자리에 겹쳐 띄운다(지도 틀 안, 위·오른쪽 8px) */

@@ -62,7 +62,9 @@ test('다른 버전·빈 저장소는 깨짐이 아니라 없음, 막힌 저장�
 });
 test('keepBroken: 새로 시작하기 전에 깨진 원본을 따로 남긴다', () => {
   const st=put({});const raw=st.m[St.SAVE_KEY];
-  assert.equal(St.keepBroken(st),true);assert.equal(st.m[St.BROKEN_KEY],raw);
+  assert.equal(St.keepBroken(st),true);assert.deepEqual(JSON.parse(st.m[St.BROKEN_KEY]),{error:'shape',version:JSON.parse(raw).version},'2026-11-18 보안 검토 3: 원문 대신 버전·오류 분류만');assert.ok(!st.m[St.BROKEN_KEY].includes('session'));
+  const cut=mem();cut.m[St.SAVE_KEY]=raw.slice(0,Math.floor(raw.length/2));St.keepBroken(cut);assert.deepEqual(JSON.parse(cut.m[St.BROKEN_KEY]),{error:'json',version:JSON.parse(raw).version});
+  St.clearSave(cut,{keepDiag:true});assert.equal(cut.m[St.SAVE_KEY],undefined);assert.ok(cut.m[St.BROKEN_KEY],'keepDiag면 진단은 둠');cut.m.other='x';St.clearSave(cut);assert.equal(cut.m[St.BROKEN_KEY],undefined,'이 게임 기록 지우기에 .broken 포함');assert.equal(cut.m.other,'x','다른 키 보존');
   assert.equal(St.keepBroken(mem()),false,'남길 것이 없음');
 });
 test('화면 연결: 이어하기는 검사한 저장본만, 되살리기는 safeRestore로', () => {

@@ -31,7 +31,7 @@ try{
  await page.screenshot({path:`${SHOT}/_shot-review-broken-save-1280.png`});
  await page.locator('#btn-start').click();
  assert.equal((await title(page)).restart,false,'깨진 저장본은 지울지 묻지 않고 새 게임');
- assert.equal(await page.evaluate(k=>localStorage.getItem(k+'.broken'),KEY),cut,'원문을 따로 남김');
+ /* 2026-11-18 보안 검토 3: 원문 대신 버전·오류 분류만 */assert.deepEqual(JSON.parse(await page.evaluate(k=>localStorage.getItem(k+'.broken'),KEY)),{error:'json',version:JSON.parse(good).version},'진단만 따로 남김');
  assert.deepEqual(errors,[],'깨진 저장본으로 멈추지 않음');
  // 뼈대는 맞지만 되살리다 예외가 나는 저장본: 이어하기를 누르면 안내로 바뀜
  const o=JSON.parse(good);o.session.history=[{phase:1}];delete o.session.ledger;o.session.stage='plan';

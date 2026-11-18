@@ -19,7 +19,7 @@ try{
   assert.ok((await page.locator('#route-allocation').innerText()).includes('운행 버스 1대'));/* 2026-11-02 버스 번호 대신 대수 */
   assert.ok((await page.locator('#unassigned-warning').innerText()).includes('빨강'));
   const fixedStage=await page.locator('#stage').boundingBox();assert.equal(Math.round(stage.y),Math.round(fixedStage.y),'editor scrolling keeps map fixed');
-  await page.locator('#btn-depart').click();await page.locator('#confirm-yes').click();await page.evaluate(()=>window.__pbFast=true);await page.locator('#resident-summary').waitFor();
+  await page.locator('#btn-depart').click();await (async () => { if (await page.locator('#confirm-depart').evaluate((d) => d.open)) await page.locator('#confirm-yes').click(); })() /* 2026-11-18 P0-2: 이유가 없으면 확인창 없이 바로 출발 */;await page.evaluate(()=>window.__pbFast=true);await page.locator('#resident-summary').waitFor();
   const reason=page.locator('.reason-location').first();const origin=await reason.getAttribute('data-origin');await reason.click();
   assert.equal(await page.locator('#stage').getAttribute('data-reason-origin'),origin);assert.ok((await page.locator('#reason-focus').innerText()).includes('출발 정류장'));
   await page.screenshot({path:`publicness/tests/_shot-usability-result-${mode}.png`});

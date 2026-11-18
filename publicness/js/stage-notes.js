@@ -27,6 +27,10 @@
   function particle(word, kind) {
     var w = String(word || '').trim(), p = { '을를': ['을', '를'], '이가': ['이', '가'] }[kind], c = w.charCodeAt(w.length - 1);
     if (!p) return '';
+    /* 2026-11-18 플레이테스트 P2: 학생이 조사까지 쓰면(‘노선을’) ‘노선을 을’이 되던 것 — 을·를·이·가로 끝나고 그 앞 글자 받침과 맞는 조사면(노선+을·버스+를·기차역+이·나래+가)
+     * 이미 쓴 조사로 보고 붙이지 않는다. 받침과 안 맞으면 낱말의 일부(외곽 마을·아이)라 그대로 조사를 붙인다 */
+    var last = w.charAt(w.length - 1), pc = w.charCodeAt(w.length - 2);
+    if ('을를이가'.indexOf(last) >= 0 && pc >= 0xac00 && pc <= 0xd7a3) { var hasB = (pc - 0xac00) % 28 !== 0; if ((last === '을' || last === '이') === hasB) return ''; }
     if (!w || !(c >= 0xac00 && c <= 0xd7a3)) return p[0] + '(' + p[1] + ')';
     return (c - 0xac00) % 28 ? p[0] : p[1];
   }

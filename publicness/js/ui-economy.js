@@ -11,7 +11,8 @@
 
   // 기본 수요 기준 예상 운행 + 노선별 재정. 초안이 같으면 다시 계산하지 않는다(지도 재배치 타이머 등)
   E.plan = function (s) {
-    var key = s.phase + '|' + s.seed + '|' + JSON.stringify(s.draft);
+    /* 2026-11-18 플레이테스트 P2: 4단계 무임 유지/폐지를 바꿔도 예상 수지가 그대로였다 — 계산(Session.expectedRun)은 정책을 이미 반영하는데 이 캐시 키에 정책이 없었다 */
+    var key = s.phase + '|' + s.seed + '|' + JSON.stringify(s.draft) + '|' + (s.elderPolicy && s.elderPolicy.choice || '');
     if (cache.key === key && cache.s === s) return cache.val;
     var run = S.expectedRun(s), k = run.metrics.costs;
     cache = { key: key, s: s, val: { run: run, k: k, econ: M.routeEconomy(run.result, S.routesInOrder(s), s.draft.buses, s.config, S.graph(s)) } };
