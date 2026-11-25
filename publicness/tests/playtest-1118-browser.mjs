@@ -137,9 +137,14 @@ if (only.includes('p02')) {
   const none = await page.evaluate(() => PB.UI.Econ.plan(PB.App.s).k.total); assert.ok(none >= 0, '반납하면 흑자 ' + none);
   await page.locator('#btn-depart').click(); await frames(page, 2);
   c = await confirmState(page);
-  assert.equal(c.open, false, '이유가 없으면 확인창을 띄우지 않음 ' + JSON.stringify(c));
-  assert.equal(c.stage, 'run', '바로 운행 시작');
-  log('이유가 없으면 확인창 없이 바로 출발');
+  /* 2026-11-24 플레이테스트 P1-4: 이 계획은 나래(병원→외곽 버스편 없음)가 예상 실패라 그 이유 한 줄로 확인창이 뜬다 — 적자·임차 줄은 없어야 한다 */
+  if (c.open) {
+    assert.deepEqual(c.lines.map((l) => l.id), ['depart-forecast'], '반납하면 적자·임차 이유는 사라지고 예상 실패 인물 줄만 ' + JSON.stringify(c));
+    await page.locator('#confirm-yes').click(); await frames(page, 2); c = await confirmState(page);
+  }
+  assert.equal(c.open, false, '확인창 닫힘 ' + JSON.stringify(c));
+  assert.equal(c.stage, 'run', '운행 시작');
+  log('반납하면 적자·임차 이유 없이 출발(남은 이유 = 예상 실패 인물)');
   assert.deepEqual(errors, [], '페이지 오류 없음');
   await page.close();
   console.log('P0-2 PASS');

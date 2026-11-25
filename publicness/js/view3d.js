@@ -431,7 +431,8 @@
       var frame = sceneDef.frame || sceneDef.nodes;
       var xs = frame.map(function (n) { return n.x * K; }), zs = frame.map(function (n) { return n.y * K; });
       fullBox = { minX: Math.min.apply(null, xs), maxX: Math.max.apply(null, xs), minZ: Math.min.apply(null, zs), maxZ: Math.max.apply(null, zs) };
-      var sx2 = sceneDef.nodes.map(function (n) { return n.x * K; }), sz2 = sceneDef.nodes.map(function (n) { return n.y * K; });
+      /* 2026-11-24 플레이테스트 P2-5: 카메라 틀도 세팅 전체 정류장(frame) — 단계가 바뀌어 정류장이 늘어도 기존 정류장의 화면 자리가 그대로(2D와 같음) */
+      var sx2 = frame.map(function (n) { return n.x * K; }), sz2 = frame.map(function (n) { return n.y * K; });
       frameBox = { minX: Math.min.apply(null, sx2), maxX: Math.max.apply(null, sx2), minZ: Math.min.apply(null, sz2), maxZ: Math.max.apply(null, sz2) };
       animateNext = !!prevIds && !reduced;
       bounds = { minX: Math.min.apply(null, xs) - 20, maxX: Math.max.apply(null, xs) + 16, minZ: Math.min.apply(null, zs) - 18, maxZ: Math.max.apply(null, zs) + 18 };

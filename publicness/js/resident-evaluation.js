@@ -17,7 +17,9 @@
     var reasons = [], legs = passengers.filter(function (p) { return p.residentId === rd.id; });
     var out = legs.filter(function (p) { return p.leg === 'outbound'; })[0], back = legs.filter(function (p) { return p.leg === 'return'; })[0];
     var name = function (id) { var n = config.nodes.filter(function (x) { return x.id === id; })[0]; return n ? n.name : id; };
-    function legReason(p, label) {
+    /* 2026-11-24 플레이테스트 P1-4: 이유마다 어느 구간(o→d)인지 붙인다(출발 확인창 ‘예상으로 기준을 못 지키는 주요 인물’ 줄). 문장(text)은 그대로 */
+    function legReason(p, label) { var r = legReason0(p, label); if (r && p) { r.o = p.o; r.d = p.d; } return r; }
+    function legReason0(p, label) {
       if (!p) return null;
       if (p.fail === 'NO_LINK') return { code: 'noLink', text: label + '(' + name(p.o) + ' → ' + name(p.d) + ')을 잇는 운행 노선이 없어요.' };
       /* 2026-11-12 랜덤 검토 2번: 노선은 이어지지만 갈아타기가 두 번 넘게 필요(길 찾기는 한 번까지) */
@@ -28,18 +30,18 @@
       if (p.status !== 'arrived') return { code: 'late', text: label + '을 운행 시간 안에 마치지 못해요.' };
       return null;
     }
-    if (rec.dayStatus === 'outboundIncomplete') reasons.push(legReason(out, '첫 이동') || { code: 'late', text: '첫 이동을 마치지 못해요.' });
+    if (rec.dayStatus === 'outboundIncomplete') reasons.push(legReason(out, '첫 이동') || { code: 'late', text: '첫 이동을 마치지 못해요.', o: rec.o, d: rec.d });
     else if (rec.dayStatus === 'returnIncomplete') {
-      if (!back) reasons.push({ code: 'tooLate', text: '첫 목적지 도착과 체류가 늦어 운행 시간 안에 다음 이동을 시작하지 못해요.' });
+      if (!back) reasons.push({ code: 'tooLate', text: '첫 목적지 도착과 체류가 늦어 운행 시간 안에 다음 이동을 시작하지 못해요.', o: rec.d, d: rec.finalDestination });
       else reasons.push(legReason(back, '다음 이동') || { code: 'late', text: '다음 이동을 마치지 못해요.' });
     }
     var sv = config.service;
     if (sv && rec.dayStatus === 'complete') [[out, '첫 이동'], [back, '다음 이동']].forEach(function (x) {
       var p = x[0]; if (!p) return;
-      if (overWait(config, p.waitTotal)) reasons.push({ code: 'longWait', text: x[1] + '에서 버스를 ' + Demand.duration(config, p.waitTotal) + ' 기다렸어요(기준 ' + Demand.duration(config, sv.maxWait) + ' 이하).' });
+      if (overWait(config, p.waitTotal)) reasons.push({ code: 'longWait', o: p.o, d: p.d, text: x[1] + '에서 버스를 ' + Demand.duration(config, p.waitTotal) + ' 기다렸어요(기준 ' + Demand.duration(config, sv.maxWait) + ' 이하).' });
       if (sv.maxTripFactor != null) {
         var limit = tripLimit(config, p.o, p.d);
-        if (p.arriveT - p.t > limit) reasons.push({ code: 'slowTrip', text: x[1] + '에 ' + Demand.duration(config, p.arriveT - p.t) + ' 걸렸어요(기준 ' + Demand.duration(config, limit) + ' 이하).' });
+        if (p.arriveT - p.t > limit) reasons.push({ code: 'slowTrip', o: p.o, d: p.d, text: x[1] + '에 ' + Demand.duration(config, p.arriveT - p.t) + ' 걸렸어요(기준 ' + Demand.duration(config, limit) + ' 이하).' });
       }
     });
     return { ok: !reasons.length, reasons: reasons };

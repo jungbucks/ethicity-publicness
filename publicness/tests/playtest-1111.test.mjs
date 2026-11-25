@@ -81,15 +81,16 @@ test('7번: 노선별 배차 간격(한 바퀴 ÷ 버스 수)과 기준 초과, 
 test('8번: 청원이 말한 이동을 같은 기준(그 구역·그 시각까지 생긴 요청 중 그때까지 못 간 이동)으로 3단계에도 센다', () => {
   const s2 = P.playTo(2), fp = s2.fixedPetition, ps2 = s2.current.result.passengers;
   assert.ok(fp && fp.total > 0, '2단계 고정 청원');
-  const again = S.petitionZoneAt(ps2, fp.t, fp.zone);
+  const again = S.petitionZoneAt(ps2, fp.t, fp.zone, cfg.service.maxWait);
   assert.deepEqual([again.zone, again.t, again.count, again.total], [fp.zone, fp.t, fp.count, fp.total], '청원 문장의 숫자와 같은 셈');
   assert.equal(s2.history[1].petitionCheck, undefined, '2단계에는 없음');
   const s3 = P.playTo(3), h3 = s3.history[2];
-  assert.deepEqual(h3.petitionCheck, S.petitionZoneAt(s3.current.result.passengers, fp.t, fp.zone));
+  assert.deepEqual(h3.petitionCheck, S.petitionZoneAt(s3.current.result.passengers, fp.t, fp.zone, cfg.service.maxWait));
   assert.equal(h3.petitionCheck.zone, fp.zone); assert.equal(h3.petitionCheck.t, fp.t);
   // 그 구역에서 그 시각까지 생긴 요청만, 그때까지 도착하지 못한 것만
-  const toy = [{ o: 'D', t: 10, arriveT: 20 }, { o: 'D', t: 30, arriveT: 60 }, { o: 'D', t: 40, arriveT: null }, { o: 'D', t: 50, arriveT: null }, { o: 'A', t: 10, arriveT: null }];
-  assert.deepEqual(S.petitionZoneAt(toy, 45, 'D'), { zone: 'D', t: 45, count: 2, total: 3 });
+  /* 2026-11-24 P1-1: ‘그때까지 도착하지 못한 것’ → 그 시각에 기준 시간을 넘겨 기다리거나 잇는 노선이 없던 것만(버스 안·막 기다리기 시작한 사람은 빼고) */
+  const toy = [{ o: 'D', t: 10, arriveT: 20, firstBoardT: 12 }, { o: 'D', t: 5, arriveT: 60, firstBoardT: 40 }, { o: 'D', t: 12, arriveT: null, firstBoardT: null }, { o: 'D', t: 40, arriveT: null, firstBoardT: null, fail: 'NO_LINK' }, { o: 'D', t: 50, arriveT: null }, { o: 'A', t: 10, arriveT: null }];
+  assert.deepEqual(S.petitionZoneAt(toy, 45, 'D', 27), { zone: 'D', t: 45, count: 2, total: 4 }, 't5(버스 안) 안 셈 · t12(33 기다림) 셈 · t40 노선 없음 셈 · t10 도착 안 셈');
   // 저장본에도 남는다
   assert.deepEqual(S.restore(S.serialize(s3), cfg).history[2].petitionCheck, h3.petitionCheck);
 });

@@ -106,7 +106,7 @@ test('2번: 주제가 권하는 계획(교사 시드) — AI ‘소외 지역’
 });
 
 test('4번: 버전 pb-3.2.0 — pb-3.1.0 저장본은 이어하기로 받고, 랜덤 저장본은 그때 지원금으로 끝까지', () => {
-  assert.equal(cfg.SCENARIO_VERSION, 'pb-3.2.0'); assert.deepEqual(cfg.SAVE_COMPAT, ['pb-3.1.0']);
+  assert.equal(cfg.SCENARIO_VERSION, 'pb-3.2.1'); assert.deepEqual(cfg.SAVE_COMPAT, ['pb-3.2.0', 'pb-3.1.0']); /* 2026-11-24: pb-3.2.1(저장 구조는 선택 칸만 더함 → pb-3.2.0도 이어하기) */
   const versions = [cfg.SCENARIO_VERSION].concat(cfg.SAVE_COMPAT), valid = (o) => !S.checkSave(o.session, cfg);
   // 5,000원 시절(pb-3.1.0)에 3단계 계획 화면까지 간 랜덤 저장본
   const old = withBase(5000, () => { const s = S.create(cfg, { mode: 'fixed', seed: SEED }); for (let p = 1; p <= 2; p++) { T.lay(s, T.moderate(s), 0); T.answer(s); S.startRun(s); S.finishRun(s); S.nextPhase(s); } S.beginPlan(s); return s; });
@@ -122,7 +122,7 @@ test('4번: 버전 pb-3.2.0 — pb-3.1.0 저장본은 이어하기로 받고, �
   assert.equal(h.metrics.costs.subsidyBase, 5000 * s.draft.buses.filter((b) => !b.leased).length, '이어 한 단계도 5,000원으로 정산');
   // 그 판에서 ‘같은 조건으로 재도전’(App.retry = S.create(cfg, {mode, seed}))은 새 게임이라 지금 값·지금 버전
   const again = S.create(cfg, { mode: s.mode, seed: s.seed });
-  assert.equal(again.config.finance.basePerBus, 8000); assert.equal(again.config.SCENARIO_VERSION, 'pb-3.2.0'); assert.equal(again.seed, s.seed);
+  assert.equal(again.config.finance.basePerBus, 8000); assert.equal(again.config.SCENARIO_VERSION, 'pb-3.2.1'); assert.equal(again.seed, s.seed);
   // 저장할 때 버전 = 그 판의 버전(랜덤은 저장본이 든 설정의 버전) / 읽을 때 = 지금 버전 + SAVE_COMPAT
   const app = read('js/app.js');
   assert.match(app, /version: \(App\.s\.config && App\.s\.config\.SCENARIO_VERSION\) \|\| cfg\.SCENARIO_VERSION,/);
@@ -135,8 +135,8 @@ test('4번: 지난번 비교 — 재정 값이 다른 판(다른 버전·같은 
   const now = S.create(cfg, { mode: 'fixed', seed: SEED });
   const v31a = withBase(5000, () => S.create(cfg, { mode: 'fixed', seed: SEED })), v31b = withBase(10000, () => S.create(cfg, { mode: 'fixed', seed: SEED }));
   v31a.config.SCENARIO_VERSION = v31b.config.SCENARIO_VERSION = 'pb-3.1.0';
-  assert.equal(key(now), 'fixed|245525538|pb-3.2.0|b8000'); assert.equal(key(v31a), 'fixed|245525538|pb-3.1.0|b5000'); assert.equal(key(v31b), 'fixed|245525538|pb-3.1.0|b10000');
-  assert.equal(RC.scenarioKey({ mode: 'default', seed: 42, config: cfg }, cfg.SCENARIO_VERSION), 'default|42|pb-3.2.0', '기본 모드는 버전까지만(설정을 저장하지 않고 늘 지금 값)');
+  assert.equal(key(now), 'fixed|245525538|pb-3.2.1|b8000'); assert.equal(key(v31a), 'fixed|245525538|pb-3.1.0|b5000'); assert.equal(key(v31b), 'fixed|245525538|pb-3.1.0|b10000');
+  assert.equal(RC.scenarioKey({ mode: 'default', seed: 42, config: cfg }, cfg.SCENARIO_VERSION), 'default|42|pb-3.2.1', '기본 모드는 버전까지만(설정을 저장하지 않고 늘 지금 값)');
   const st = mem(), sum = { phase: 1, maxWait: 10, missed: 1, N: 10, arrived: 9, total: 8202, routes: [] };
   RC.remember(st, 'fixed|245525538|pb-3.1.0', 1, 'run-old', sum, 1); // 수정 전 키로 남은 기록(10,000원 시절인지 5,000원 시절인지 알 수 없음)
   RC.remember(st, key(v31b), 1, 'run-10000', sum, 2);

@@ -66,7 +66,9 @@
       // 틀 = 이번 단계 정류장(2026-10-27, 앞 단계는 가깝게·정류장이 늘면 뒤로). 지도 틀 비율은 세팅 전체(fullAspect)
       var all = scene.frame || scene.nodes, fx = all.map(function (n) { return n.x * U; }), fy = all.map(function (n) { return n.y * U; });
       fullAspect = (Math.max.apply(null, fx) - Math.min.apply(null, fx) + (all.some(function (n) { return n.id === 'N'; }) ? 180 : 0)) / Math.max(1, Math.max.apply(null, fy) - Math.min.apply(null, fy));
-      var frame = scene.nodes;
+      /* 2026-11-24 플레이테스트 P2-5: 틀 = 이 세팅의 모든 정류장(scene.frame — 대도시 N은 생긴 단계부터). 예전(2026-10-27)에는 이번 단계 정류장에 맞춰
+       * 3단계 신도시가 생기면 틀이 넓어져 이미 있던 정류장이 화면에서 움직였다. 이제 단계가 바뀌어도 기존 정류장 자리는 그대로 */
+      var frame = scene.frame || scene.nodes;
       var xs = frame.map(function (n) { return n.x * U; }), ys = frame.map(function (n) { return n.y * U; });
       var minX = Math.min.apply(null, xs) - PAD, minY = Math.min.apply(null, ys) - PAD;
       var w = Math.max.apply(null, xs) - minX + PAD, h = Math.max.apply(null, ys) - minY + PAD;

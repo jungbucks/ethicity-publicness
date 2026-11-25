@@ -116,14 +116,28 @@
     /* 2026-11-11 플레이테스트 4: 단위를 인물 카드(‘누적 0/1회’)와 같은 ‘회’로 — 전에는 엔딩만 ‘2일 중 일정 0일’이었다 */
     return (days === complete ? word + ' ' + complete + '회 중 ' : days + '회 중 ' + word + ' ' + complete + '회, 그중 ') + rule + '을 지킨 것은 ' + kept + '회예요.';
   }
+  /* 2026-11-24 플레이테스트 P2-4: 일정 인물(유나·다은) 한 문장 — ‘2회 중 일정 1회, 그중 기준을 지킨 것은 1회예요’가 헷갈렸다.
+   * ‘유나의 일정 2번 중 1번은 기준 안에 마쳤고, 마지막 일정(운동장→터미널)은 마치지 못했어요.’처럼 몇 번 중 몇 번 + 마지막 일정이 어떻게 됐는지 */
+  var SHORT = { A: '기차역', B: '주거지', C: '대학교', D: '병원', E: '시장', F: '외곽', G: '일자리', H: '운동장', I: '신도시', J: '터미널', K: '복지관', L: '호수공원', M: '솔잎몰', N: '대도시' }; /* 계획 화면 인물 칩(ui-hud SHORT)과 같은 짧은 이름 */
+  function shortOf(config, id) { var n = config.nodes.filter(function (x) { return x.id === id; })[0]; return SHORT[id] || (n ? (n.short || n.name) : id); }
+  function itineraryLine(config, who, evidence) {
+    var n = evidence.length, k = evidence.filter(dayKept).length, last = evidence[n - 1], lastOk = dayKept(last), sn = function (id) { return shortOf(config, id); };
+    var tail = '';
+    if (!lastOk) tail = last.dayStatus === 'returnIncomplete' ? '마지막 일정(' + sn(last.d) + '→' + sn(last.finalDestination) + ')은 마치지 못했어요.'
+      : last.dayStatus === 'outboundIncomplete' ? '마지막 일정(' + sn(last.o) + '→' + sn(last.d) + ')은 마치지 못했어요.'
+      : '마지막 일정은 마쳤지만 기준보다 오래 기다렸어요.';
+    if (k === n) return who.name + '의 일정 ' + n + '번을 모두 기준 안에 마쳤어요.';
+    if (k === 0) return who.name + '의 일정 ' + n + '번 중 기준 안에 마친 일정은 없' + (tail ? '고, ' + tail : '어요.');
+    return who.name + '의 일정 ' + n + '번 중 ' + k + '번은 기준 안에 마쳤' + (tail ? '고, ' + tail : '어요.');
+  }
   function residentStory(records, residentId, config) {
     if(config.day){
       var who=resident(config,residentId),evidence=records.map(function(r,i){return r?Object.assign({phase:i+1},r):null;}).filter(Boolean);
       if(!who||!evidence.length)return null;
       var lastDay=evidence[evidence.length-1],complete=evidence.filter(function(r){return r.dayStatus==='complete';}).length,kept=evidence.filter(dayKept).length,tally=dayLine(config,who,evidence.length,complete,kept);
       if(who.itineraries)return {residentId:residentId,name:who.name,role:who.role,conditionKey:'day.itinerary',evidence:evidence,drop:null,
-        text:josa(who.name,'은는')+' '+tally+' 마지막 일정은 '+nodeName(config,lastDay.o)+' → '+nodeName(config,lastDay.d)+' → '+josa(nodeName(config,lastDay.finalDestination),'이었')+'어요.',
-        closing:lastDay.dayStatus==='complete'?'마지막 목적지에 '+Demand.clock(config,lastDay.homeT)+' 도착했어요.':lastDay.dayStatus==='returnIncomplete'?'운동장에는 도착했지만 마지막 이동을 마치지 못했어요.':'운동장까지의 첫 이동을 마치지 못했어요.'};
+        text:itineraryLine(config,who,evidence),
+        closing:lastDay.dayStatus==='complete'?'마지막 목적지에 '+Demand.clock(config,lastDay.homeT)+' 도착했어요.':null}; /* P2-4: 못 마친 마지막 일정은 위 문장에 — 같은 말을 두 번 하지 않게 */
       return {residentId:residentId,name:who.name,role:who.role,conditionKey:'day.roundTrip',evidence:evidence,drop:null,
         text:who.name+'의 '+nodeName(config,who.o)+' → '+nodeName(config,who.d)+' → '+nodeName(config,who.o)+' 일정은 '+tally,
         closing:lastDay.dayStatus==='complete'?'마지막 운행에서는 '+Demand.clock(config,lastDay.homeT)+'에 돌아왔어요.':lastDay.dayStatus==='returnIncomplete'?'목적지에는 도착했지만 23:00까지 돌아오지 못했어요.':'23:00까지 외출 목적지에 도착하지 못했어요.'};
@@ -214,7 +228,7 @@
       var seen={},completed=0,days=0,finished=0;history.forEach(function(h){if(seen[h.phase]||h.phase<r.fromPhase||h.phase>config.phases.length)return;seen[h.phase]=true;var rec=h.residents&&h.residents[r.id];if(rec)days++;if(rec&&rec.dayStatus==='complete')finished++;if(rec&&(rec.satisfied!=null?rec.satisfied:rec.dayStatus==='complete'))completed++;});
       var satisfied=completed>=thresholds[r.id];
       var line=lines[r.id][satisfied?0:1];if(config.challengeApplied&&r.itineraries&&satisfied)line='운동장에서의 일정 뒤에도 다음 목적지까지 갈 수 있었어요. 돌아가는 길까지 함께 챙겨 줘서 고마워요!';
-      return {id:r.id,name:r.name+' · '+(satisfied?'만족':'불만족'),satisfied:satisfied,completed:completed,threshold:thresholds[r.id],image:images[r.id],text:line+'\n'+dayLine(config,r,days,finished,completed)+' 만족 기준은 '+thresholds[r.id]+'회 이상이에요(누적 '+completed+'/'+thresholds[r.id]+'회).'};
+      return {id:r.id,name:r.name+' · '+(satisfied?'만족':'불만족'),satisfied:satisfied,completed:completed,threshold:thresholds[r.id],image:images[r.id],text:line+'\n'+(r.itineraries&&days?itineraryLine(config,r,history.filter(function(h,i,a){return h.phase>=r.fromPhase&&h.phase<=config.phases.length&&h.residents&&h.residents[r.id]&&a.map(function(x){return x.phase;}).indexOf(h.phase)===i;}).map(function(h){return h.residents[r.id];})):dayLine(config,r,days,finished,completed))+' 만족 기준은 '+thresholds[r.id]+'회 이상이에요(누적 '+completed+'/'+thresholds[r.id]+'회).'};
     });
   }
   function won(n){var r=Math.round(n);return (n<0?'−':'')+(r===0&&n<0?'1':Math.abs(r).toLocaleString('ko-KR'))+'원'+(r===0&&n<0?' 미만':'');}
@@ -378,7 +392,9 @@
     ids.forEach(function (id) {
       var u = unseen[id], z = stat([id]);
       if (!u || u.seen !== 0 || !(u.real > 0) || !z.N || z.left > 0) return;
-      line += (line ? ' ' : '') + josa(nodeName(config, id), '은는') + (worst ? ' 출발 ' + z.N + '건이 모두 도착했지만,' : '') + ' AI가 본 이동 0건 · 실제 ' + u.real + '건이라 AI 제안에서 빠지기 쉬운 곳이에요.';
+      line += (line ? ' ' : '') + josa(nodeName(config, id), '은는') + (worst ? ' 출발 ' + z.N + '건이 모두 도착했지만,' : '') + ' AI가 본 이동 0건 · 실제 ' + u.real + '건이라 AI 제안에서 빠지기 쉬운 곳이에요.' +
+        /* 2026-11-24 플레이테스트 P2-3: ‘AI라면?’의 소외 지역 목록이 다른 곳을 짚어 어긋나 보이던 것 — 왜 빠지기 쉬운지 한 줄 */
+        ' AI는 탑승 기록을 보고 소외 지역을 골라서, 기록에 잡히지 않은 ' + nodeName(config, id) + '의 이동은 오히려 놓칠 수 있어요.';
     });
     return { bridge: line, ethics: ethics, theme: t, worst: worst, focus: pick ? [pick.id] : [], pick: pick ? pick.id : null };
   }

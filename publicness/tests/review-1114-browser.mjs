@@ -23,7 +23,7 @@ const SAVED_OLD = { version: 'pb-3.1.0', savedAt: Date.now(), session: oldSessio
 // C용 저장본: 지금 버전 · 지금 지원금, 1단계 결과 화면
 const cur = S.create(cfg, { mode: 'fixed', seed: SEED }); T.lay(cur, T.moderate(cur), 0); T.answer(cur); S.startRun(cur); S.finishRun(cur);
 const SAVED_NEW = { version: cfg.SCENARIO_VERSION, savedAt: Date.now(), session: copy(S.serialize(cur)) };
-const KEY_NEW = RC.scenarioKey(cur, cur.config.SCENARIO_VERSION); assert.equal(KEY_NEW, `fixed|${SEED}|pb-3.2.0|b8000`);
+const KEY_NEW = RC.scenarioKey(cur, cur.config.SCENARIO_VERSION); assert.equal(KEY_NEW, `fixed|${SEED}|pb-3.2.1|b8000`);
 const prevSum = Object.assign(RC.summary(cur.history[0], cur.draft), { total: 8202 }); // 다른 판의 같은 계획·다른 수지
 const runs = (key) => JSON.stringify({ v: 1, runs: [{ key, phase: 1, runId: 'other-game', at: 1, sum: prevSum }] });
 
@@ -85,7 +85,7 @@ try {
     await page.addInitScript((s) => { if (!sessionStorage.getItem('seeded')) { localStorage.setItem('ethicity.publicness.save', s); sessionStorage.setItem('seeded', '1'); } }, JSON.stringify(SAVED_OLD));
     await page.goto(root + `?seed=${SEED}&no3d=1`);
     assert.ok(await page.locator('#btn-continue').isVisible(), '버전이 올라가도 pb-3.1.0 저장본은 이어하기에 뜬다');
-    assert.equal(await page.locator('#title-version').innerText(), '버전 pb-3.2.0');
+    assert.equal(await page.locator('#title-version').innerText(), '버전 pb-3.2.1');
     assert.match(await page.locator('#continue-note').innerText(), /8 \/ 8단계 결과/);
     await page.locator('#btn-continue').click(); await page.locator('#finance-status').waitFor();
     const st = await page.evaluate(() => ({ base: PB.App.s.config.finance.basePerBus, v: PB.App.s.config.SCENARIO_VERSION, bal: Math.round(PB.Session.balance(PB.App.s)), saved: JSON.parse(localStorage.getItem('ethicity.publicness.save')).version, rule: PB.App.financeRuleText(PB.App.s) }));

@@ -217,14 +217,16 @@
   /* AI 비교(2026-11-05 P1-6): ‘내 노선 | AI 제안’ 두 열 표를 맨 위에. 좋아짐·나빠짐은 색과 글자 둘 다. 값은 모두 같은 예상 함수(Session.expected) */
   function recCompare(rec,v){
     var a=v.before,b=v.after,W=app().won,D=app().duration,pa=peopleCount(a),pb=peopleCount(b),day=st().config.day;
+    /* 2026-11-24 플레이테스트 P1-5: 도착이 0건이면(노선 없음) 최장 대기 0분은 ‘아무도 안 기다림’이 아니라 잴 것이 없음 — ‘—(노선 없음)’으로 쓰고 좋아짐·나빠짐을 판정하지 않는다 */
+    var NONE='—(노선 없음)';
     function who(m){return Object.keys(m.residents||{}).filter(function(id){return m.residents[id]&&m.residents[id].satisfied===true;}).map(function(id){return st().config.residents.filter(function(r){return r.id===id;})[0].name;}).join('·');}
-    var rows=[{id:'rec-row-arrived',name:'도착',x:a.arrived+'건',y:b.arrived+'건',d:b.arrived-a.arrived},{id:'rec-row-wait',name:'최장 대기',x:D(a.maxWait),y:D(b.maxWait),d:a.maxWait-b.maxWait},{id:'rec-row-nolink',name:'노선 없음',x:a.noLink+'건',y:b.noLink+'건',d:a.noLink-b.noLink}];
+    var rows=[{id:'rec-row-arrived',name:'도착',x:a.arrived+'건',y:b.arrived+'건',d:b.arrived-a.arrived},{id:'rec-row-wait',name:'최장 대기',x:a.arrived?D(a.maxWait):NONE,y:b.arrived?D(b.maxWait):NONE,d:a.arrived&&b.arrived?a.maxWait-b.maxWait:null},{id:'rec-row-nolink',name:'노선 없음',x:a.noLink+'건',y:b.noLink+'건',d:a.noLink-b.noLink}];
     /* 2026-11-11 플레이테스트 9: 이름 목록을 숫자와 같은 줄에 괄호로 붙이면 좁은 칸에서 글자가 겹쳤다 — 숫자 아래 작은 줄로 따로, 가운뎃점 뒤에서 줄바꿈 가능 */
     if(day)rows.push({id:'rec-people',name:'주요 인물 기준 충족',x:pa.ok+'/'+pa.total+'명',xw:who(a),y:pb.ok+'/'+pb.total+'명',yw:who(b),d:pb.ok-pa.ok});
     rows.push({id:'rec-row-profit',name:'예상 수지',x:W(a.costs.total),y:W(b.costs.total),d:b.costs.total-a.costs.total});
     var t=el('table',{id:'rec-compare','class':'rec-compare'}),head=el('tr');['','내 노선','AI 제안'].forEach(function(h){head.appendChild(el('th',{scope:'col'},h));});var th=el('thead');th.appendChild(head);t.appendChild(th);var body=el('tbody');
     function names(td,w){if(w)td.appendChild(el('span',{'class':'rec-who'},w.split('·').join('·​')));return td;}
-    rows.forEach(function(r){var tr=el('tr',{id:r.id});tr.appendChild(el('th',{scope:'row'},r.name));tr.appendChild(names(el('td',null,r.x),r.xw));var td=names(el('td',{'class':r.d>0?'better':r.d<0?'worse':'same'},r.y),r.yw);td.appendChild(el('span',{'class':'rec-delta'},r.d>0?'좋아짐':r.d<0?'나빠짐':'같음'));tr.appendChild(td);body.appendChild(tr);});
+    rows.forEach(function(r){var tr=el('tr',{id:r.id});tr.appendChild(el('th',{scope:'row'},r.name));tr.appendChild(names(el('td',null,r.x),r.xw));var td=names(el('td',{'class':r.d==null?'na':r.d>0?'better':r.d<0?'worse':'same'},r.y),r.yw);if(r.d!=null)td.appendChild(el('span',{'class':'rec-delta'},r.d>0?'좋아짐':r.d<0?'나빠짐':'같음'));tr.appendChild(td);body.appendChild(tr);});
     t.appendChild(body);return t;
   }
   function ai(panel){
@@ -307,22 +309,30 @@
       options.addEventListener('toggle',function(){P.pickerOpen=options.open;});options.appendChild(el('summary',null,'정류장 목록에서 연결하기'));
       var loop=G.isLoop(r),count=loop?r.nodes.length-1:r.nodes.length;
       /* 2026-11-12 랜덤 검토 3번: 목록으로 이을 때 어느 끝에 붙는지 늘 한 줄로 + 끝 바꾸기(지도에서 고른 끝·끌어 이은 끝과 같은 규칙) */
-      if(!loop&&count>=1){var atHead=P.anchor===-1&&count>=2,atTail=P.anchor==null||P.anchor===count-1;
-        if(atHead||atTail){var endId=atHead?r.nodes[0]:r.nodes[count-1],line=el('p',{id:'picker-end','class':'note picker-end'},'지금 '+app().nodeName(endId)+' 쪽 끝에 붙어요. ');
-          if(count>=2){var other=atHead?r.nodes[count-1]:r.nodes[0];line.appendChild(btn(app().nodeName(other)+' 쪽 끝으로 바꾸기','picker-end-switch',function(){P.anchor=atHead?count-1:-1;P.mapEnd={num:r.num,end:atHead?'tail':'head'};P.mapSegment=null;P.pickerOpen=true;P.message=app().nodeName(other)+' 쪽 끝을 골랐어요.';render('#picker-end-switch');},'btn-sm'));}
-          options.appendChild(line);}}
+      /* 2026-11-24 플레이테스트 P2-1: ‘추가 위치’를 바꾸면 이 안내 줄도 바로 바뀐다(가운데 = ‘지금 ○○ 다음에 들어가요’) — 셀렉트는 그대로 두고 이 줄만 새로 만든다 */
+      function endLine(){
+        var atHead=P.anchor===-1&&count>=2,atTail=P.anchor==null||P.anchor===count-1||(P.anchor===-1&&count<2);
+        if(!atHead&&!atTail)return el('p',{id:'picker-end','class':'note picker-end'},'지금 '+app().nodeName(r.nodes[Math.max(0,Math.min(P.anchor,count-1))])+' 다음에 들어가요.');
+        var endId=atHead?r.nodes[0]:r.nodes[count-1],line=el('p',{id:'picker-end','class':'note picker-end'},'지금 '+app().nodeName(endId)+' 쪽 끝에 붙어요. ');
+        if(count>=2){var other=atHead?r.nodes[count-1]:r.nodes[0];line.appendChild(btn(app().nodeName(other)+' 쪽 끝으로 바꾸기','picker-end-switch',function(){P.anchor=atHead?count-1:-1;P.mapEnd={num:r.num,end:atHead?'tail':'head'};P.mapSegment=null;P.pickerOpen=true;P.message=app().nodeName(other)+' 쪽 끝을 골랐어요.';render('#picker-end-switch');},'btn-sm'));}
+        return line;}
+      if(!loop&&count>=1)options.appendChild(endLine());
       if(count){var pos=el('select',{id:'insert-at','aria-label':'추가 위치'});
         if(!loop)pos.appendChild(el('option',{value:'-1'},'맨 앞에'));
         for(var k=0;k<count;k++)pos.appendChild(el('option',{value:String(k)},(k===count-1&&!loop?'맨 끝(':'')+app().nodeName(r.nodes[k])+' 다음'+(k===count-1&&!loop?')':'')));
         pos.value=String(P.anchor==null?count-1:Math.min(P.anchor,count-1));
         // Keep the native select alive while its popup commits a choice (Edge).
         // Replacing it inside change can display the previous native popup selection.
-        pos.addEventListener('change',function(){P.anchor=Number(pos.value);P.pickerOpen=true;
+        /* 2026-11-24 P2-1: input(고르는 즉시)과 change 둘 다에서 P.anchor를 맞추고, 정류장 버튼을 누를 때도 셀렉트 값을 다시 읽는다 —
+         * 셀렉트를 바꾸고 바로 정류장을 누르면 change가 늦어 예전 위치(맨 앞)에 들어간 적이 있다 */
+        function syncAnchor(){var v=Number(pos.value);if(P.anchor===v||(P.anchor==null&&v===count-1&&!loop))return;P.anchor=v;P.pickerOpen=true;P.mapEnd=null;P.mapSegment=null;
           c.querySelectorAll('.stop-anchor').forEach(function(b,i){b.setAttribute('aria-pressed',String(i===P.anchor));});
           var demand=c.querySelector('#stop-demand');if(demand)demand.hidden=true;
-        });
+          var old=options.querySelector('#picker-end');if(old&&!loop)old.parentNode.replaceChild(endLine(),old);
+        }
+        pos.addEventListener('input',syncAnchor);pos.addEventListener('change',syncAnchor);
         var lab=el('label',{'class':'insert-at','for':'insert-at'},'추가 위치 ');lab.appendChild(pos);options.appendChild(lab);}
-      var stops=el('div',{'class':'chips'});nextStops().forEach(function(id){var b=btn(app().nodeName(id),'next-'+id,function(){P.pickerOpen=true;insert(id,'#stop-picker .next-stop, #picker-done');},'next-stop');b.dataset.node=id;stops.appendChild(b);});options.appendChild(stops);
+      var stops=el('div',{'class':'chips'});nextStops().forEach(function(id){var b=btn(app().nodeName(id),'next-'+id,function(){P.pickerOpen=true;var sel=options.querySelector('#insert-at');if(sel&&sel.value!==''&&Number(sel.value)!==(P.anchor==null?count-1:Math.min(P.anchor,count-1))){P.anchor=Number(sel.value);P.mapEnd=null;P.mapSegment=null;}insert(id,'#stop-picker .next-stop, #picker-done');},'next-stop');b.dataset.node=id;stops.appendChild(b);});options.appendChild(stops);
       options.appendChild(btn('완료','picker-done',function(){P.pickerOpen=false;render('#route-'+r.num);}));c.appendChild(options);sec.appendChild(c);
     }panel.appendChild(sec);
   }
@@ -434,12 +444,23 @@
    * 2026-11-18 플레이테스트 P0-2: 이번 단계 예상 수지가 마이너스면 그 금액과 누적 잔액(0원 밑으로 내려가는지) · 노선을 달리는 빌린 버스의 임차료도 이유로 쓴다(예전 2026-11-06 ‘예상 수지는 넣지 않음’을 사용자 지시가 뒤집음).
    *   숫자는 지도 위 ‘예상’과 같은 계산(UI.Econ.plan — 기본 수요 기준). 이유가 하나도 없으면 확인창 없이 바로 출발(departCheck).
    * 막는 문제(운행 버스 0대)면 제목을 바꾸고 기본 포커스를 ‘노선 고치기’에. 경고는 접지 않고 본문에 최대 3줄, 더 있을 때만 ‘자세히’ — 경고가 없으면 ‘자세히’를 만들지 않는다 */
+  /* 2026-11-24 플레이테스트 P1-4: 예상 실패 이유를 짧게(출발 확인창·계획 화면 칩이 같은 말) */
+  var MISS={noLink:'잇는 노선 없음',transfers:'갈아타기 두 번 필요',noTrip:'버스편 없음',riding:'운행이 끝날 때 버스 안',full:'만차로 못 탐',late:'운행 시간 안에 못 마침',tooLate:'다음 이동을 시작 못 함',longWait:'기다림이 기준 넘음',slowTrip:'이동 시간이 기준 넘음'};
+  function missText(f){var sn=(PB.UI&&PB.UI.shortName)||app().nodeName;return (f.o&&f.d?sn(f.o)+'→'+sn(f.d)+' ':'')+(MISS[f.code]||MISS.late);}
+  UI.missText=missText;
+  function forecastOf(s){var E=UI.Econ;return E?S.residentForecast(s,E.plan(s).run.metrics.residents):S.residentForecast(s);}
+  UI.residentForecast=forecastOf;
   function departLines(s){
-    var c=S.departChecks(s),out=[],W=app().won,N=app().nodeName,F=s.config.finance;
+    var c=S.departChecks(s,UI.Econ&&s.draft.buses.some(function(b){return b.routeNum!=null;})?UI.Econ.plan(s).run.metrics.residents:null),out=[],W=app().won,N=app().nodeName,F=s.config.finance;
     function list(a,fmt){return a.slice(0,4).map(fmt).join(', ')+(a.length>4?' 외 '+(a.length-4)+'곳':'');}
     if(c.noBus)out.push({id:'depart-no-bus',text:'이대로 출발하면 아무도 버스를 탈 수 없어요.'});
     /* 2026-11-12 랜덤 검토 2번: 노선은 이어졌지만 갈아타기가 두 번 넘게 필요한 주요 인물(갈아타기는 한 번까지라 못 감) — 출발 전에 먼저 */
     if(c.transfers&&c.transfers.length)out.push({id:'depart-transfers',text:c.transfers.map(function(t){return t.name+': 갈아타기 '+t.n+'번 필요, 이대로면 못 가요';}).join(' · ')+' (갈아타기는 한 번까지예요).'});
+    /* 2026-11-24 플레이테스트 P1-4: 노선이 닿아도 이번 단계 예상으로 기준을 못 지키는 주요 인물(예: 20:00 이후 운동장→터미널 버스편 없음). 위 갈아타기 줄·아래 ‘노선이 없는 사람’ 줄에 이미 있는 사람은 빼고, 같은 이유끼리 묶는다 */
+    var shown={};(c.transfers||[]).concat(c.residents||[]).forEach(function(r){shown[r.id]=true;});
+    var fc=(c.forecast||[]).filter(function(f){return !shown[f.id];}),groups=[];
+    fc.forEach(function(f){var k=missText(f),g=groups.filter(function(x){return x.k===k;})[0];if(g)g.names.push(f.name);else groups.push({k:k,names:[f.name]});});
+    if(groups.length)out.push({id:'depart-forecast',text:'예상으로 기준을 못 지키는 주요 인물: '+groups.map(function(g){return g.names.join(', ')+'('+g.k+')';}).join(' · ')+'.'});
     /* 2026-11-11 플레이테스트 7: 배차 간격이 기준을 넘는 노선 · 버스가 없는 노선 · 노선이 없는 정류장을 먼저 요약(문제가 없으면 줄이 없다 — 전처럼 제목 한 줄) */
     if(c.overGap.length)out.push({id:'depart-over-gap',text:'배차 간격이 기준('+app().duration(s.config.service.maxWait)+')을 넘는 노선: '+c.overGap.map(function(x){return C(x.num)+'(버스 '+x.buses+'대 · 약 '+app().duration(x.headway)+')';}).join(', ')+'.'});
     if(c.idleRoutes.length&&!c.noBus)out.push({id:'depart-idle-routes',text:'버스가 없는 노선: '+c.idleRoutes.map(function(n){return C(n);}).join(', ')+' — 이 노선은 운행하지 않아요.'});

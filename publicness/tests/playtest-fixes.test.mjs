@@ -112,7 +112,8 @@ test('josa follows the final consonant of dynamic words', () => {
   assert.equal(N.josa('고속버스터미널', '이었'), '고속버스터미널이었'); assert.equal(N.josa('밀집 주거지', '이었'), '밀집 주거지였');
   assert.equal(N.josa('솔잎몰', '으로'), '솔잎몰로'); assert.equal(N.josa('기차역', '으로'), '기차역으로');
   const story = N.residentStory([null, null, null, { o: 'J', d: 'H', finalDestination: 'B', dayStatus: 'complete', homeT: 110 }, { o: 'B', d: 'H', finalDestination: 'J', dayStatus: 'complete', homeT: 110 }], 'daeun', cfg);
-  assert.match(story.text, /^다은은 /); assert.match(story.text, /고속버스터미널이었어요/);
+  /* 2026-11-24 P2-4: 일정 인물 문장 = ‘다은의 일정 N번 …’(조사는 ‘의’) */
+  assert.equal(story.text, '다은의 일정 2번을 모두 기준 안에 마쳤어요.');
 });
 
 // 대표 설계 세 가지를 다섯 단계에 걸쳐 비교: 서비스 기준이 설계 차이를 드러내는지(분석 근거는 CLAUDE.md 2026-10-23)

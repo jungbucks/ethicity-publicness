@@ -178,3 +178,12 @@ body[data-screen=run] .person-chip-time, body[data-screen=run] .person-chip-trip
 /* 갈아타기 두 번 이상이어야 이어지는 길(2026-11-12 랜덤 검토 2번) — 엔진은 못 가는 길이라 끊긴 선으로 */
 #person-path .pp-line.too-many { stroke-dasharray: 10 8; }
 .person-chip-flag.transfer { white-space: nowrap; }
+.person-chip-flag.forecast { max-width: 100%; overflow-wrap: anywhere; } /* 2026-11-24 P1-4: 이번 단계 예상 실패 — 좁은 칩에서는 줄바꿈(넘치지 않게) */
+/* 2026-11-24 플레이테스트 P2-8: 결과 화면 ‘AI라면?’ 계산 중 — ‘N단계로’ 버튼 옆 작은 진행 표시 */
+.ai-busy-next { display: inline-flex; align-items: center; gap: 6px; margin-left: 10px; color: var(--text-muted, #5A6478); font-size: 13px; vertical-align: middle; }
+.ai-busy-next::before { content: ""; width: 12px; height: 12px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: ai-busy-spin .8s linear infinite; }
+@keyframes ai-busy-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .ai-busy-next::before { animation: none; border-right-color: currentColor; opacity: .5; } }
+
+/* 2026-11-24 플레이테스트 P2-5: 노선 칩은 색 점이 자기 노선 선 위 — 점(왼쪽 끝 24px의 가운데)을 기준점에(ui-map-plan positionBadges) */
+#route-buses .route-bus { transform: translate(-14px, -50%); }

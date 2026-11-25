@@ -20,10 +20,10 @@
   // 모든 청원(생긴 단계 순). answer = 답하는 단계(마지막 단계에 생긴 청원은 phasesOf 밖 → 답 없음)
   function list(s) {
     var out = [], fp = s && s.fixedPetition;
-    if (fp) out.push({ kind: 'fixed', phase: fp.phase, answer: fp.phase + 1, zone: fp.zone, t: fp.t, count: fp.count, total: fp.total, to: fp.to || null, reply: s.petitionReply || null });
+    if (fp) out.push({ kind: 'fixed', phase: fp.phase, answer: fp.phase + 1, zone: fp.zone, t: fp.t, count: fp.count, total: fp.total, to: fp.to || null, wait: fp.wait, noRoute: fp.noRoute, reply: s.petitionReply || null });
     if (eventsOn(s)) (s.history || []).forEach(function (h) {
       var p = h && h.petition; if (!p || p.fixed || (fp && h.phase === fp.phase)) return;
-      out.push({ kind: 'event', phase: h.phase, answer: h.phase + 1, zone: p.zone, t: p.t, count: p.count, total: p.total, to: p.to || null, reply: (s.petitionReplies || {})[h.phase + 1] || null });
+      out.push({ kind: 'event', phase: h.phase, answer: h.phase + 1, zone: p.zone, t: p.t, count: p.count, total: p.total, to: p.to || null, wait: p.wait, noRoute: p.noRoute, reply: (s.petitionReplies || {})[h.phase + 1] || null });
     });
     return out.sort(function (a, b) { return a.phase - b.phase; });
   }
@@ -72,9 +72,12 @@
     var v = b.failed < a.failed ? 'down' : b.failed > a.failed ? 'up' : a.failed === 0 ? 'zero' : 'same';
     return { before: a, after: b, verdict: v, ok: v === 'down' || v === 'zero' };
   }
-  // 금배지 판정: 측정할 수 있는 청원이 하나 이상이고 모두 ok
+  /* 금배지 판정: 측정할 수 있는 청원이 하나 이상이고 모두 ok.
+   * 2026-11-24 플레이테스트 P1-1·P1-2: 청원 당시 실제 문제(기준 시간을 넘겨 기다리거나 노선이 없던 이동)가 1건 이상이던 청원만 판정한다.
+   * 답할 차례가 없던 청원(다음 학기로 넘어간 청원 등)은 outcome이 없어(다음 단계 기록 없음) 저절로 빠진다. judged = 판정한 청원(빈 목록이면 ‘해당 없음’) */
+  function judged(s) { return list(s).filter(function (p) { return p.count == null || p.count >= 1; }).map(function (p) { return outcome(s, p); }).filter(Boolean); }
   function badge(s) {
-    var rows = list(s).map(function (p) { return outcome(s, p); }).filter(Boolean);
+    var rows = judged(s);
     return rows.length > 0 && rows.every(function (r) { return r.ok; });
   }
   /* 답하지 않은 청원(2026-11-18 플레이테스트 P1-7): 생겼지만 답할 차례가 없는 청원 — 기본 모드의 사건 청원(위 list에 넣지 않음)·마지막 단계에 생긴 청원. 결과 화면·보고서에 ‘답하지 않은 청원’으로 남긴다 */
@@ -84,11 +87,11 @@
       var p = h && h.petition; if (!p) return;
       var it = listed.filter(function (x) { return x.phase === h.phase && x.zone === p.zone; })[0];
       if (it && it.answer <= last) return;
-      out.push({ phase: h.phase, zone: p.zone, t: p.t, count: p.count, total: p.total, to: p.to || null });
+      out.push({ phase: h.phase, zone: p.zone, t: p.t, count: p.count, total: p.total, to: p.to || null, wait: p.wait, noRoute: p.noRoute, last: h.phase >= last });
     });
     return out;
   }
-  var api = { KINDS: KINDS, set: set, get: get, required: required, list: list, petitionFor: petitionFor, missed: missed, outcome: outcome, badge: badge, unanswered: unanswered };
+  var api = { KINDS: KINDS, set: set, get: get, required: required, list: list, petitionFor: petitionFor, missed: missed, outcome: outcome, badge: badge, judged: judged, unanswered: unanswered };
   root.PB = root.PB || {};
   root.PB.Choices = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

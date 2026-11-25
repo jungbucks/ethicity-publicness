@@ -16,7 +16,7 @@
  function events(App,s,h){
   var out=[];
   if(h.event&&h.event.type==='demand'){var od=PB.Demand.directional(s.config,h.phase)[h.event.odIndex];if(od)out.push({t:h.event.t,text:App.clock(h.event.t)+' · '+App.nodeName(od.o)+'→'+App.nodeName(od.d)+' 요청이 12건 늘었어요(추가 수요).'});}
-  if(h.petition)out.push({t:h.petition.t,text:App.clock(h.petition.t)+' · '+App.nodeName(h.petition.zone)+' 주민 청원: 그때까지 요청 '+h.petition.total+'건 중 '+h.petition.count+'건이 아직 도착하지 못했어요.'+(PB.Choices.list(s).some(function(p){return p.phase===h.phase&&p.answer<=s.config.phases.length;})?' 다음 단계 계획에서 이 청원에 답해요.':PB.Choices.unanswered&&PB.Choices.unanswered(s).some(function(p){return p.phase===h.phase;})?' 이 청원은 답할 차례가 없어 ‘답하지 않은 청원’으로 남아요(보고서에도 적혀요).':'')});/* 2026-11-12 랜덤 검토 4번 */
+  if(h.petition)out.push({t:h.petition.t,text:App.clock(h.petition.t)+' · '+App.nodeName(h.petition.zone)+' 주민 청원 · '+PB.UI.petitionCount(App,h.petition)+'.'+(PB.Choices.list(s).some(function(p){return p.phase===h.phase&&p.answer<=s.config.phases.length;})?' 다음 단계 계획에서 이 청원에 답해요.':(function(){var u=PB.Choices.unanswered?PB.Choices.unanswered(s).filter(function(p){return p.phase===h.phase;})[0]:null;return !u?'':u.last?' 마지막 단계라 이 청원은 다음 학기로 넘어가요(보고서에 ‘다음 학기로 넘어간 청원’으로 적혀요).':' 이번 학기에는 이 청원에 답하는 차례가 없어요. 다음 계획에 참고해 보세요(보고서에 ‘답할 차례가 없던 청원’으로 적혀요).';})())});/* 2026-11-12 랜덤 검토 4번 · 2026-11-24 P1-2: 학생이 안 한 것처럼 들리지 않게 */
   (s.emergencyLog||[]).filter(function(a){return a.phase===s.phase;}).forEach(function(a){out.push({t:a.at,text:App.clock(a.at)+' · 긴급 조정 · '+(a.busId==null?'변경 없이 계속':'버스 한 대 → '+PB.Names.route(a.routeNum))});});
   (s.midChanges||[]).filter(function(c){return c.phase===s.phase;}).forEach(function(c){out.push({t:c.at,text:PB.UI.midLine(App,c)});});
   return out.sort(function(a,b){return a.t-b.t;});
@@ -105,6 +105,12 @@
   aiMark(sec,(s.choices||{})[h.phase]);
  }
  function thinkPick(s,phase){var h=(s.history||[]).filter(function(x){return x.phase===phase;})[0];if(!h||!s.current||!s.current.result)return null;try{return PB.Narrative.thinkFocus(s.config,h.phase,s.current.result.passengers,h.scores&&h.scores.mobility,{}).pick;}catch(e){return null;}}
+ function nextBusy(on){
+  var b=document.querySelector('#btn-next-phase'),t=document.querySelector('#ai-busy-next');
+  if(!on){if(t)t.remove();return;}
+  if(!b||t)return;
+  t=el('span',{id:'ai-busy-next','class':'ai-busy-next',role:'status'},'AI라면? 계산 중…');b.insertAdjacentElement('afterend',t);
+ }
  function aiCard(App,s,h,last){
   var sec=el('section',{id:'result-ai','class':'result-ai','aria-labelledby':'result-ai-h'});sec.appendChild(el('h3',{id:'result-ai-h'},'AI라면?'));
   var box=el('div',{id:'result-ai-body'});sec.appendChild(box);sec.appendChild(aiNote(s,h));
@@ -112,6 +118,9 @@
   if(saved&&saved.key===key&&saved.v===AI_CARD_V){aiPaint(sec,saved,s,h,last);return sec;}
   box.appendChild(el('p',{'class':'note',role:'status',id:'result-ai-wait'},'AI가 세 기준으로 다시 짜 보고 있어요.'));
   if(!aiJob||aiJob.key!==key||aiJob.s!==s)aiJob={key:key,s:s,run:aiCompute(App,s,h,key)};
+  /* 2026-11-24 플레이테스트 P2-8: 계산하는 동안 ‘N단계로’ 버튼 옆에 작은 진행 표시(카드가 화면 아래라 안 보여도 기다리는 중인 줄 알게). 끝나면(실패해도) 없앤다 */
+  var job=aiJob;setTimeout(function(){if(aiJob===job&&!job.done)nextBusy(true);},0);
+  aiJob.run.then(function(){job.done=true;nextBusy(false);},function(){job.done=true;nextBusy(false);});
   aiJob.run.then(function(card){
    if(App.s!==s)return;s.aiCards=s.aiCards||{};s.aiCards[h.phase]=card;if(s.stage==='result'&&s.phase===h.phase)App.save();
    var now=document.querySelector('#result-ai');if(now&&s.stage==='result'&&s.phase===h.phase)aiPaint(now,card,s,h,last);

@@ -194,8 +194,13 @@
       return { id: r.id, key: r.key, o: r.o, d: r.d, t: r.t, kind: r.kind, journey: null, fail: null, status: 'pending',
         free: !!r.free, elder: !!r.elder, residentId:r.residentId||null,leg:r.leg||null,returnTrip:r.returnTrip||null,
         familyId:r.familyId||null,familySize:r.familySize||0,
-        firstBoardT: null, arriveT: null, waitTotal: 0, boardings: 0, legIndex: 0, _waitStart: null, _ready: null, _bus: null };
+        firstBoardT: null, arriveT: null, waitTotal: 0, boardings: 0, legIndex: 0, _waitStart: null, _ready: null, _bus: null,
+        waits: [], noRouteT: null, linkT: null };
     }
+    /* 기다린 구간 기록(2026-11-24 플레이테스트 P1-1): 청원이 ‘그 시각에 기준 시간을 넘겨 기다리는 사람’을 세려면 시각별 대기를 알아야 한다.
+     * waits = [[시작, 끝(탑승 시각, 아직이면 null)], …], noRouteT·linkT = 잇는 노선이 없어진·다시 생긴 시각. 운행 결과(대기 합·도착)는 그대로 */
+    function waitOn(p, t) { p._waitStart = t; p.waits.push([t, null]); }
+    function waitOff(p, t) { var w = p.waits[p.waits.length - 1]; if (w && w[1] == null) w[1] = t; }
     var passengers = input.requests.map(passenger);
     var byT = {};
     passengers.forEach(function (p) { (byT[p.t] = byT[p.t] || []).push(p); });
@@ -216,8 +221,8 @@
       passengers.forEach(function(p){
         if(p.t>t||(p.status!=='waiting'&&!(p.status==='transfer'&&p._ready<=t)))return;
         var origin=p._location||(p.journey&&p.journey[p.legIndex]?p.journey[p.legIndex].from:p.o),j=planner(origin,p.d,t,tMin);
-        if(j){p.journey=j.legs;p.legIndex=0;p.fail=null;if(p._waitStart==null)p._waitStart=t;queue.push(p);}
-        else{p.journey=null;p.fail=linkFail(g,{buses:activePlans},origin,p.d);}
+        if(j){p.journey=j.legs;p.legIndex=0;if(noRoute(p)&&p.linkT==null)p.linkT=t;p.fail=null;if(p._waitStart==null)waitOn(p,t);queue.push(p);}
+        else{p.journey=null;p.fail=linkFail(g,{buses:activePlans},origin,p.d);if(noRoute(p)&&p.noRouteT==null)p.noRouteT=t;}
       });
     }
     function switchRoute(change,from,t) {
@@ -298,26 +303,26 @@
       (byT[t] || []).forEach(function (p) {
         var j = planner(p.o, p.d, t, tMin);
         p.status = 'waiting';
-        p._waitStart = t;
+        waitOn(p, t);
         if (j) { p.journey = j.legs; queue.push(p); }
         else {
           var lk = p.o + p.d;
           if (!(lk in linkMemo)) linkMemo[lk] = linkFail(g, emergencyActive?{buses:activePlans}:plan, p.o, p.d);
           p.fail = linkMemo[lk];
           // 잇는 노선 자체가 없으면 버스를 기다린 것이 아니다(‘경로 없음’). 시간 안에 탈 편이 없으면 종료까지 기다린 것으로 센다
-          if (noRoute(p)) p._waitStart = null;
+          if (noRoute(p)) { p._waitStart = null; p.waits.pop(); p.noRouteT = t; }
         }
         log.push({ t: t, type: 'request', pid: p.id, node: p.o });
       });
       if (event && event.t === t && event.type !== 'none') {
         log.push({ t: t, type: 'event', data: { type: event.type } });
-        if (event.type === 'petition') petition = judgePetition(passengers, t);
+        if (event.type === 'petition') petition = judgePetition(passengers, t, config.service && config.service.maxWait);
         if (petition) log.push({ t: t, type: 'petition', node: petition.zone, data: petition });
       }
       // ② 환승 준비 완료
       walking = walking.filter(function (p) {
         if (p._ready !== t) return true;
-        p._waitStart = t;
+        waitOn(p, t);
         queue.push(p);
         if(emergencyActive){p.status='waiting';replanWaiting(t);}
         return false;
@@ -368,7 +373,7 @@
         if (eligible.length > free) log.push({ t: t, type: 'full', bus: busId, node: e.v.node, data: { left: eligible.length - Math.max(0, free) } });
         eligible.slice(0, Math.max(0, free)).forEach(function (p) {
           p.waitTotal += t - p._waitStart;
-          p._waitStart = null;
+          p._waitStart = null; waitOff(p, t);
           if (p.firstBoardT == null) p.firstBoardT = t;
           p.status = 'riding';
           p.boardings++;
@@ -397,14 +402,34 @@
     return { timelines: timelines, passengers: passengers, log: log, costs: costs, petition: petition };
   }
 
-  // 그 시각까지 생긴 요청 중 미완료 비율이 가장 높은 출발 생활권(동률 ID순). 미완료 0명이면 없음
-  function judgePetition(passengers, t) {
+  /* 청원이 세는 ‘못 가고 있는 이동’(2026-11-24 플레이테스트 P1-1) — t 시각에:
+   *  · 'noRoute' = 잇는 노선이 없어(노선 없음·갈아타기 두 번) 기다릴 버스조차 없는 사람
+   *  · 'wait'    = 정류장에서 기다리는 중이고 지금까지 기다린 시간 합(환승 포함)이 기준(config.service.maxWait, 4시간 3분)을 넘은 사람
+   *  · null      = 그 밖(아직 요청 전·이미 도착·버스 안·갈아타러 걷는 중·기준 안에서 기다리는 중) — 정상적으로 이동 중인 사람은 세지 않는다.
+   * 운행 중(Sim 안의 사건 청원)과 하루가 끝난 뒤(2단계 고정 청원·‘청원 그 뒤’ 참고 줄) 모두 이 함수 하나로 같은 답을 낸다.
+   * 대기 구간 기록(waits)이 없는 예전·검사용 승객은 [요청 시각, 첫 탑승]을 한 구간으로 본다 */
+  function stuckAt(p, t, maxWait) {
+    if (!p || p.t > t || (p.arriveT != null && p.arriveT <= t)) return null;
+    var lim = maxWait == null ? 27 : maxWait, hasLog = !!p.waits;
+    var nr = p.noRouteT != null ? p.noRouteT <= t && !(p.linkT != null && p.linkT <= t) : !hasLog && noRoute(p) && (p.firstBoardT == null || p.firstBoardT > t);
+    if (nr) return 'noRoute';
+    var ws = hasLog ? p.waits : noRoute(p) ? [] : [[p.t, p.firstBoardT]], sum = 0, now = false;
+    ws.forEach(function (w) {
+      var a = w[0], b = w[1] == null ? Infinity : w[1];
+      if (a < t) sum += Math.min(b, t) - a;
+      if (a < t && b >= t) now = true;
+    });
+    return now && sum > lim ? 'wait' : null;
+  }
+  /* 청원 판정: t까지 요청이 생긴 출발 동네마다 stuckAt으로 센 사람 비율이 가장 높은 곳(같으면 정류장 ID순). 센 사람이 0명이면 청원 없음(null).
+   * count = 센 사람(wait + noRoute), total = 그 동네에서 t까지 생긴 요청 */
+  function judgePetition(passengers, t, maxWait) {
     var z = {};
     passengers.forEach(function (p) {
       if (p.t > t) return;
-      var s = z[p.o] = z[p.o] || { total: 0, open: 0 };
+      var s = z[p.o] = z[p.o] || { total: 0, open: 0, wait: 0, noRoute: 0 }, k = stuckAt(p, t, maxWait);
       s.total++;
-      if (p.status !== 'arrived') s.open++;
+      if (k) { s.open++; s[k]++; }
     });
     var best = null;
     Object.keys(z).sort().forEach(function (id) {
@@ -412,7 +437,8 @@
       if (!best || r > best.r) best = { id: id, r: r };
     });
     if (!best || z[best.id].open === 0) return null;
-    return { zone: best.id, t: t, count: z[best.id].open, total: z[best.id].total };
+    var b = z[best.id];
+    return { zone: best.id, t: t, count: b.open, total: b.total, wait: b.wait, noRoute: b.noRoute };
   }
 
   // 승객별 결과를 짧은 해시로(FNV-1a) — 결정성 검사용
@@ -439,7 +465,7 @@
       g[p.fail==='NO_LINK'?'noLink':p.fail==='TOO_MANY_TRANSFERS'?'transfers':p.deniedBoardings>0?'full':'time']++;
     });return out;
   }
-  var api = { run: run, unfinishedReasons:unfinishedReasons, occupancyAt: occupancyAt, operatingRoutes: operatingRoutes, judgePetition: judgePetition, structural: structural, transfersNeeded: transfersNeeded, noRoute: noRoute, hash: hash };
+  var api = { run: run, unfinishedReasons:unfinishedReasons, occupancyAt: occupancyAt, operatingRoutes: operatingRoutes, judgePetition: judgePetition, stuckAt: stuckAt, structural: structural, transfersNeeded: transfersNeeded, noRoute: noRoute, hash: hash };
   root.PB = root.PB || {};
   root.PB.Sim = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

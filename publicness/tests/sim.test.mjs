@@ -126,7 +126,7 @@ test('120-minute boundary (AC16)', () => {
 test('petition from zone with highest unfinished ratio', () => {
   const a = req('F', 'D', 0), b = req('A', 'B', 0);
   const res = run(plan(['A-B', 0]), [a, b], { phase: 1, type: 'petition', t: 5, odIndex: 0 });
-  assert.deepEqual(res.petition, { zone: 'F', t: 5, count: 1, total: 1 });
+  assert.deepEqual(res.petition, { zone: 'F', t: 5, count: 1, total: 1, wait: 0, noRoute: 1 }); /* 2026-11-24 P1-1: F→D는 잇는 노선 없음(셈), A→B는 버스를 기다리는 중(기준 안 — 안 셈) */
   assert.ok(res.log.some((e) => e.type === 'petition' && e.t === 5));
   const c = req('A', 'B', 0);
   const res2 = run(plan(['A-B', 0]), [c], { phase: 1, type: 'petition', t: 10, odIndex: 0 });

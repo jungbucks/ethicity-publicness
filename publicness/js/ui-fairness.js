@@ -48,7 +48,7 @@
     if (!fp) return null; /* 2026-11-12 랜덤 검토 4번: 고정 청원(2단계 → 3단계 답)과 사건 청원(생긴 다음 단계에 답)을 같은 카드로 */
     var zone = App.nodeName(fp.zone), c = shell(App, 'petition-card', zone + ' 주민 청원');
     /* 2026-11-18 P1-7: 무엇을 바라는지 한 줄(바라는 곳 = 그때 못 간 이동의 목적지 중 가장 많은 곳, 예전 저장본엔 없음) */
-    c.appendChild(App.el('p', { id: 'petition-text', 'class': 'fair-fact' }, App.clock(fp.t) + ' ' + zone + ' 주민 청원: ' + UI.petitionAsk(App, fp) + ' · 못 간 이동 ' + fp.count + '건(그때까지 요청 ' + fp.total + '건 중)'));
+    c.appendChild(App.el('p', { id: 'petition-text', 'class': 'fair-fact' }, App.clock(fp.t) + ' ' + zone + ' 주민 청원: ' + UI.petitionAsk(App, fp) + ' · ' + UI.petitionCount(App, fp)));
     c.appendChild(App.el('p', { 'class': 'fair-frame' }, zone + ' 주민의 청원을'));
     c.appendChild(options(App, s, 'petition', hooks, zone + ' 주민의 청원에 대한 답'));
     c.appendChild(whyLine(App, s, 'petition', hooks));
@@ -145,8 +145,10 @@
     if (rep.choice === 'reflect' && h2 && planKey(h2) === planKey(h) && !mids) c.appendChild(App.el('p', { id: 'petition-same', 'class': 'fair-fact' }, '노선은 바뀌지 않았어요(' + P1 + '와 같은 노선·버스 수로 출발했어요).'));
     c.appendChild(App.el('p', { id: 'petition-fail', 'class': 'fair-fact' }, '하루가 끝났을 때 ' + name + '에서 출발해 목적지까지 못 간 이동: ' + P1 + ' ' + o.before.failed + '건(출발 ' + o.before.requests + '건 중) → ' + P2 + ' ' + o.after.failed + '건(출발 ' + o.after.requests + '건 중)'));
     if (rep.choice === 'reflect') c.appendChild(App.el('p', { id: 'petition-verdict', 'class': 'fair-fact petition-verdict is-' + o.verdict }, verdictText(o)));
-    var now = h.petitionCheck || (s.current && s.current.result && s.phase === h.phase ? PB.Session.petitionZoneAt(s.current.result.passengers, fp.t, fp.zone) : null);
-    if (now && fp.total != null) c.appendChild(App.el('p', { id: 'petition-then', 'class': 'note' }, '참고 · 청원 시각(' + App.clock(fp.t) + ')에 아직 도착 전이던 이동(버스 안에 있던 사람 포함): ' + P1 + ' ' + fp.total + '건 중 ' + fp.count + '건 → ' + P2 + ' ' + now.total + '건 중 ' + now.count + '건'));
+    var now = h.petitionCheck || (s.current && s.current.result && s.phase === h.phase ? PB.Session.petitionZoneAt(s.current.result.passengers, fp.t, fp.zone, s.config.service && s.config.service.maxWait) : null);
+    /* 2026-11-24 P1-1: 참고 줄 기준 = 청원이 센 것과 같은 기준(그 시각에 기준 시간을 넘겨 기다리거나 잇는 노선이 없던 이동 — 버스 안·막 기다리기 시작한 사람은 빼고). 예전 저장본 청원은 예전 말 그대로 */
+    var oldRule = fp.wait == null && fp.noRoute == null;
+    if (now && fp.total != null) c.appendChild(App.el('p', { id: 'petition-then', 'class': 'note' }, '참고 · 청원 시각(' + App.clock(fp.t) + ')에 ' + (oldRule ? '아직 도착 전이던 이동(버스 안에 있던 사람 포함)' : '기준 시간(' + App.duration(s.config.service.maxWait) + ')을 넘겨 기다리거나 잇는 노선이 없던 이동') + ': ' + P1 + ' ' + fp.total + '건 중 ' + fp.count + '건 → ' + P2 + ' ' + now.total + '건 중 ' + now.count + '건'));
     c.appendChild(App.el('p', { id: 'petition-rode', 'class': 'fair-fact' }, name + ' 탑승 기록(다음 AI가 보는 자료): ' + P1 + ' ' + a.rode + '명 → ' + P2 + ' ' + b.rode + '명'));
     return c;
   }
@@ -157,6 +159,16 @@
       o.verdict === 'up' ? '반영했지만 ' + a + '건 → ' + b + '건으로 늘었어요' : '반영했지만 못 간 이동이 ' + a + '건 그대로예요';
   }
   UI.petitionVerdict = verdictText;
+  /* 청원이 센 이동 한 줄(2026-11-24 플레이테스트 P1-1): 그 시각에 기준 시간을 넘겨 기다리던 사람 + 잇는 노선이 없던 사람(Sim.stuckAt).
+   * 예전 저장본의 청원(wait·noRoute 칸 없음)은 예전 기준(그때 아직 도착 전)이라 그 말 그대로 */
+  UI.petitionCount = function (App, p) {
+    var tail = '(그때까지 요청 ' + p.total + '건 중)', s = App.s, mw = s && s.config && s.config.service ? s.config.service.maxWait : null;
+    if (p.wait == null && p.noRoute == null) return '그때 아직 도착하지 못한 이동 ' + p.count + '건' + tail;
+    var parts = [];
+    if (p.wait) parts.push((mw != null ? App.duration(mw) + ' 넘게' : '오래') + ' 기다린 사람 ' + p.wait + '명');
+    if (p.noRoute) parts.push('잇는 노선이 없는 사람 ' + p.noRoute + '명');
+    return '못 가고 있던 이동 ' + p.count + '건' + tail + (parts.length ? ' — ' + parts.join(', ') : '');
+  };
   UI.petitionAsk = function (App, p) { var zone = App.nodeName(p.zone); return '“' + zone + '에서 ' + (p.to ? App.nodeName(p.to) + ' 쪽으로 ' : '') + '가는 버스를 늘려 주세요”'; };
   function elderResult(App, s, h) {
     var ch = PB.Session.elderChoice(s), k = (((h.scores || {}).mobility || {}).reasons || {}).stayHome || 0;

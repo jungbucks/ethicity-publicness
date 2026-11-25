@@ -31,7 +31,7 @@
     head.appendChild(t);
     c.appendChild(head);
     c.appendChild(el('p', null, story.text));
-    c.appendChild(el('p', { 'class': 'closing' }, story.closing));
+    if (story.closing) c.appendChild(el('p', { 'class': 'closing' }, story.closing));
     var d = el('details');
     d.appendChild(el('summary', null, story.name + '의 운행 기록'));
     var rows = story.evidence.map(function (e) {

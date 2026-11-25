@@ -11,6 +11,7 @@
   function el(t, a, x) { return app().el(t, a, x); }
   function svg(t, a, parent) { var e = document.createElementNS(SVG, t); for (var k in a) e.setAttribute(k, a[k]); if (parent) parent.appendChild(e); return e; }
   function shortName(id) { return SHORT[id] || app().nodeName(id); }
+  PB.UI = PB.UI || {}; PB.UI.shortName = shortName; /* 2026-11-24 P1-4: 출발 확인창 예상 실패 구간도 같은 짧은 이름 */
 
   // 노선 위 a → b 구간(정류장 순서). 순환은 앞으로 돌고, 왕복은 앞뒤 어느 쪽이든
   function along(route, a, b) {
@@ -91,7 +92,7 @@
   /* 2026-11-18 플레이테스트 P2: 칩을 다시 그려도 얼굴 그림은 같은 <img>를 옮겨 쓴다(새로 불러오며 흰 원으로 깜빡이지 않게) */
   var chipImgs = {};
   function chipImg(id) { var src = 'assets/art/portrait-' + id + '-calm.webp', img = chipImgs[id]; if (!img || img.getAttribute('src') !== src) { img = el('img', { src: src, alt: '' }); chipImgs[id] = img; } return img; }
-  function chip(rd, t, tr) {
+  function chip(rd, t, tr, fc) {
     var A = app(), st = PB.Narrative.criterionState(t), b = el('button', { type: 'button', 'class': 'person-chip' + (st === 'impossible' ? ' impossible' : st === 'done' ? ' done' : ''), id: 'person-chip-' + rd.id, 'data-resident': rd.id });
     var face = el('span', { 'class': 'person-chip-face resident-face ' + rd.id, 'aria-hidden': 'true' }); face.appendChild(chipImg(rd.id)); b.appendChild(face);
     b.appendChild(el('b', null, rd.name));
@@ -103,8 +104,10 @@
     if (st === 'impossible') b.appendChild(el('span', { 'class': 'person-chip-flag' }, '기준 달성 불가'));
     /* 2026-11-12 랜덤 검토 2번: 계획 화면에서 이 사람의 길이 갈아타기 두 번 이상이면 미리 경고(갈아타기는 한 번까지) */
     if (tr) b.appendChild(el('span', { 'class': 'person-chip-flag transfer' }, '갈아타기 ' + tr.n + '번 필요'));
+    /* 2026-11-24 플레이테스트 P1-4: 이번 단계 예상으로 기준을 못 지키면(누적 기준을 이미 채운 사람도) 작은 경고 — 출발 확인창과 같은 예상 */
+    else if (fc && st !== 'impossible') b.appendChild(el('span', { 'class': 'person-chip-flag forecast', id: 'person-chip-forecast-' + rd.id }, '예상 실패')); /* 좁은 칩(휴대폰 390)에서도 한 줄 — 무엇 때문인지는 칩 설명(aria-label·title)에. ‘기준 달성 불가’ 칩엔 겹쳐 달지 않음 */
     var label = rd.name + ' · ' + (rd.returnTo ? itinerary(rd) : A.clock(rd.depart) + ' ' + A.nodeName(rd.o) + '에서 ' + A.nodeName(rd.d) + '까지') + (t ? ' · 학기 누적 ' + PB.Narrative.tallyText(t.completed, t.threshold) : '') +
-      (st === 'impossible' ? ' · 남은 단계로는 기준 달성 불가' : st === 'done' ? ' · 기준 달성' : '') + (tr ? ' · ' + rd.name + ': 갈아타기 ' + tr.n + '번 필요, 이대로면 못 가요(갈아타기는 한 번까지)' : '') + ' · 누르면 지도에 경로를 보여 줘요';
+      (st === 'impossible' ? ' · 남은 단계로는 기준 달성 불가' : st === 'done' ? ' · 기준 달성' : '') + (tr ? ' · ' + rd.name + ': 갈아타기 ' + tr.n + '번 필요, 이대로면 못 가요(갈아타기는 한 번까지)' : fc ? ' · 이번 단계 예상으로는 기준을 못 지켜요(' + (PB.UI.missText ? PB.UI.missText(fc) : '') + ')' : '') + ' · 누르면 지도에 경로를 보여 줘요';
     b.setAttribute('aria-label', label); b.title = label;
     b.setAttribute('aria-pressed', String(picked.id === rd.id && picked.key === key()));
     b.addEventListener('click', function () { toggle(rd.id); });
@@ -151,7 +154,8 @@
     var trend = screen === 'plan' && PB.UI.Econ ? PB.UI.Econ.trendLine(s, '지난 단계') : null; /* P1-4 b: 다음 단계 계획 화면 */
     if (trend) hud.appendChild(el('p', { id: 'hud-trend', 'class': 'trend-line' + (trend.warn ? ' warn' : '') }, trend.text));
     var row = el('div', { 'class': 'people-hud-row' }), t = tally(), trs = screen === 'plan' && PB.Session.residentTransfers ? PB.Session.residentTransfers(s) : [];
-    residentsNow().forEach(function (rd) { row.appendChild(chip(rd, t[rd.id], trs.filter(function (x) { return x.id === rd.id; })[0] || null)); });
+    var fcs = []; try { fcs = screen === 'plan' && PB.UI.residentForecast && s.draft && s.draft.buses.some(function (b) { return b.routeNum != null; }) ? PB.UI.residentForecast(s) : []; } catch (e) { fcs = []; }
+    residentsNow().forEach(function (rd) { row.appendChild(chip(rd, t[rd.id], trs.filter(function (x) { return x.id === rd.id; })[0] || null, fcs.filter(function (x) { return x.id === rd.id; })[0] || null)); });
     hud.appendChild(row);
     // 운행 화면으로 바로 들어온 경우(새로고침 이어보기) 지도 얼굴층이 없으면 만든다
     var mp = document.querySelector('#map-people');

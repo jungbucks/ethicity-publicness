@@ -210,9 +210,11 @@ try {
       await page.evaluate(() => { window.__pt1111st0 = null; const tick = () => { const st = document.body.dataset.screen === 'run' && PB.UI.runState(); if (st) { window.__pt1111st0 = { text: document.querySelector('#run-statusbar-text').textContent, tf: st.tf, fixAt: st.fixAt, speed: st.speed, fixOff: document.querySelector('#run-fix').disabled, clock: PB.App.clock(st.tf) }; return; } setTimeout(tick, 5); }; tick(); });
       await page.locator('#btn-depart').click(); const opened = await page.locator('#confirm-depart').evaluate((d) => d.open); /* 2026-11-18 P0-2: 이유가 없으면 확인창 없이 바로 출발 */
       const lines = await page.evaluate(() => [...document.querySelectorAll('#confirm-depart-body li')].map((l) => [l.id, l.textContent]));
-      if (p === 3) { assert.deepEqual(lines, [['depart-over-gap', '배차 간격이 기준(4시간 3분)을 넘는 노선: 초록(버스 1대 · 약 4시간 30분).']], JSON.stringify(lines)); await page.screenshot({ path: shot('depart3-1280') }); }
-      else if (p === 1) assert.deepEqual(lines, [['depart-unserved', '노선이 없는 정류장 1곳: 구도심 시장.']], JSON.stringify(lines));
-      else assert.equal(opened, false, p + '단계: 문제가 없으면 확인창 없이 바로 출발 ' + JSON.stringify(lines));
+      /* 2026-11-24 P1-4: 예상으로 기준을 못 지키는 주요 인물 줄(depart-forecast)은 계획마다 생길 수 있어 따로 본다 */
+      const fc = lines.filter((l) => l[0] === 'depart-forecast'), rest = lines.filter((l) => l[0] !== 'depart-forecast'); fc.forEach((l) => assert.match(l[1], /^예상으로 기준을 못 지키는 주요 인물: .+\.$/));
+      if (p === 3) { assert.deepEqual(rest, [['depart-over-gap', '배차 간격이 기준(4시간 3분)을 넘는 노선: 초록(버스 1대 · 약 4시간 30분).']], JSON.stringify(lines)); await page.screenshot({ path: shot('depart3-1280') }); }
+      else if (p === 1) assert.deepEqual(rest, [['depart-unserved', '노선이 없는 정류장 1곳: 구도심 시장.']], JSON.stringify(lines));
+      else assert.equal(opened, fc.length > 0, p + '단계: 예상 실패 인물 말고 문제가 없으면 확인창 없이 바로 출발 ' + JSON.stringify(lines));
       if (opened) assert.equal(await page.locator('#confirm-depart-h').innerText(), '이대로 출발할까요?');
       await (async () => { if (await page.locator('#confirm-depart').evaluate((d) => d.open)) await page.locator('#confirm-yes').click(); })() /* 2026-11-18 P0-2: 이유가 없으면 확인창 없이 바로 출발 */;
       /* 2026-11-14: 운행 첫 상태는 운행 화면이 뜬 바로 그 순간 페이지 안에서 읽는다 — 헤드리스는 운행 중 프레임이 느려(약 5fps, 3초 중 긴 작업 2.4초) 읽기·클릭 하나에 몇 초씩 걸리고,
@@ -241,7 +243,7 @@ try {
       // ── 8번: 청원 그 뒤 — 청원이 말한 이동과 같은 기준 ──
       const f = await page.evaluate(() => { const s = PB.App.s, T = (q) => { const n = document.querySelector(q); return n ? n.textContent : null; }; return { fp: s.fixedPetition, chk: s.history[2].petitionCheck, then: T('#petition-then'), fail: T('#petition-fail'), same: T('#petition-same'), answer: T('#petition-answer'), ev2: s.history[1].petition, name: PB.App.nodeName(s.fixedPetition.zone), clock: PB.App.clock(s.fixedPetition.t) }; });
       /* 2026-11-12 랜덤 검토 4번: 청원 시각 숫자는 ‘참고’ 줄로(지표는 하루 끝 기준 하나) */
-      assert.equal(f.then, `참고 · 청원 시각(${f.clock})에 아직 도착 전이던 이동(버스 안에 있던 사람 포함): 2단계 ${f.fp.total}건 중 ${f.fp.count}건 → 3단계 ${f.chk.total}건 중 ${f.chk.count}건`);
+      assert.equal(f.then, `참고 · 청원 시각(${f.clock})에 기준 시간(4시간 3분)을 넘겨 기다리거나 잇는 노선이 없던 이동: 2단계 ${f.fp.total}건 중 ${f.fp.count}건 → 3단계 ${f.chk.total}건 중 ${f.chk.count}건`);
       assert.deepEqual([f.ev2.total, f.ev2.count], [f.fp.total, f.fp.count], '청원 문장의 숫자와 같은 2단계 값'); assert.match(f.fail, /^하루가 끝났을 때 /); assert.equal(f.same, null, '노선을 바꿨으면 ‘바뀌지 않았어요’ 줄 없음');
       await page.locator('#petition-followup').scrollIntoViewIfNeeded(); await page.locator('#petition-followup').screenshot({ path: shot('result3-petition') });
       report.sentences.petition = [f.answer, f.then, f.fail]; log('8번 청원 그 뒤: ' + f.then);
@@ -258,7 +260,7 @@ try {
   assert.equal(end.profit, `누적 잔액 ${end.balance} · 지원금·운임에서 비용을 뺀 5단계 합계`); assert.ok(!/총 수익|누적 손익/.test(await page.locator('#panel').innerText()));
   assert.ok(end.seed.endsWith('시나리오 ' + end.v) && end.v !== 'pb-3.0.0', end.seed);
   end.cards.concat(end.cut).forEach((t) => assert.ok(!/\d일 중|\d일이에요|\d일 이상/.test(t), '엔딩 단위는 회: ' + t));
-  const yuna = end.cut[4]; assert.match(yuna, /^(일정 2회 중 |2회 중 일정 \d회, 그중 )기준\(4시간 3분 이내\)을 지킨 것은 \d회예요\. 만족 기준은 1회 이상이에요\(누적 \d\/1회\)\.$/, yuna);
+  const yuna = end.cut[4]; assert.match(yuna, /^유나의 일정 2번(을 모두 기준 안에 마쳤어요\.| 중 (\d번은 기준 안에 마쳤|기준 안에 마친 일정은 없)(어요\.|고, 마지막 일정\([^)]+\)은 마치지 못했어요\.|고, 마지막 일정은 마쳤지만 기준보다 오래 기다렸어요\.)) 만족 기준은 1회 이상이에요\(누적 \d\/1회\)\.$/, yuna); /* 2026-11-24 P2-4 */
   await page.locator('#btn-settings').click(); assert.equal(await page.locator('#settings-version').innerText(), '버전 ' + end.v); await page.screenshot({ path: shot('settings') }); await page.keyboard.press('Escape');
   await page.waitForFunction(() => { const n = document.querySelector('#minimal-toast'); return !n || n.hidden; }, null, { timeout: 9000 }); /* 5단계 칩 안내(5초쯤)가 사라진 뒤 */ await page.screenshot({ path: shot('ending'), fullPage: true });
   report.ending = end; log('13번 엔딩: ' + end.verdict + ' / ' + end.profit + ' / ' + yuna);

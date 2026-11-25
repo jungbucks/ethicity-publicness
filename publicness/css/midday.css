@@ -20,7 +20,11 @@ body.phone-p .run-statusbar .run-fix .btn, body.phone-l .run-statusbar .run-fix 
 .fix-rule { margin: 0 0 6px; font-size: 13px; line-height: 1.5; }
 .fix-now { margin: 0 0 4px; font-size: 14px; font-weight: 600; line-height: 1.5; }
 .fix-kinds { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 4px 0 6px; }
-.fix-kind { min-height: 44px; padding: 6px 8px; line-height: 1.25; white-space: normal; }
+/* 2026-11-24 플레이테스트 P2-7: 세 버튼 글자가 두 줄로 꺾이던 것 — 한 줄(줄바꿈 없음), 좌우 여백을 줄이고 칸이 좁으면 글자를 조금 작게 */
+.fix-kinds { container-type: inline-size; }
+.fix-kind { min-height: 44px; padding: 6px 3px; line-height: 1.25; white-space: nowrap; letter-spacing: -0.02em; font-size: 15px; overflow: hidden; text-overflow: clip; }
+@container (max-width: 360px) { .fix-kind { font-size: 13px; } }
+@container (max-width: 300px) { .fix-kind { font-size: 12px; } }
 .fix-kind[aria-pressed="true"] { border: 2px solid var(--sem-action, #2563eb); background: var(--accent-soft, #e8f0ff); font-weight: 700; }
 .fix-kind:disabled { opacity: .5; }
 .fix-field label { margin: 8px 0 2px !important; font-size: 13px; font-weight: 600; }

@@ -80,23 +80,24 @@ const T = require('../tools/random-finance-1112.cjs'), C = require('../js/choice
 function playRandom(to, seed = SEED) { const s = S.create(cfg, { mode: 'random', seed }); while (s.phase < to) { T.lay(s, T.moderate(s), 0); T.answer(s); S.startRun(s); S.finishRun(s); S.nextPhase(s); } S.beginPlan(s); return s; }
 test('4번: 랜덤 6단계 사건 청원 → 7단계 계획에서 답(필수), 그 뒤·보고서·금배지가 같은 하루 끝 숫자', () => {
   const s = playRandom(7), pf = C.petitionFor(s, 7);
-  assert.equal(pf.kind, 'event'); assert.equal(pf.phase, 6); assert.equal(pf.zone, 'D', '병원·공공서비스(교사 재현과 같은 곳)');
+  /* 2026-11-24 P1-1: 청원 동네는 ‘그 시각에 못 가고 있는 사람’ 기준 — 예전 판정(교사 재현 D)과 다를 수 있다. 흐름은 그대로 */
+  assert.equal(pf.kind, 'event'); assert.equal(pf.phase, 6); assert.ok(pf.count >= 1, '실제 문제 1건 이상'); const Z = pf.zone, ZN = s.config.nodes.find((n) => n.id === Z).name;
   assert.deepEqual(C.required(s), ['petition'], '답을 골라야 출발');
   C.set(s, 'petition', 'choice', 'reflect'); C.set(s, 'petition', 'why', '병원 가는 길');
-  assert.deepEqual(s.petitionReplies[7], { zone: 'D', phase: 6, choice: 'reflect', why: '병원 가는 길' }); assert.deepEqual(C.required(s), []);
-  assert.equal(s.petitionReply.zone, s.fixedPetition.zone, '고정 청원 답(3단계에 한 것)은 그대로');
+  assert.deepEqual(s.petitionReplies[7], { zone: Z, phase: 6, choice: 'reflect', why: '병원 가는 길' }); assert.deepEqual(C.required(s), []);
+  if (s.fixedPetition) assert.equal(s.petitionReply.zone, s.fixedPetition.zone, '고정 청원 답(3단계에 한 것)은 그대로'); /* 2026-11-24 P1-1: 2단계에 못 가고 있는 사람이 없으면 고정 청원도 없다 */
   T.lay(s, T.moderate(s), 0); S.startRun(s); const h7 = S.finishRun(s);
-  assert.ok(h7.petitionCheck && h7.petitionCheck.zone === 'D', '참고 줄용 같은 시각 숫자');
-  const o = C.outcome(s, C.list(s).find((p) => p.phase === 6)), log6 = s.history[5].rideLog.D, log7 = h7.rideLog.D;
+  assert.ok(h7.petitionCheck && h7.petitionCheck.zone === Z, '참고 줄용 같은 시각 숫자');
+  const o = C.outcome(s, C.list(s).find((p) => p.phase === 6)), log6 = s.history[5].rideLog[Z], log7 = h7.rideLog[Z];
   assert.equal(o.before.failed, log6.requests - log6.arrived); assert.equal(o.after.failed, log7 ? log7.requests - log7.arrived : 0);
   const Report = require('../js/report.js'), D = require('../js/demand.js');
   const f = { won: String, duration: String, rate: String, name: (id) => s.config.nodes.find((n) => n.id === id).name, route: (n) => 'R' + n, clock: (t) => D.clock(s.config, t), choices: {}, date: new Date(2026, 10, 12) };
   const lines = Report.build(s, f).choices.petitions;
   const line6 = lines.find((x) => x.phase === 6); assert.ok(line6, JSON.stringify(lines));
-  assert.equal(line6.text, '6단계 병원·공공서비스 주민 청원 · 7단계 답 → 반영한다 · 이유: 병원 가는 길 · 못 간 이동 ' + o.before.failed + '건 → ' + o.after.failed + '건');
-  assert.ok(lines.find((x) => x.phase === 2), '고정 청원 줄도 그대로');
+  assert.equal(line6.text, '6단계 ' + ZN + ' 주민 청원 · 7단계 답 → 반영한다 · 이유: 병원 가는 길 · 못 간 이동 ' + o.before.failed + '건 → ' + o.after.failed + '건');
+  assert.equal(!!lines.find((x) => x.phase === 2), !!s.fixedPetition, '고정 청원 줄도 그대로(있을 때)');
   assert.equal(Report.badges(s).find((b) => b.id === 'petition').earned, C.badge(s));
-  assert.match(Report.badges(s).find((b) => b.id === 'petition').rule, /줄었거나 0건을 지켰으면 받아요\. 청원이 여러 번이면 모두\./);
+  assert.match(Report.badges(s).find((b) => b.id === 'petition').rule, /줄었거나 0건을 지켰으면 받아요\. 청원이 여러 번이면 모두\. 답할 차례가 없던 청원은 세지 않아요\./);
 });
 test('4번: 금배지 조건 — 줄면 받음, 0→0도 받음, 같거나 늘면 아직, 여러 번이면 모두', () => {
   const mk = (a, b, c, d) => ({ mode: 'random', config: { phases: new Array(8) }, fixedPetition: { phase: 2, zone: 'F', t: 45, count: 1, total: 2 }, petitionReply: { choice: 'reflect' },

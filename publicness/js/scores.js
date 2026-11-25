@@ -32,11 +32,12 @@
   var Demand = NODE ? require('./demand.js') : root.PB.Demand;
   var Schedule = NODE ? require('./schedule.js') : root.PB.Schedule;
   var Graph = NODE ? require('./graph.js') : root.PB.Graph;
+  var Metrics = NODE ? require('./metrics.js') : root.PB.Metrics;
 
   var VERSION = 'sc-1';
   var DEFAULTS = { reservePhases: 1, outer: ['F'], suggest: { fullMin: 3, lowUseRatio: 0.5 } };
   function opts(config) { var o = config.scores || {}; return { reservePhases: o.reservePhases != null ? o.reservePhases : DEFAULTS.reservePhases, outer: o.outer || DEFAULTS.outer, suggest: o.suggest || DEFAULTS.suggest }; }
-  function pct(done, n) { return n ? Math.floor(100 * done / n) : null; }
+  function pct(done, n) { return n ? Metrics.pctOf(done / n) : null; } /* 2026-11-24 P1-3: 도착률 표시(Metrics.fmtRate)와 같은 함수 */
 
   // 이 단계 정류장 두 곳 왕복 노선들의 1대 하루 운영비+연료비 중앙값(대도시 N 제외). Session.typicalBusCost도 이 값을 반올림해 쓴다
   function referenceBusCost(g, config) {
@@ -100,7 +101,7 @@
     order.forEach(function (id) { var z = zones[id]; if (z && z.N - z.done > 0 && (!worst || z.N - z.done > worst.missed)) worst = { id: id, N: z.N, done: z.done, missed: z.N - z.done }; });
     var noLinkPairs = Object.keys(pairs).map(function (k) { return { o: k.split('-')[0], d: k.split('-')[1], n: pairs[k] }; }).sort(function (a, b) { return b.n - a.n; });
     return { N: all.N, done: all.done, score: pct(all.done, all.N), excluded: excluded, kinds: kinds, reasons: reasons, zones: zones, outer: { ids: O.outer.slice(), N: outer.N, done: outer.done },
-      essential: { ids: config.essential.slice(), N: essential.N, done: essential.done }, worst: worst, noLinkPairs: noLinkPairs.slice(0, 3) };
+      essential: { ids: config.essential.slice(), N: essential.N, done: essential.done }, worst: worst, noLinkPairs: noLinkPairs.slice(0, 3), noLinkAll: noLinkPairs }; /* noLinkAll(2026-11-24 P2-2): 버스가 0대가 된 노선 때문에 못 간 이동을 구간별로 가르려고 전부 */
   }
 
   // 재정 건전성. served = 이 범위에서 노선을 달린 버스가 있었는지. 잔액·기준은 원 단위

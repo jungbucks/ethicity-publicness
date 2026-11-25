@@ -97,9 +97,17 @@
   function requestParts(q){return '예정 '+q.planned+(q.followUps?' + 다음 이동 '+q.followUps:'')+(q.extra?' + 돌발 '+q.extra:'');}
   UI.requestParts=requestParts;
   // 대기 지표 한 줄: 탄 사람의 최장 대기 · 노선 없음 · 종료까지 못 탐
-  function waitLine(App,m){
+  /* 2026-11-24 플레이테스트 P2-2: 운행 중 고치기로 버스가 0대가 된 노선 때문에 노선 없음이 된 이동은 따로(출발 계획으로는 이어져 있던 구간) */
+  function lostByEmptied(App,h,passengers){
+    var S=PB.Session,s=App.s,nums=S.emptiedRoutes?S.emptiedRoutes(s,h):[];if(!nums.length)return null;
+    var n=(passengers||[]).filter(function(p){return p.fail==='NO_LINK'&&S.lostLink(s,h,p.o,p.d);}).length;
+    return n?{n:n,names:nums.map(function(x){return PB.Names.route(x);}).join('·')}:null;
+  }
+  UI.lostByEmptied=lostByEmptied;
+  function waitLine(App,m,lost){
     var parts=['버스를 탄 사람의 최장 대기 '+App.duration(m.maxWait)];
-    if(m.noLink)parts.push('잇는 노선이 없어 떠나지 못한 요청 '+m.noLink+'건');
+    if(lost)parts.push('버스가 0대가 된 '+lost.names+' 때문에 못 탄 요청 '+lost.n+'건');
+    if(m.noLink-(lost?lost.n:0)>0)parts.push('잇는 노선이 없어 떠나지 못한 요청 '+(m.noLink-(lost?lost.n:0))+'건');
     if(m.transfers)parts.push('갈아타기를 두 번 해야 해서 못 간 요청 '+m.transfers+'건(갈아타기는 한 번까지)');
     if(m.notBoarded&&m.notBoarded.count)parts.push('운행 종료까지 버스를 못 탄 요청 '+m.notBoarded.count+'건(가장 오래 '+App.duration(m.notBoarded.longest)+')');
     return parts.join(' · ');
@@ -160,7 +168,7 @@
       li.appendChild(b);li.appendChild(el('p',{'class':'note'},parts.join(' · ')));outcomes.appendChild(li);
     });
     if(!outcomes.children.length)outcomes.appendChild(el('li',null,'모든 지역의 요청이 목적지에 도착했어요.'));
-    summary.appendChild(outcomes);summary.appendChild(el('p',{id:'reason-focus',role:'status','class':'note'},'지역을 누르면 출발 정류장을 지도에서 확인할 수 있어요. 만차 경험은 지연의 단서이며 유일한 원인이라는 뜻은 아니에요.'));summary.appendChild(el('p',{'class':'note',id:'result-waits'},waitLine(App,m)+'. 대기는 정류장에서 처음 버스를 탈 때까지와 갈아탈 때 기다린 시간이에요.'));panel.appendChild(summary);
+    summary.appendChild(outcomes);summary.appendChild(el('p',{id:'reason-focus',role:'status','class':'note'},'지역을 누르면 출발 정류장을 지도에서 확인할 수 있어요. 만차 경험은 지연의 단서이며 유일한 원인이라는 뜻은 아니에요.'));summary.appendChild(el('p',{'class':'note',id:'result-waits'},waitLine(App,m,lostByEmptied(App,h,s.current&&s.current.result&&s.current.result.passengers))+'. 대기는 정류장에서 처음 버스를 탈 때까지와 갈아탈 때 기다린 시간이에요.'));panel.appendChild(summary);
     var notice=financeNotice(App,h);if(notice)panel.appendChild(notice);
     panel.appendChild(routeReport(App));
     // 운행 중 지나간 소식(사건·만차·주요 인물의 말)을 그대로 다시 본다
@@ -174,7 +182,7 @@
       var od = PB.Demand.directional(cfg, h.phase)[h.event.odIndex];
       panel.appendChild(el('p', { 'class': 'callout' }, App.clock(h.event.t) + '에 ' + App.nodeName(od.o) + '→' + App.nodeName(od.d) + ' 요청이 12건 늘었어요(추가 수요).'));
     }
-    if (h.petition) panel.appendChild(el('p', { 'class': 'callout warn' }, App.clock(h.petition.t) + ' ' + App.nodeName(h.petition.zone) + ' 주민 청원: 그때까지 요청 ' + h.petition.total + '건 중 ' + h.petition.count + '건이 아직 도착하지 못했어요.'));
+    if (h.petition) panel.appendChild(el('p', { 'class': 'callout warn' }, App.clock(h.petition.t) + ' ' + App.nodeName(h.petition.zone) + ' 주민 청원 · ' + PB.UI.petitionCount(App, h.petition) + '.'));
 
     // 예상과 실제
     var cmp = el('section', { id: 'result-compare', 'class': 'card' });

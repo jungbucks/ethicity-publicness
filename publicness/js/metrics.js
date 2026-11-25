@@ -97,7 +97,11 @@
     return out;
   }
 
-  function fmtRate(r) { return r == null ? '요청 없음' : Math.round(r * 100) + '%'; }
+  /* 백분율 한 함수(2026-11-24 플레이테스트 P1-3): 도착률(결과·자세한 기록·학기 마무리·보고서)과 이동 수요 충족 점수(Scores)가 같은 건수면 같은 숫자가 되게
+   * 둘 다 이 함수로 — 소수점 버림(모두 도착해야 100). 예전에는 도착률은 반올림(161/186 = 87%), 점수는 버림(86점)이라 같은 건수가 달라 보였다.
+   * 1e-9 = 0.29 × 100 = 28.999…처럼 비율을 곱할 때 생기는 아주 작은 오차를 바로잡는 몫 */
+  function pctOf(r) { return r == null ? null : Math.floor(r * 100 + 1e-9); }
+  function fmtRate(r) { return r == null ? '요청 없음' : pctOf(r) + '%'; }
   function familyReport(result){
     var groups={};result.passengers.forEach(function(p){if(p.familyId)(groups[p.familyId]||(groups[p.familyId]=[])).push(p);});
     var ids=Object.keys(groups),complete=ids.filter(function(id){var ps=groups[id],n=ps[0].familySize;return ps.filter(function(p){return p.leg==='outbound'&&p.status==='arrived';}).length===n&&ps.filter(function(p){return p.leg==='return'&&p.status==='arrived';}).length===n;}).length;
@@ -191,7 +195,7 @@
     }
     return out;
   }
-  var api = { stopFares: stopFares, costParts: costParts, routeEconomy: routeEconomy, requestBreakdown:requestBreakdown, familyReport:familyReport,routeReport:routeReport, summarize: summarize, discontent: discontent, nextTrust: nextTrust, subtitle: subtitle, fmtRate: fmtRate };
+  var api = { stopFares: stopFares, costParts: costParts, routeEconomy: routeEconomy, requestBreakdown:requestBreakdown, familyReport:familyReport,routeReport:routeReport, summarize: summarize, discontent: discontent, nextTrust: nextTrust, subtitle: subtitle, fmtRate: fmtRate, pctOf: pctOf };
   root.PB = root.PB || {};
   root.PB.Metrics = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

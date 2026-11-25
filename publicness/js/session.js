@@ -418,53 +418,60 @@
   function rideRequests(s, phase, ev) { return Elder.ride(s.config, phase, Demand.sortReqs(Demand.base(s.config, phase, s.seed).concat(Demand.extra(s.config, phase, ev))), elderChoice(s)); }
   function runRequests(s, ev) { return rideRequests(s, s.phase, ev).ride; }
   /* 2단계 고정 청원(2026-11-10): 사건 추첨과 상관없이 config.petition.t분에 한 번. 시뮬레이터가 낸 무작위 청원은 지우고 이 판정으로 바꾼다 */
-  /* 하루가 끝난 승객 기록으로 t분 시점을 다시 본다: t까지 생긴 요청 중 t분에 아직 도착 못 한(arriveT 없음 또는 t 이후) 비율이 가장 높은 출발 구역.
-   * 아무도 안 열려 있으면 t까지 탑승을 못 하고 기다린 시간 합이 가장 긴 구역, 그래도 없으면 F */
-  function petitionAt(passengers, t) {
-    var z = {}, w = {}, best = null, bw = null;
-    passengers.forEach(function (p) {
-      if (p.t > t) return;
-      var e = z[p.o] = z[p.o] || { total: 0, open: 0 };
-      e.total++;
-      if (p.arriveT == null || p.arriveT > t) e.open++;
-      w[p.o] = (w[p.o] || 0) + (Math.min(t, p.firstBoardT != null ? p.firstBoardT : Infinity) - p.t);
-    });
-    Object.keys(z).sort().forEach(function (id) { if (z[id].open && (!best || z[id].open / z[id].total > z[best].open / z[best].total)) best = id; });
-    if (!best) Object.keys(w).sort().forEach(function (id) { if (!bw || w[id] > w[bw]) bw = id; });
-    var zone = best || bw || 'F', e2 = z[zone] || { total: 0, open: 0 };
-    return { zone: zone, t: t, count: e2.open, total: e2.total };
-  }
+  /* 하루가 끝난 승객 기록으로 t분 시점을 다시 본다.
+   * 2026-11-24 플레이테스트 P1-1: 예전에는 ‘t분에 아직 도착 전’(버스 안·막 기다리기 시작한 사람 포함)을 세서, 하루 끝에는 모두 도착한 병원 이동 2건으로
+   * 청원이 떴다. 이제 Sim.stuckAt(그 시각 기준 시간을 넘겨 기다리는 사람 + 잇는 노선이 없는 사람)만 세고, 센 사람이 0명이면 청원이 없다(null).
+   * 사건 청원(Sim 안)과 같은 판정 함수(Sim.judgePetition) */
+  function maxWaitOf(config) { return config && config.service ? config.service.maxWait : null; }
+  function petitionAt(passengers, t, maxWait) { return Sim.judgePetition(passengers || [], t, maxWait); }
   /* 청원이 말한 이동을 같은 기준으로 다시 세기(2026-11-11 플레이테스트 8): 그 구역에서 t분까지 생긴 요청 가운데 t분에 아직 도착하지 못한 건수.
    * 3단계 정산 때 2단계 고정 청원과 같은 구역·같은 시각으로 세어 entry.petitionCheck에 남긴다(결과 화면 ‘청원 그 뒤’가 2단계 값과 나란히 보여 줌) */
-  function petitionZoneAt(passengers, t, zone) {
+  function petitionZoneAt(passengers, t, zone, maxWait) {
     var total = 0, open = 0;
-    (passengers || []).forEach(function (p) { if (p.t > t || p.o !== zone) return; total++; if (p.arriveT == null || p.arriveT > t) open++; });
+    (passengers || []).forEach(function (p) { if (p.t > t || p.o !== zone) return; total++; if (Sim.stuckAt(p, t, maxWait)) open++; });
     return { zone: zone, t: t, count: open, total: total };
   }
   /* 청원이 바라는 것(2026-11-18 플레이테스트 P1-7): 청원 시각까지 그 동네에서 생겨 아직 도착하지 못한 이동의 목적지 중 가장 많은 곳(같으면 정류장 순). 청원 판정·건수는 그대로, 설명용 to만 */
-  function petitionTo(passengers, t, zone) {
+  function petitionTo(passengers, t, zone, maxWait) {
     var n = {}, best = null;
-    (passengers || []).forEach(function (p) { if (p.t > t || p.o !== zone || !(p.arriveT == null || p.arriveT > t)) return; n[p.d] = (n[p.d] || 0) + 1; });
+    (passengers || []).forEach(function (p) { if (p.t > t || p.o !== zone || !Sim.stuckAt(p, t, maxWait)) return; n[p.d] = (n[p.d] || 0) + 1; });
     Object.keys(n).sort().forEach(function (d) { if (!best || n[d] > n[best]) best = d; });
     return best;
   }
   function fixPetition(s, result) {
     var cp = s.config.petition;
     if (!cp || s.phase !== cp.phase) return;
-    var p = petitionAt(result.passengers, cp.t);
-    p.fixed = true; p.noRecord = rideRatios(s)[p.zone] === 0; p.to = petitionTo(result.passengers, p.t, p.zone);
-    result.petition = p;
+    var mw = maxWaitOf(s.config), p = petitionAt(result.passengers, cp.t, mw);
     result.log = result.log.filter(function (e) { return e.type !== 'petition'; });
+    result.petition = p;
+    if (!p) return; /* P1-1: 그 시각에 기준을 넘겨 기다리거나 노선이 없는 사람이 없으면 청원 없음 */
+    p.fixed = true; p.noRecord = rideRatios(s)[p.zone] === 0; p.to = petitionTo(result.passengers, p.t, p.zone, mw);
     var at = result.log.length;
     for (var i = 0; i < result.log.length; i++) { if (result.log[i].t > p.t) { at = i; break; } }
     result.log.splice(at, 0, { t: p.t, type: 'petition', node: p.zone, data: p });
+  }
+  /* 2026-11-24 플레이테스트 P1-2: 이번 단계 계획에서 답한(답해야 하는) 청원과 같은 동네·같은 요구(바라는 곳)의 사건 청원은 이번 단계에 다시 띄우지 않는다.
+   * 기본 모드 3단계 12:21에 2단계 고정 청원(병원 → 구도심)과 똑같은 청원이 또 떠 ‘답할 차례가 없는 청원’으로 남던 것 */
+  function answeringNow(s) {
+    var out = [], fp = s.fixedPetition;
+    if (fp && fp.phase + 1 === s.phase) out.push(fp);
+    (s.history || []).forEach(function (h) { var p = h.petition; if (p && !p.fixed && s.mode && s.mode !== 'default' && h.phase + 1 === s.phase && !(fp && fp.phase === h.phase)) out.push(p); /* 사건 청원에 답하는 것은 랜덤·지정 모드만(Choices.list) */ });
+    return out;
+  }
+  function dropRepeatPetition(s, result) {
+    var p = result.petition; if (!p || p.fixed) return;
+    if (p.to === undefined) p.to = petitionTo(result.passengers, p.t, p.zone, maxWaitOf(s.config));
+    var same = answeringNow(s).some(function (a) { return a.zone === p.zone && (a.to || null) === (p.to || null); });
+    if (!same) return;
+    result.petition = null; result.repeatPetition = { zone: p.zone, t: p.t, to: p.to || null };
+    result.log = result.log.filter(function (e) { return e.type !== 'petition'; });
   }
   function computeRun(s, plan) {
     var g = graph(s), ev = s.events[s.phase - 1];
     var rr = rideRequests(s, s.phase, ev), requests = rr.ride;
     var day=dayInputs(s,s.phase),adjustments=day.adjustments;
     var result = Sim.run({ g: g, config: s.config, phase: s.phase, plan: plan, requests: requests, event: ev, adjustments:adjustments, routeChanges:day.routeChanges });
-    fixPetition(s, result);
+    fixPetition(s, result); dropRepeatPetition(s, result);
     var baseline=adjustments.length||day.routeChanges.length?Metrics.summarize(Sim.run({g:g,config:s.config,phase:s.phase,plan:plan,requests:requests,event:ev}),g,plan,s.config):null;
     return { baseline:baseline, plan: plan, result: result, metrics: Metrics.summarize(result, g, plan, s.config), expected: expected(s, plan), requestsN: result.passengers.length, event: ev, stayed: rr.stayed };
   }
@@ -503,7 +510,19 @@
     });
     return out;
   }
-  function departChecks(s) {
+  /* 이번 단계 예상으로 기준을 못 지키는 주요 인물(2026-11-24 플레이테스트 P1-4): 출발 경고·AI 예상과 같은 예상(expectedRun — 기본 수요, 사건 없음)의 인물 판정.
+   * records를 넘기면(계획 화면이 이미 계산한 UI.Econ.plan) 다시 돌리지 않는다. [{id, name, code(첫 이유), o, d}] — 구간은 그 이유가 생긴 이동 */
+  function residentForecast(s, records) {
+    records = records || expectedRun(s).metrics.residents || {};
+    var out = [];
+    Demand.residents(s.config, s.phase).forEach(function (rd) {
+      var r = records[rd.id]; if (!r || r.satisfied !== false) return;
+      var why = (r.reasons || [])[0] || {};
+      out.push({ id: rd.id, name: rd.name, code: why.code || 'late', o: why.o || r.o || rd.o, d: why.d || r.d || rd.d });
+    });
+    return out;
+  }
+  function departChecks(s, records) {
     var g = graph(s), buses = s.draft.buses, F = s.config.finance, phase = s.phase, gaps = routeGaps(s);
     var running = s.draft.routes.filter(function (r) { return r.nodes.length >= 2 && !Graph.validateRoute(g, r).length && buses.some(function (b) { return b.routeNum === r.num; }); });
     function serves(id) { return running.some(function (r) { return r.nodes.some(function (n, i) { return n === id && r.stops[i]; }); }); }
@@ -518,7 +537,8 @@
       overGap: gaps.filter(function (x) { return x.over; }), idleRoutes: gaps.filter(function (x) { return x.valid && !x.buses; }).map(function (x) { return x.num; }),
       unserved: unserved.filter(isNew).concat(unserved.filter(function (id) { return !isNew(id); })), newStops: fresh,
       residents: Demand.residents(s.config, phase).filter(function (rd) { return !serves(rd.o) || !serves(rd.d); }).map(function (rd) { return { id: rd.id, name: rd.name, o: rd.o, d: rd.d }; }),
-      transfers: residentTransfers(s)
+      transfers: residentTransfers(s),
+      forecast: buses.some(function (b) { return b.routeNum != null; }) ? residentForecast(s, records) : []
     };
   }
   // 긴급 조정 시점(엔진 시간, 10:06·15:03) — 운행 화면(ui-run)도 이 값을 쓴다
@@ -595,6 +615,19 @@
     var c = (s.midChanges || []).filter(function (x) { return x.phase === phase && x.kind !== 'move' && x.route && x.from && Graph.routeId(x.route) === routeId; })[0];
     return c ? { fromId: Graph.routeId(c.from), route: c.route, routeNum: c.routeNum, at: c.at } : null;
   }
+  /* 운행 중 고치기로 버스가 0대가 된 노선(2026-11-24 플레이테스트 P2-2): 그 단계 ‘버스 옮기기’ 중 원래 노선에 버스가 남지 않은 것의 노선 번호.
+   * 예전 기록(fromLeft 없음)은 출발 계획에서 그 노선 버스 수를 다시 센다. lostLink(o, d) = 출발 계획으로는 이어졌던 구간(그런데 노선 없음으로 못 간 이동 = 버스가 0대가 된 노선 때문) */
+  function emptiedRoutes(s, h) {
+    if (!h || !h.plan) return [];
+    var moves = (s.midChanges || []).filter(function (m) { return m.phase === h.phase && m.kind === 'move' && m.from != null; }), out = [];
+    moves.forEach(function (m) {
+      var left = m.fromLeft;
+      if (left == null) { var r = routeByNum(s, m.from); left = r ? h.plan.buses.filter(function (b) { return b.route && b.route.nodes.join('|') === r.nodes.join('|'); }).length - 1 : 1; }
+      if (left <= 0 && out.indexOf(m.from) < 0) out.push(m.from);
+    });
+    return out;
+  }
+  function lostLink(s, h, o, d) { return !!(h && h.plan) && Sim.structural(graph(s), h.plan, o, d); }
   // 한 가지 고치기를 기록하고 운행을 다시 계산한다(출발 계획·계획 초안은 그대로 — 그날만). 안 되면 false
   function midApply(s, c) {
     if (s.stage !== 'run' || !s.current || !c) return false;
@@ -605,6 +638,7 @@
       if (c.busId == null || !route || !canAssign(s, c.busId, c.routeNum) || Graph.validateRoute(graph(s), route).length) return false;
       if (!s.draft.buses.some(function (b) { return b.id === c.busId; }) || busRouteAt(s, c.busId, c.at) === c.routeNum) return false;
       entry.busId = c.busId; entry.from = busRouteAt(s, c.busId, c.at); entry.route = clone(route);
+      if (entry.from != null) entry.fromLeft = Math.max(0, routeBuses(s, entry.from).length - 1); /* 2026-11-24 P2-2: 옮긴 뒤 원래 노선에 남은 버스(0이면 그 노선은 그날 버스 0대). 예전 기록엔 없음 */
     } else {
       var m = midRoute(s, c.routeNum, c.kind, c.node, c.pos); if (!m.route) return false;
       entry.node = c.node; if (c.kind === 'add') entry.pos = c.pos;
@@ -665,7 +699,7 @@
     if (s.stage !== 'run' || !s.current) return null;
     if (s.history.some(function (h) { return h.phase === s.phase; })) { s.stage = 'result'; return null; } // 같은 단계를 두 번 정산하지 않는다
     var c = s.current, D = {}, before = clone(s.trust);
-    if (c.result.petition && c.result.petition.to === undefined) c.result.petition.to = petitionTo(c.result.passengers, c.result.petition.t, c.result.petition.zone); /* 사건 청원도 바라는 곳(P1-7) */
+    if (c.result.petition && c.result.petition.to === undefined) c.result.petition.to = petitionTo(c.result.passengers, c.result.petition.t, c.result.petition.zone, maxWaitOf(s.config)); /* 사건 청원도 바라는 곳(P1-7) */
     Object.keys(c.metrics.zones).forEach(function (z) {
       D[z] = c.metrics.zones[z].D;
       s.trust[z] = Metrics.nextTrust(s.trust[z] != null ? s.trust[z] : s.config.trust.initial, D[z], s.config);
@@ -678,13 +712,13 @@
     };
     entry.eventFare = s.config.finance.fare * c.result.passengers.filter(function (p) { return p.kind === 'extra' && p.firstBoardT != null; }).length;
     entry.rideLog = RideLog.fromRun(c.result.passengers);
-    if (s.fixedPetition && s.phase === s.fixedPetition.phase + 1) entry.petitionCheck = petitionZoneAt(c.result.passengers, s.fixedPetition.t, s.fixedPetition.zone);
+    if (s.fixedPetition && s.phase === s.fixedPetition.phase + 1) entry.petitionCheck = petitionZoneAt(c.result.passengers, s.fixedPetition.t, s.fixedPetition.zone, maxWaitOf(s.config));
     else if (s.mode !== 'default') { /* 2026-11-12 랜덤 검토 4번: 사건 청원도 다음 단계에 같은 시각·구역의 참고 숫자를 남긴다(그 뒤 화면 ‘참고’ 줄) */
       var prevH = s.history.filter(function (x) { return x.phase === s.phase - 1; })[0], pp = prevH && prevH.petition && !prevH.petition.fixed ? prevH.petition : null;
-      if (pp) entry.petitionCheck = petitionZoneAt(c.result.passengers, pp.t, pp.zone);
+      if (pp) entry.petitionCheck = petitionZoneAt(c.result.passengers, pp.t, pp.zone, maxWaitOf(s.config));
     }
     s.history.push(entry);
-    if (s.config.petition && s.phase === s.config.petition.phase && c.result.petition) { var fp = c.result.petition; s.fixedPetition = { phase: s.phase, zone: fp.zone, t: fp.t, count: fp.count, total: fp.total, noRecord: !!fp.noRecord, to: fp.to || null }; }
+    if (s.config.petition && s.phase === s.config.petition.phase && c.result.petition) { var fp = c.result.petition; s.fixedPetition = { phase: s.phase, zone: fp.zone, t: fp.t, count: fp.count, total: fp.total, noRecord: !!fp.noRecord, to: fp.to || null }; if (fp.wait != null) { s.fixedPetition.wait = fp.wait; s.fixedPetition.noRoute = fp.noRoute; } }
     settle(s, entry);
     // 두 점수(재정 건전성·이동 수요 충족) — 정산 직후 한 번 기록해 저장본에 남긴다(js/scores.js)
     entry.scores = Scores.phaseScores(s.config, graph(s), s.phase, s.seed, c.event, c.plan, c.result.passengers, ledgerBalance(s, s.phase), c.stayed);
@@ -856,7 +890,7 @@
   var api = {
     checkSave: checkSave, safeRestore: safeRestore,
     elderChoice: elderChoice, petitionAt: petitionAt, petitionZoneAt: petitionZoneAt, petitionTo: petitionTo, rideRequests: rideRequests, aiView: aiView,
-    departChecks:departChecks,residentTransfers:residentTransfers,routeGaps:routeGaps,routeCycle:routeCycle,routeHeadway:routeHeadway,dayInputs:dayInputs,midStatus:midStatus,midRoute:midRoute,midApply:midApply,midRouteFor:midRouteFor,runningRoutes:runningRoutes,routeBuses:routeBuses,emergencyDecision:emergencyDecision,EMERGENCY_AT:EMERGENCY_AT,busRouteAt:busRouteAt,emergencyPreview:emergencyPreview,emergencyImpact:emergencyImpact,routeNumOf:routeNumOf,
+    departChecks:departChecks,residentForecast:residentForecast,emptiedRoutes:emptiedRoutes,lostLink:lostLink,residentTransfers:residentTransfers,routeGaps:routeGaps,routeCycle:routeCycle,routeHeadway:routeHeadway,dayInputs:dayInputs,midStatus:midStatus,midRoute:midRoute,midApply:midApply,midRouteFor:midRouteFor,runningRoutes:runningRoutes,routeBuses:routeBuses,emergencyDecision:emergencyDecision,EMERGENCY_AT:EMERGENCY_AT,busRouteAt:busRouteAt,emergencyPreview:emergencyPreview,emergencyImpact:emergencyImpact,routeNumOf:routeNumOf,
     serialize: serialize, restore: restore, migrateTransition: migrateTransition, CHOICES: CHOICES, choiceKey: choiceKey, scoresOverall: scoresOverall, rescore: rescore, financeRule: financeRule, finalCause: finalCause, contractRule: contractRule, contractPhases: contractPhases, financeStatus: financeStatus, balance: balance, DEFICIT_LIMIT: DEFICIT_LIMIT, NEGATIVE_LIMIT: NEGATIVE_LIMIT, residentVerdict: residentVerdict, tripLimit: tripLimit, expectedRun: expectedRun,
     parseSeedParam: parseSeedParam, create: create, graph: graph, visibleNodeIds: visibleNodeIds, routeByNum: routeByNum,
     toPlan: toPlan, validate: validate, routeLimit: routeLimit, routesInOrder: routesInOrder, stopLimit:stopLimit, routeFits:routeFits, routeRule:routeRule, canAssign:canAssign, addRoute: addRoute, updateRoute: updateRoute, deleteRoute: deleteRoute,

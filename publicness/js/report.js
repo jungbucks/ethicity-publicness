@@ -102,21 +102,25 @@
   }
   function choices(s, f) {
     var out = { petition: null, elder: null, petitions: [] }, ep = s.elderPolicy, C = lib('Choices', './choices.js');
+    var lastPh = ((s.config && s.config.phases) || []).length;
     C.list(s).forEach(function (p) {
       if (p.kind === 'fixed' && !(p.reply && PET[p.reply.choice])) return; /* 고정 청원은 예전처럼 답했을 때만 */
+      if (lastPh && p.answer > lastPh && C.unanswered) return; /* 2026-11-24 P1-2: 마지막 단계 청원은 아래 ‘다음 학기로 넘어간 청원’ 한 줄로만(두 줄로 겹치지 않게) */
       var line = { phase: p.phase, kind: p.kind, text: petitionLine(s, f, p) };
       out.petitions.push(line); if (p.kind === 'fixed') out.petition = line.text;
     });
-    /* 2026-11-18 P1-7: 답할 차례가 없던 청원도 ‘답하지 않은 청원’으로 */
+    /* 2026-11-18 P1-7: 답할 차례가 없던 청원도 한 줄로. 2026-11-24 P1-2: ‘답하지 않은 청원’은 학생이 안 한 것처럼 읽혀 —
+     * 마지막 단계 청원 = ‘다음 학기로 넘어간 청원’, 그 밖(기본 모드 사건 청원처럼 답하는 차례가 없는 것) = ‘답할 차례가 없던 청원’. 금배지 판정에도 넣지 않는다(Choices.judged) */
     (C.unanswered ? C.unanswered(s) : []).forEach(function (p) {
-      var D = lib('Demand', './demand.js'), clock = f.clock || function (t) { return D.clock(s.config || {}, t); };
-      out.petitions.push({ phase: p.phase, kind: 'unanswered', text: p.phase + '단계 ' + f.name(p.zone) + ' 주민 청원 · 답하지 않은 청원 · ' + clock(p.t) + ' “' + f.name(p.zone) + '에서 ' + (p.to ? f.name(p.to) + ' 쪽으로 ' : '') + '가는 버스를 늘려 주세요” · 못 간 이동 ' + p.count + '건(그때까지 요청 ' + p.total + '건 중)' });
+      var D = lib('Demand', './demand.js'), clock = f.clock || function (t) { return D.clock(s.config || {}, t); }, label = p.last ? '다음 학기로 넘어간 청원' : '답할 차례가 없던 청원';
+      var cnt = p.wait == null && p.noRoute == null ? '그때 아직 도착하지 못한 이동 ' : '못 가고 있던 이동 ';
+      out.petitions.push({ phase: p.phase, kind: 'unanswered', label: label, text: p.phase + '단계 ' + f.name(p.zone) + ' 주민 청원 · ' + label + ' · ' + clock(p.t) + ' “' + f.name(p.zone) + '에서 ' + (p.to ? f.name(p.to) + ' 쪽으로 ' : '') + '가는 버스를 늘려 주세요” · ' + cnt + p.count + '건(그때까지 요청 ' + p.total + '건 중)' });
     });
     out.petitions.sort(function (a, b) { return a.phase - b.phase; });
     if (ep && ELD[ep.choice]) out.elder = (ep.phase || 4) + '단계 어르신 무임승차 ' + ELD[ep.choice] + ' · 이유: ' + why(ep);
     return out;
   }
-  var PETITION_RULE = '청원한 동네에서 출발해 목적지까지 못 간 이동(하루 끝 기준)이 다음 단계에 줄었거나 0건을 지켰으면 받아요. 청원이 여러 번이면 모두.';
+  var PETITION_RULE = '청원한 동네에서 출발해 목적지까지 못 간 이동(하루 끝 기준)이 다음 단계에 줄었거나 0건을 지켰으면 받아요. 청원이 여러 번이면 모두. 답할 차례가 없던 청원은 세지 않아요.';
   /* 금배지 5개(고정 순서). 정책 내용(유지·폐지, 반영·못 함)은 조건에 쓰지 않는다 */
   function badges(s) {
     var cfg = s.config || {}, hist = s.history || [], RL = lib('RideLog', './ride-log.js'), NR = lib('Narrative', './narrative.js'), rx = [];
@@ -127,12 +131,12 @@
       return zones.some(function (z) { return r[z] === 0 && h.rideLog[z].rode > 0; });
     });
     /* 2026-11-12 랜덤 검토 4번: 하루 끝 못 간 이동(그 뒤 화면·보고서와 같은 값)이 다음 단계에 줄었거나 0건을 지켰으면 받음, 늘었거나 같은 건수(0 아님)면 아직. 여러 번이면 모두 */
-    var fp = s.fixedPetition, petition = lib('Choices', './choices.js').badge(s);
+    var fp = s.fixedPetition, Ch = lib('Choices', './choices.js'), petition = Ch.badge(s), petitionNA = !!Ch.judged && !Ch.judged(s).length; /* 2026-11-24 P1-1: 판정할 청원이 없으면 ‘해당 없음’ */
     var typed = function (o) { return !!(o && typeof o.why === 'string' && o.why.trim()); };
     var reasons = typed(s.elderPolicy) && (!fp || typed(s.petitionReply));
     return [
       { id: 'residents', label: '주요 인물 모두 만족', earned: rx.length > 0 && rx.every(function (r) { return r.satisfied; }) },
-      { id: 'petition', label: '청원한 동네의 못 간 이동을 줄였어요', earned: petition, rule: PETITION_RULE },
+      { id: 'petition', label: '청원한 동네의 못 간 이동을 줄였어요', earned: petition, na: petitionNA, rule: PETITION_RULE },
       { id: 'record', label: '기록이 없던 동네에 탑승 기록을 만들었어요', earned: record },
       { id: 'reasons', label: '두 선택 모두 이유를 적었어요', earned: reasons },
       { id: 'solvent', label: '파산·계약 종료 없이 학기를 마쳤어요', earned: !!(s.end && s.end.cause === 'complete') }

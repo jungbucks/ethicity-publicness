@@ -19,10 +19,12 @@ test('이동 요청 단위는 건: 미도착 지역 버튼·주민 청원·돌�
   const result = read('js/ui-result.js'), run = read('js/ui-run.js'), tr = read('js/ui-transition.js');
   assert.match(result, /' · 목적지까지 못 간 이동 '\+\(g\.noLink\+\(g\.transfers\|\|0\)\+g\.full\+g\.time\)\+'건 — 지도에서 보기'/);
   assert.doesNotMatch(result + tr, /건 중 ' ?\+ ?h\.petition\.count ?\+ ?'명/);
-  assert.match(result, /h\.petition\.count \+ '건이 아직 도착하지 못했어요\.'/); assert.match(tr, /h\.petition\.count\+'건이 아직 도착하지 못했어요\.'/);
+  /* 2026-11-24 P1-1: 청원 숫자 문장은 한 함수(UI.petitionCount — ‘못 가고 있던 이동 N건(그때까지 요청 M건 중)’) */
+  assert.match(result, /PB\.UI\.petitionCount\(App, h\.petition\)/); assert.match(tr, /PB\.UI\.petitionCount\(App,h\.petition\)/);
+  assert.match(read('js/ui-fairness.js'), /'못 가고 있던 이동 ' \+ p\.count \+ '건' \+ tail/);
   assert.match(result, /\['버스를 탄 요청\(한 번 이상 탐\)', m\.users \+ '건 \/ ' \+ m\.N \+ '건'\]/); assert.doesNotMatch(result, /이용자\(한 번 이상 탄 사람\)/);
   assert.match(run, /동안 12건\)\./); assert.doesNotMatch(run, /동안 12명/);
-  assert.match(run, /'우리 동네에서 출발한 요청 ' \+ e\.data\.count \+ '건이 아직 도착하지 못했어요\.'/);
+  assert.match(run, /'우리 동네에서 ' \+ e\.data\.count \+ '명이 '/); assert.match(run, /'우리 동네에서 출발한 요청 ' \+ e\.data\.count \+ '건이 아직 도착하지 못했어요\.'/, '예전 저장본 청원은 예전 문장');
 });
 
 test('운행 안내문: 단계와 무관하게 ‘⏭ 다음 멈춤까지’, 멈추는 곳 = 노선 고치기 시작 11:00(3단계부터, 2026-11-09 긴급 조정 대체)·주요 인물 왕복 완료·대기 기준 초과', () => {

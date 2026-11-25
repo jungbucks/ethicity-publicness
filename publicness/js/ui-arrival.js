@@ -152,9 +152,17 @@
     if (r) return { kind: 'second', text: '이어서 갈 정류장을 누르면 노선이 생겨요.', target: pick('D', r.nodes[0]) };
     return { kind: 'first', text: '지도에서 출발할 정류장을 누르세요.', target: pick('F') };
   }
+  /* 2026-11-24 플레이테스트 P2-6: AI 패널을 열거나(‘AI에게 노선 제안받기’ 펼침) 첫 정류장을 누르면 안내를 닫는다(본 것으로 저장).
+   * 예전에는 첫 정류장 뒤 ‘이어서 갈 정류장을 누르면…’ → 노선이 생기면 축하 3초까지 이어졌고, AI 패널을 열어도 남아 있었다. 다시 보기(도움말)는 AI 패널만 본다 */
+  function coachDismiss(A) {
+    var s = A.s, ai = document.querySelector('#ai-tools');
+    if (document.body.classList.contains('ai-open') || (ai && ai.open && !ai.closest('#plan-ai-popover') && ai.offsetParent !== null)) return true; /* 지도 화면 = AI 창(ai-open), 글 편집 = 펼친 #ai-tools */
+    return !A.coachReplay && !A._coachDoneUntil && s.draft.routes.some(function (r) { return r.nodes.length >= 1; });
+  }
   function coach(A) {
     var s = A.s;
     if (!coachOn(A)) { if ($('#first-coach')) closeCoach(false); return; }
+    if (coachDismiss(A)) { closeCoach(true); return; }
     // 첫 노선이 생긴 순간: 한 번 축하 문장(3초) 뒤 끝 — 다시 보기로 연 경우는 바로 닫기
     if (!A._coachDoneUntil && hasRoute(s) && !s.tutorialSeen) { s.tutorialSeen = true; A.coachReplay = false; A._coachDoneUntil = Date.now() + 3000; setTimeout(function () { if (A._coachDoneUntil && A._coachDoneUntil <= Date.now() + 50) { A._coachDoneUntil = 0; closeCoach(true); } }, 3050); }
     else if (A.coachReplay && hasRoute(s) && A._replayFrom == null) A._replayFrom = Date.now();
@@ -173,7 +181,7 @@
     box.dataset.step = st.kind;
     var t = $('#first-coach-text'); if (t.textContent !== st.text) t.textContent = st.text;
     place(A, st);
-    if (!coachTimer) coachTimer = setInterval(function () { if (!coachOn(app())) { closeCoach(false); return; } if (A._replayFrom && Date.now() - A._replayFrom > 8000) { A._replayFrom = null; closeCoach(true); return; } place(app(), step(app())); }, 400);
+    if (!coachTimer) coachTimer = setInterval(function () { if (!coachOn(app())) { closeCoach(false); return; } if (coachDismiss(app())) { closeCoach(true); return; } if (A._replayFrom && Date.now() - A._replayFrom > 8000) { A._replayFrom = null; closeCoach(true); return; } place(app(), step(app())); }, 400);
   }
   // 손가락은 정류장 위에. 말풍선은 정류장·이름표·얼굴·번호 원·노선 손잡이를 가리지 않는 자리(지도 틀 안) 중 가리키는 정류장에 가까운 곳
   /* P1-1 재수정(2026-11-02 검증): 1280×800(지도 589×396)·390×844(374×300)에서는 260×124 상자가 놓일 빈자리가 없어 구도심 시장·산업·일자리 정류장을 덮었다.

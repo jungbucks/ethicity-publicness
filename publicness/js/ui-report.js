@@ -47,10 +47,10 @@
     bs.appendChild(el('h3', { id: 'report-badges-h' }, '금배지'));
     var bl = el('ul', { 'class': 'badge-list' });
     r.badges.forEach(function (b) {
-      var li = el('li', { 'class': 'badge ' + (b.earned ? 'is-earned' : 'is-not'), 'data-badge': b.id });
+      var li = el('li', { 'class': 'badge ' + (b.earned ? 'is-earned' : b.na ? 'is-not is-na' : 'is-not'), 'data-badge': b.id });
       li.appendChild(el('span', { 'class': 'badge-star', 'aria-hidden': 'true' }, b.earned ? '★' : '☆'));
       li.appendChild(el('span', { 'class': 'badge-label' }, b.label));
-      li.appendChild(el('b', { 'class': 'badge-state' }, b.earned ? '받음' : '아직'));
+      li.appendChild(el('b', { 'class': 'badge-state' }, b.earned ? '받음' : b.na ? '해당 없음' : '아직')); /* 2026-11-24 P1-1: 판정할 청원이 없던 학기 */
       if (b.rule) li.appendChild(el('span', { 'class': 'badge-rule' }, b.rule)); /* 2026-11-12: 받는 조건 한 줄 */
       bl.appendChild(li);
     });
@@ -58,7 +58,7 @@
     var cs = el('section', { id: 'report-choices', 'class': 'report-stage' });
     cs.appendChild(el('h3', null, '내가 고른 것'));
     /* 2026-11-12 랜덤 검토 4번: 청원마다 한 줄(고정 청원 + 사건 청원) */
-    if (r.choices.petitions && r.choices.petitions.length) r.choices.petitions.forEach(function (p) { cs.appendChild(row(p.phase + '단계 ' + (p.kind === 'unanswered' ? '답하지 않은 청원' : '청원'), p.text)); });
+    if (r.choices.petitions && r.choices.petitions.length) r.choices.petitions.forEach(function (p) { cs.appendChild(row(p.phase + '단계 ' + (p.kind === 'unanswered' ? (p.label || '답할 차례가 없던 청원') : '청원'), p.text)); });
     else cs.appendChild(row('2단계 청원', r.choices.petition || '(해당 없음)'));
     cs.appendChild(row('4단계 무임승차', r.choices.elder || '(해당 없음)'));
     art.appendChild(cs);

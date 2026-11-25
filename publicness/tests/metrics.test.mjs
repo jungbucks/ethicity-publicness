@@ -33,7 +33,7 @@ test('zone without requests shows 요청 없음', () => {
   assert.equal(m.zones.H.rate, null);
   assert.equal(m.zones.H.D, null);
   assert.equal(M.fmtRate(null), '요청 없음');
-  assert.equal(M.fmtRate(0.456), '46%');
+  assert.equal(M.fmtRate(0.456), '45%', '2026-11-24 P1-3: 소수점 버림(이동 수요 충족 점수와 같은 함수)'); assert.equal(M.fmtRate(0.29), '29%', '0.29×100 = 28.999… 오차'); assert.equal(M.fmtRate(1), '100%');
   assert.ok(!('I' in m.zones), '1단계에는 신도시 생활권이 없다');
 });
 

@@ -70,12 +70,28 @@
     if (m.worst) ul.appendChild(el('li', { id: 'score-worst' }, '가장 많이 남은 곳: ' + App.nodeName(m.worst.id) + ' 출발 ' + m.worst.missed + '건 (' + m.worst.N + '건 중)'));
     return ul;
   }
-  function tipList(App, list) {
+  /* 2026-11-24 플레이테스트 P2-2: 노선 없음 중 출발 계획으로는 이어져 있던 구간(운행 중 버스 옮기기로 버스가 0대가 된 노선 때문)은 따로 한 줄 */
+  function splitLost(App, h, list) {
+    var S = PB.Session, s = App.s, nums = h && S.emptiedRoutes ? S.emptiedRoutes(s, h) : [];
+    if (!nums.length) return list;
+    var out = [];
+    list.forEach(function (t) {
+      if (t.code !== 'noLink' || !h.scores) { out.push(t); return; }
+      var pairs = h.scores.mobility.noLinkAll || h.scores.mobility.noLinkPairs || [], lost = 0, rest = [];
+      pairs.forEach(function (p) { if (S.lostLink(s, h, p.o, p.d)) lost += p.n; else rest.push(p); });
+      if (lost) out.push({ code: 'emptied', names: nums.map(function (x) { return PB.Names.route(x); }).join('·'), missed: lost });
+      if (t.missed - lost > 0 && rest.length) out.push({ code: 'noLink', pair: rest[0], missed: t.missed - lost });
+    });
+    return out;
+  }
+  function tipList(App, list, h) {
+    list = splitLost(App, h, list);
     if (!list.length) return null;
     var ol = el('ul', { 'class': 'score-tips', id: 'score-tips' });
     list.forEach(function (t) {
       var text = t.code === 'full' ? PB.Names.route(t.num) + '에서 만차가 ' + t.fulls + '회 났고, 만차를 겪은 뒤 끝내 마치지 못한 이동이 ' + t.missed + '건이에요. 이 노선 구간의 증차를 검토해 보세요.' :
         t.code === 'transfers' ? '갈아타기를 두 번 해야 해서 못 간 이동이 ' + t.missed + '건이에요(갈아타기는 한 번까지). 두 노선이 한 정류장에서 만나게 이어 보세요.' :
+        t.code === 'emptied' ? '버스가 0대가 된 ' + t.names + ' 때문에 못 탄 이동이 ' + t.missed + '건이에요(운행 중 버스를 옮겨 그 노선에 버스가 남지 않았어요). 옮길 때 남는 버스가 있는지 살펴보세요.' :
         t.code === 'noLink' ? '잇는 노선이 없어 떠나지 못한 이동이 ' + t.missed + '건이에요(가장 많은 구간 ' + App.nodeName(t.pair.o) + '→' + App.nodeName(t.pair.d) + ' ' + t.pair.n + '건). 노선 연결을 검토해 보세요.' :
         PB.Names.route(t.num) + '은 버스 ' + t.buses + '대가 대당 ' + t.perBus + '회 승차로 운행 노선 평균(' + t.avg + '회)의 절반에 못 미쳤고 만차는 없었어요. 버스 배치 조정을 검토해 보세요. 꼭 필요한 곳을 잇는 노선이라면 1대는 남겨 두세요.';
       ol.appendChild(el('li', { 'data-tip': t.code }, text));
@@ -101,7 +117,7 @@
     return d;
   }
   function countWhy(h, m, unreal) {
-    var N = h.N, pct = Math.round(h.arrivalRate * 100), round = m.N && pct !== m.score ? '요약 ' + pct + '%는 반올림, 점수 ' + m.score + '점은 소수점 버림이에요.' : '';
+    var N = h.N, round = ''; /* 2026-11-24 P1-3: 도착률과 점수가 같은 함수(Metrics.pctOf, 소수점 버림)라 같은 건수면 같은 숫자 — ‘반올림/버림’ 설명 줄은 이제 없다 */
     if (!m.N || m.N === N) return round;
     return countLine(N, m, unreal) + (round ? ' ' + round : '');
   }
@@ -137,7 +153,7 @@
     sec.appendChild(pair);
     sec.appendChild(el('p', { 'class': 'score-line', id: 'score-line' }, missedLine(App, sc.mobility)));
     if (sc.mobility.N) sec.appendChild(publicList(App, sc.mobility));
-    var tips = tipList(App, PB.Scores.suggestions(App.s.config, sc.mobility, routes)); if (tips) sec.appendChild(tips);
+    var tips = tipList(App, PB.Scores.suggestions(App.s.config, sc.mobility, routes), h); if (tips) sec.appendChild(tips);
     var unreal = (sc.mobility.reasons.parentFailed || 0) + (sc.mobility.reasons.lateParent || 0);
     /* 2026-11-06 P1-3: 요약(실제로 생긴 이동)과 점수(평가 수요)는 일부러 기준이 다르다 — 건수가 다를 때만 왜 다른지 한 줄 */
     var why = countWhy(h.metrics, sc.mobility, unreal); if (why) sec.appendChild(el('p', { 'class': 'note', id: 'score-count-why' }, why));

@@ -90,11 +90,12 @@ test('2026-11-11 플레이테스트 1·10 + 11-12 한 곳: 못 간 이동 0건�
   assert.equal(l1, WORST('구도심 시장이에요', 14, 14));
   // AI가 못 본 주제 지역(모두 도착)은 까닭 한 줄(살펴볼 곳이라 부르지 않음 — 11-11 지시 그대로)
   const l1b = N.bridgeLine(cfg, 1, [], m1, { unseen: { F: { seen: 0, real: 12 } } });
-  assert.equal(l1b, l1 + ' 외곽 마을은 출발 12건이 모두 도착했지만, AI가 본 이동 0건 · 실제 12건이라 AI 제안에서 빠지기 쉬운 곳이에요.');
+  const WHY = ' AI는 탑승 기록을 보고 소외 지역을 골라서, 기록에 잡히지 않은 외곽 마을의 이동은 오히려 놓칠 수 있어요.'; /* 2026-11-24 P2-3 */
+  assert.equal(l1b, l1 + ' 외곽 마을은 출발 12건이 모두 도착했지만, AI가 본 이동 0건 · 실제 12건이라 AI 제안에서 빠지기 쉬운 곳이에요.' + WHY);
   assert.ok(!l1b.includes('살필까요'));
   const half = { zones: { E: { N: 14, done: 0 }, F: { N: 12, done: 6 } } };
   assert.equal(N.bridgeLine(cfg, 1, [], half, { unseen: { F: { seen: 0, real: 12 } } }), ONE('외곽 마을이에요', 12, 6));
-  assert.equal(N.bridgeLine(cfg, 1, [], { zones: { F: { N: 12, done: 12 } } }, { unseen: { F: { seen: 0, real: 12 } } }), '외곽 마을에서 출발한 이동 12건이 모두 도착했어요. 외곽 마을은 AI가 본 이동 0건 · 실제 12건이라 AI 제안에서 빠지기 쉬운 곳이에요.');
+  assert.equal(N.bridgeLine(cfg, 1, [], { zones: { F: { N: 12, done: 12 } } }, { unseen: { F: { seen: 0, real: 12 } } }), '외곽 마을에서 출발한 이동 12건이 모두 도착했어요. 외곽 마을은 AI가 본 이동 0건 · 실제 12건이라 AI 제안에서 빠지기 쉬운 곳이에요.' + WHY);
   const m4 = { zones: { H: { N: 12, done: 3 }, J: { N: 17, done: 17 }, A: { N: 52, done: 47 } } };
   assert.equal(N.bridgeLine(cfg, 4, [], m4), ONE('종합운동장이에요', 12, 9)); assert.deepEqual(N.thinkFocus(cfg, 4, [], m4).focus, ['H']);
   const m4b = { zones: { H: { N: 12, done: 3 }, J: { N: 17, done: 17 }, A: { N: 52, done: 2 } } };

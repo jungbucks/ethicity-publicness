@@ -153,20 +153,21 @@
         var p=v.project(a.x+(b.x-a.x)*f+o.dx/110,a.y+(b.y-a.y)*f+o.dy/110),P=v.project(a.x+o.dx/110,a.y+o.dy/110),Q=v.project(b.x+o.dx/110,b.y+o.dy/110);
         var dx=Q.left-P.left,dy=Q.top-P.top,len=Math.hypot(dx,dy)||1,nx=-dy/len,ny=dx/len,gap0=hw*Math.abs(nx)+hh*Math.abs(ny)+8;
         extras.forEach(function(ex0){var gap=ex0==null?0:gap0+ex0;[1,-1].forEach(function(side){
-          var c={left:Math.max(hw+8,Math.min(layer.clientWidth-hw-8,p.left+nx*gap*side)),top:Math.max(hh+8,Math.min(layer.clientHeight-hh-8,p.top+ny*gap*side))},m=Infinity;
-          avoid.forEach(function(q){m=Math.min(m,Math.hypot(Math.max(0,Math.abs(q.left-c.left)-hw),Math.max(0,Math.abs(q.top-c.top)-hh)));});placed.forEach(function(q){m=Math.min(m,Math.hypot(q.left-c.left,q.top-c.top)*0.8);});
-          net.forEach(function(q){var dx=Math.max(0,q.x-c.left-hw,c.left-hw-q.x-q.w),dy=Math.max(0,q.y-c.top-hh,c.top-hh-q.y-q.h);m=Math.min(m,Math.hypot(dx,dy));});
+          var c={left:Math.max(hw+8,Math.min(layer.clientWidth-hw-8,p.left+nx*gap*side)),top:Math.max(hh+8,Math.min(layer.clientHeight-hh-8,p.top+ny*gap*side))},m=Infinity,bc={left:c.left+hw-14,top:c.top};/* 2026-11-24 P2-5: c = 색 점(노선 선 위), bc = 칩 상자 가운데(css #route-buses .route-bus — 점이 왼쪽 끝) */
+          avoid.forEach(function(q){m=Math.min(m,Math.hypot(Math.max(0,Math.abs(q.left-bc.left)-hw),Math.max(0,Math.abs(q.top-bc.top)-hh)));});placed.forEach(function(q){m=Math.min(m,Math.hypot(q.left-bc.left,q.top-bc.top)*0.8);});
+          net.forEach(function(q){var dx=Math.max(0,q.x-bc.left-hw,bc.left-hw-q.x-q.w),dy=Math.max(0,q.y-bc.top-hh,bc.top-hh-q.y-q.h);m=Math.min(m,Math.hypot(dx,dy));});
           segs.forEach(function(sg){if(sg.p.left===P.left&&sg.p.top===P.top&&sg.q.left===Q.left&&sg.q.top===Q.top)return;
-            var ex=sg.q.left-sg.p.left,ey=sg.q.top-sg.p.top,l=ex*ex+ey*ey,tt=l?Math.max(0,Math.min(1,((c.left-sg.p.left)*ex+(c.top-sg.p.top)*ey)/l)):0;
-            m=Math.min(m,Math.hypot(c.left-sg.p.left-tt*ex,c.top-sg.p.top-tt*ey)*1.5);});
-          var rc={x:c.left-hw-2,y:c.top-hh-2,w:hw*2+4,h:hh*2+4},area=0;
+            var ex=sg.q.left-sg.p.left,ey=sg.q.top-sg.p.top,l=ex*ex+ey*ey,tt=l?Math.max(0,Math.min(1,((bc.left-sg.p.left)*ex+(bc.top-sg.p.top)*ey)/l)):0;
+            m=Math.min(m,Math.hypot(bc.left-sg.p.left-tt*ex,bc.top-sg.p.top-tt*ey)*1.5);});
+          var rc={x:bc.left-hw-2,y:bc.top-hh-2,w:hw*2+4,h:hh*2+4},area=0;
           net.forEach(function(q){area+=ov(rc,q)*(WT[q.kind]||1);if(q.kind==='stop'){var cx=q.x+q.w/2,cy=q.y+q.h/2;area+=ov(rc,{x:cx-SM,y:cy-SM,w:SM*2,h:SM*2})*60;}});/* 정류장 마커 원 자체는 여백보다 무겁게 */boxes.forEach(function(q){area+=ov(rc,q)*1000;});
-          var cand={c:c,m:m,area:area,rc:rc,tier:area>0?2:crosses({x:c.left-hw,y:c.top-hh,w:hw*2,h:hh*2})?1:0};
+          var cand={c:c,m:m,area:area,rc:rc,tier:area>0?2:crosses({x:bc.left-hw,y:bc.top-hh,w:hw*2,h:hh*2})?1:0};
           if(better(cand,best))best=cand;
         });});
       });}
-      search([0.5,0.3,0.7,0.2,0.8],[0]);
-      if(!best||best.tier>0)search([0.5,0.4,0.6,0.3,0.7,0.2,0.8,0.1,0.9],[0,10,20,30,45,60,null]);
+      /* 2026-11-24 플레이테스트 P2-5: 칩을 자기 노선 선 ‘위’에 붙인다(옆으로 비켜 두면 어느 노선 칩인지 헷갈렸다 — 2026-10-27 ‘선 옆’ 결정을 사용자 지시가 뒤집음).
+       * 후보 = 구간 9곳의 선 위 점(null = 선에서 비키지 않음). 그중 이름표·정류장·얼굴·다른 칩과 가장 덜 겹치는 곳 — 짧은 구간 끊기·경유지 당기기는 칩 밖의 선으로 */
+      search([0.5,0.4,0.6,0.3,0.7,0.2,0.8,0.1,0.9],[null]);
       if(best){placed.push(best.c);boxes.push(best.rc);el.style.left=best.c.left+'px';el.style.top=best.c.top+'px';}
     });
   }
@@ -233,13 +234,14 @@
         if(!on.length){say(R(r.num)+'은 운행 대기예요 — 대기 버스나 다른 노선의 버스를 옮겨 주세요.');return;}
         var pick=on[on.length-1].id;state.bus=pick;state.from=r.num;redraw();var nb=document.querySelector('#route-bus-'+r.num);if(nb)nb.focus({preventScroll:true});
         say(R(r.num)+'의 버스 한 대를 골랐어요. 다른 노선을 누르면 옮기고, ‘대기로 돌리기’로 회수해요.');});
-      /* 손잡이 표시(2026-11-05 사용자 승인): 1대 = 작은 색 점만, 2대 이상 = ‘×2’(숫자만이면 노선 번호로 읽힌다 — 11-03 결정), 0대 = 점선 + ‘버스 없음’.
+      /* 손잡이 표시(2026-11-05 사용자 승인 → 2026-11-24 1대도 ‘×1’): 1대 = 작은 색 점만(옛), 2대 이상 = ‘×2’(숫자만이면 노선 번호로 읽힌다 — 11-03 결정), 0대 = 점선 + ‘버스 없음’.
        * 고른 노선·끄는 중·놓을 자리인 노선만 ‘버스 N대’로 또렷하게(css). 대수는 늘 aria-label·data-buses에 */
       var chosen=PB.UI.planEditing&&PB.UI.planEditing()===r.num;
       b.className='route-bus'+(on.length?'':' idle')+(chosen?' is-active':'');b.dataset.num=r.num;b.dataset.buses=on.length;b.style.setProperty('--route',color);
       // 지도 네트워크층의 노선 시작 번호 원 자리에 겹쳐 놓는다(번호 원 + 옆에 운행 버스 수, 0이면 점선 테두리 = 운행 대기)
       var numEl=b.appendChild(App.el('span',{'class':'route-num'},PB.Names.showNumbers()?String(r.num):''));/* 번호 없는 색 점(설정 ‘노선 번호 표시’면 번호) */if(PB.MapNetwork&&PB.MapNetwork.luminance(color)>0.35)numEl.style.color='#1A1D24';/* 밝은 노선색(노랑·연보라)엔 어두운 숫자 */
-      if(on.length!==1)b.appendChild(App.el('span',{'class':'route-count'},on.length?'×'+on.length:'버스 없음'));
+      /* 2026-11-24 P2-5: 1대도 ‘×1’ — 예전엔 1대면 글자 없이 색 점만 남아 무엇인지 알 수 없었다 */
+      b.appendChild(App.el('span',{'class':'route-count'},on.length?'×'+on.length:'버스 없음'));
       if(on.length)b.appendChild(App.el('span',{'class':'route-full'},'버스 '+on.length+'대'));
       b.setAttribute('aria-pressed',String(state.from===r.num));
       b.setAttribute('aria-label',R(r.num)+' '+(on.length?'버스 '+on.length+'대':'운행 대기 — 버스를 옮겨 주세요')+(state.bus!=null&&state.from!==r.num?' · 눌러서 '+B(state.bus)+' 보내기':on.length?' · 눌러서 한 대 고르기':''));
