@@ -56,7 +56,7 @@
   function writeSpeed(v, s) { try { var st = store(s); if (st && SPEEDS.indexOf(v) >= 0) st.setItem(SPEED_KEY, String(v)); } catch (e) { /* 이번 창에서만 적용 */ } }
 
   var SAVE_KEY = 'ethicity.publicness.save';
-  function writeSave(data, s) { try { var st = store(s); if (!st) return false; st.setItem(SAVE_KEY, JSON.stringify(data)); return true; } catch (e) { return false; } }
+  function writeSave(data, s) { if (root.GameCertificate && !root.GameCertificate.current()) return false; try { var st = store(s); if (!st) return false; st.setItem(SAVE_KEY, JSON.stringify(data)); return true; } catch (e) { return false; } }
   // 이 브라우저에 쓸 수 있는지(시작 화면 저장 안내용). 시험 값은 바로 지운다. 용량이 거의 찬 경우처럼 여기서는 되고 실제 저장은 안 될 수도 있다 — 그때는 writeSave가 false
   var PROBE_KEY = 'ethicity.publicness.probe';
   function canSave(s) { try { var st = store(s); if (!st) return false; st.setItem(PROBE_KEY, '1'); st.removeItem(PROBE_KEY); return true; } catch (e) { return false; } }
@@ -93,7 +93,7 @@
   }
   function keepBroken(s) { try { var st = store(s), raw = st && st.getItem(SAVE_KEY); if (!raw) return false; st.setItem(BROKEN_KEY, JSON.stringify(brokenInfo(raw))); return true; } catch (e) { return false; } }
   /* 이 게임의 진행 기록 지우기 = 저장본 + 깨진 저장본 진단(.broken). 다른 게임 키는 건드리지 않는다(localStorage.clear 금지). opts.keepDiag = 방금 남긴 진단은 두고 저장본만(깨진 저장본 → 새 게임) */
-  function clearSave(s, opts) { try { var st = store(s); if (st) { st.removeItem(SAVE_KEY); if (!(opts && opts.keepDiag)) st.removeItem(BROKEN_KEY); } } catch (e) { /* 무시 */ } }
+  function clearSave(s, opts) { try { var st = store(s); if (st) { st.removeItem(SAVE_KEY); if (!(opts && opts.keepDiag)) st.removeItem(BROKEN_KEY); return st.getItem(SAVE_KEY) === null; } } catch (e) { /* 무시 */ } return false; }
 
   var api = { readPlayer: readPlayer, writeResult: writeResult, readSound: readSound, writeSound: writeSound, readSpeed: readSpeed, writeSpeed: writeSpeed,
     readSave: readSave, saveState: saveState, saveVersion: saveVersion, keepBroken: keepBroken, brokenInfo: brokenInfo, BROKEN_KEY: BROKEN_KEY, writeSave: writeSave, canSave: canSave, clearSave: clearSave, RESULT_KEY: RESULT_KEY, SOUND_KEY: SOUND_KEY, SPEED_KEY: SPEED_KEY, SAVE_KEY: SAVE_KEY, SPEEDS: SPEEDS };

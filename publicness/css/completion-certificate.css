@@ -1,0 +1,23 @@
+/* 인증서 카드 — 다섯 게임이 같은 파일을 쓴다. 색은 js가 게임별로 --cc-* 변수에 넣는다(없으면 흰 바탕·청록). */
+.completion-certificate{--cc-paper:#fff;--cc-ink:#16201f;--cc-accent:#0f766e;--cc-mute:#52615e;--cc-line:#dbe5e3;--cc-tint:#eef5f4;--cc-on:#fff;
+  box-sizing:border-box;position:relative;isolation:isolate;width:100%;max-width:42rem;margin:24px auto;padding:clamp(18px,4vw,28px);background:var(--cc-paper);color:var(--cc-ink);border:1px solid var(--cc-line);border-radius:18px;text-align:left;font:400 17px/1.75 Pretendard,-apple-system,"Malgun Gothic",sans-serif;letter-spacing:-.015em;word-break:keep-all;overflow-wrap:anywhere;-webkit-tap-highlight-color:transparent}
+.completion-certificate *{box-sizing:border-box}
+.completion-certificate h3{margin:4px 0 6px;font:800 clamp(21px,5vw,28px)/1.35 Pretendard,-apple-system,sans-serif;letter-spacing:-.02em;color:var(--cc-ink)}
+.completion-certificate p{margin:8px 0;color:inherit;font-size:inherit;line-height:1.75;text-align:left}
+.completion-certificate .cc-eyebrow{color:var(--cc-accent);font-size:15px;font-weight:600}
+.completion-certificate .cc-note{font-size:15px;color:var(--cc-mute)}
+.completion-certificate .cc-name{font-size:22px;font-weight:800}
+.completion-certificate .cc-preview{display:block;width:100%;height:auto;margin:14px 0 6px;border:1px solid var(--cc-line);border-radius:6px;background:var(--cc-tint)}   /* 바깥 18 = 안쪽 6 + 여백 12 안팎 */
+.completion-certificate form{display:block;margin-top:16px}
+.completion-certificate label{display:block;font-size:16px;font-weight:600;text-align:left}
+.completion-certificate input{display:block;width:100%;max-width:100%;min-height:48px;margin:8px 0;padding:10px 12px;border:1px solid var(--cc-mute);border-radius:8px;background:var(--cc-paper);color:var(--cc-ink);font:400 18px/1.5 Pretendard,-apple-system,"Malgun Gothic",sans-serif;text-align:left}
+.completion-certificate .cc-actions{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 0}
+.completion-certificate button{display:inline-block;width:auto;max-width:100%;min-height:48px;margin:6px 0;padding:10px 18px;border:1px solid var(--cc-accent);border-radius:8px;background:var(--cc-accent);color:var(--cc-on);font:600 16px/1.5 Pretendard,-apple-system,"Malgun Gothic",sans-serif;cursor:pointer;white-space:normal;text-shadow:none;box-shadow:none}
+.completion-certificate button.cc-cta{min-height:56px;padding:12px 28px;font-size:18px;font-weight:800;border-radius:10px}
+.completion-certificate button.cc-share{background:transparent;color:var(--cc-ink);border-color:var(--cc-mute)}
+.completion-certificate button:hover{filter:brightness(.94)}
+.completion-certificate button:disabled{opacity:.65;cursor:wait}
+.completion-certificate :focus-visible{outline:3px solid var(--cc-accent);outline-offset:3px}
+.completion-certificate .cc-status{font-size:15px;color:var(--cc-ink);font-weight:600}
+.completion-certificate .cc-status:empty{display:none}
+@media print{.completion-certificate{display:none}}

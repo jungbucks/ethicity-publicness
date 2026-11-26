@@ -498,7 +498,8 @@
   // 다시 하기: 기본은 같은 시나리오, 랜덤은 같은 조건(같은 세팅 번호 → 같은 지도·수요·사건) 또는 새 랜덤 게임. 진행 상태는 모두 새로 만든다
   App.retry = function (kind) {
     var s = App.s, opt = kind === 'new' ? { mode: 'random' } : s.mode === 'default' ? { mode: 'default' } : { mode: s.mode, seed: s.seed };
-    PB.Storage.clearSave();
+    var certificateReset = PB.Storage.clearSave();
+    if (root.GameCertificate) { if (certificateReset) root.GameCertificate.begin(); else root.GameCertificate.block(); }
     App.s = S.create(cfg, opt);
     App._sceneKey = null; App._resultFor = null;
     App.enterPlan();
@@ -506,7 +507,9 @@
   App.startGame = function () {
     var chosen = document.querySelector('input[name=setting]:checked');
     var opt = App.seedParam.mode === 'fixed' ? { mode: 'fixed', seed: App.seedParam.seed } : { mode: chosen ? chosen.value : 'default' };
-    PB.Storage.clearSave(null, { keepDiag: !!App._keepDiag }); App._keepDiag = false; /* 깨진 저장본에서 새 게임: 방금 남긴 진단(버전·오류 분류)만 두고 */
+    var certificateReset = PB.Storage.clearSave(null, { keepDiag: !!App._keepDiag });
+    if (root.GameCertificate) { if (certificateReset) root.GameCertificate.begin(); else root.GameCertificate.block(); }
+    App._keepDiag = false; /* 깨진 저장본에서 새 게임: 방금 남긴 진단(버전·오류 분류)만 두고 */
     App.s = S.create(cfg, opt);
     App._sceneKey = null;
     App.enterPlan();

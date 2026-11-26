@@ -218,6 +218,7 @@
 
     panel.appendChild(el('p', { id: 'end-seed', 'class': 'note' }, '사건 세팅: ' + (s.mode === 'random' ? '랜덤' : s.mode === 'fixed' ? '지정' : '기본') + ' ' + s.seed + ' · 시나리오 ' + cfg.SCENARIO_VERSION));
     panel.appendChild(el('button', { type: 'button', 'class': 'btn', id: 'btn-restart', onclick: function () { $('#confirm-restart').showModal(); } }, '처음부터 다시'));
+    if (root.GameCertificate && s.stage === 'ending' && s.history.length >= cfg.phases.length) root.GameCertificate.mount(panel);
     // Summary is shown first; resident scenes remain available through replay.
     return {};
   };
